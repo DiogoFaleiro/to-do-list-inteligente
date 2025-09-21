@@ -1,0 +1,25 @@
+# VSCode
+.vscode/
+*.code-workspace
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# OneDrive / temporários
+*.lnk
+~$*
+*.tmp
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependências (caso futuramente use npm)
+node_modules/
+
+# Build temporários
+dist/
+build/
