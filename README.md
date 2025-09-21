@@ -17,11 +17,6 @@ Funcionalidades principais:
    git clone https://github.com/DiogoFaleiro/to-do-list-inteligente.git
 
    to-do-list-inteligente/
-│
-├── index.html   # Estrutura principal
-├── style.css    # Estilos
-├── script.js    # Lógica em JavaScript
-└── README.md    # Este arquivo
 
 🎯 Objetivo
 
