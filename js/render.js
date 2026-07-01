@@ -9,8 +9,15 @@
     kanbanView: document.getElementById('kanbanView'),
     taskProjectSelect: document.getElementById('taskProject'),
     themeToggleBtn: document.getElementById('themeToggleBtn'),
-    themeToggleIcon: document.querySelector('#themeToggleBtn .theme-toggle-icon')
+    themeToggleIcon: document.querySelector('#themeToggleBtn .theme-toggle-icon'),
+    mobileViewTitle: document.getElementById('mobileViewTitle'),
+    mobileTaskCount: document.getElementById('mobileTaskCount'),
+    mobileKanbanToggleBtn: document.getElementById('mobileKanbanToggleBtn'),
+    mobileNavToday: document.querySelector('.mobile-nav-btn[data-mobile-tab="today"]'),
+    mobileNavUpcoming: document.querySelector('.mobile-nav-btn[data-mobile-tab="upcoming"]')
   };
+
+  const PERIOD_TITLES = { today: 'Hoje', week: 'Em breve', month: 'Mês', all: 'Todas as tarefas' };
 
   function escapeHtml(str) {
     const div = document.createElement('div');
@@ -163,6 +170,25 @@
     els.viewToggle.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.view === state.ui.view));
     els.listView.hidden = state.ui.view !== 'list';
     els.kanbanView.hidden = state.ui.view !== 'kanban';
+
+    // Cabeçalho e rodapé de navegação mobile
+    if (els.mobileViewTitle) {
+      const project = state.ui.projectFilter !== 'all' ? projectById(state.ui.projectFilter) : null;
+      els.mobileViewTitle.textContent = project ? project.name : PERIOD_TITLES[state.ui.period] || 'Tarefas';
+    }
+    if (els.mobileTaskCount) {
+      const openCount = store.getFilteredTasks().filter((t) => t.status !== 'done').length;
+      els.mobileTaskCount.textContent = `${openCount} tarefa${openCount === 1 ? '' : 's'}`;
+    }
+    if (els.mobileKanbanToggleBtn) {
+      els.mobileKanbanToggleBtn.textContent = state.ui.view === 'kanban' ? '☰' : '▤';
+    }
+    if (els.mobileNavToday) {
+      els.mobileNavToday.classList.toggle('active', state.ui.period === 'today' && state.ui.projectFilter === 'all');
+    }
+    if (els.mobileNavUpcoming) {
+      els.mobileNavUpcoming.classList.toggle('active', state.ui.period === 'week' && state.ui.projectFilter === 'all');
+    }
   }
 
   function resolveEffectiveTheme(pref) {

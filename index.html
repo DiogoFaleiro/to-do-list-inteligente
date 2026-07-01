@@ -92,6 +92,7 @@
         <button id="themeToggleBtn" class="theme-toggle" type="button" aria-label="Alternar tema escuro" aria-pressed="false" title="Alternar tema">
           <span class="theme-toggle-icon" aria-hidden="true">🌙</span>
         </button>
+        <button id="sidebarCloseBtn" class="sidebar-close" type="button" aria-label="Fechar">✕</button>
       </div>
       <button id="newProjectBtn" class="btn-secondary btn-block">+ Novo projeto</button>
       <nav id="projectList" class="project-list"></nav>
@@ -106,6 +107,24 @@
     </aside>
 
     <main class="main">
+      <!-- Cabeçalho compacto, só visível no mobile (≤600px) -->
+      <header class="mobile-title-bar">
+        <div class="mobile-title-text">
+          <h2 id="mobileViewTitle">Hoje</h2>
+          <span id="mobileTaskCount" class="mobile-task-count"></span>
+        </div>
+        <div class="mobile-title-actions">
+          <button id="mobileKanbanToggleBtn" class="mobile-icon-btn" type="button" aria-label="Alternar para Kanban" title="Alternar Lista/Kanban">▤</button>
+          <div class="period-menu-wrap">
+            <button id="periodMenuBtn" class="mobile-icon-btn" type="button" aria-label="Mais filtros" title="Mais filtros">⋮</button>
+            <div id="periodMenu" class="period-menu" hidden>
+              <button type="button" data-period="month">Mês</button>
+              <button type="button" data-period="all">Todas</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
       <header class="toolbar">
         <div class="period-tabs" id="periodTabs">
           <button data-period="today" class="active">Hoje</button>
@@ -138,7 +157,29 @@
           <div class="kanban-cards" data-column="done"></div>
         </div>
       </section>
+
+      <p id="searchPlaceholder" class="empty-state" hidden>🔍 Busca em breve!</p>
     </main>
+
+    <!-- Rodapé de navegação, só visível no mobile (≤600px) -->
+    <nav class="mobile-bottom-nav">
+      <button type="button" class="mobile-nav-btn" data-mobile-tab="today">
+        <span aria-hidden="true">✅</span>
+        <span>Hoje</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-mobile-tab="upcoming">
+        <span aria-hidden="true">📆</span>
+        <span>Em breve</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-mobile-tab="search">
+        <span aria-hidden="true">🔍</span>
+        <span>Buscar</span>
+      </button>
+      <button type="button" class="mobile-nav-btn" data-mobile-tab="browse">
+        <span aria-hidden="true">🗂️</span>
+        <span>Navegar</span>
+      </button>
+    </nav>
   </div>
 
   <!-- Modal de tarefa -->

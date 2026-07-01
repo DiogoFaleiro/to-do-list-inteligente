@@ -39,6 +39,12 @@ html[data-theme='dark'] {
   box-sizing: border-box;
 }
 
+/* Garante que o atributo hidden sempre esconda o elemento, mesmo quando
+   uma regra mais específica (ex: a.btn-secondary) tenta definir display. */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   font-family: 'Segoe UI', Roboto, Arial, sans-serif;
@@ -254,7 +260,7 @@ button {
   gap: 12px;
   background: var(--bg);
   color: var(--text-muted);
-  z-index: 200;
+  z-index: 250;
 }
 
 .auth-loading[hidden] {
@@ -853,7 +859,7 @@ a.btn-danger {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 200;
 }
 
 .modal-overlay[hidden] {
@@ -908,6 +914,101 @@ a.btn-danger {
   margin-top: 6px;
 }
 
+/* Navegação mobile (rodapé, cabeçalho compacto, botão de fechar da sidebar):
+   escondida por padrão; só aparece em telas de celular (ver @media 600px). */
+.sidebar-close,
+.mobile-title-bar,
+.mobile-bottom-nav {
+  display: none;
+}
+
+.mobile-title-text h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.mobile-task-count {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.mobile-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobile-icon-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.period-menu-wrap {
+  position: relative;
+}
+
+.period-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--modal-shadow), 0 10px 30px -10px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  z-index: 160;
+  overflow: hidden;
+}
+
+.period-menu[hidden] {
+  display: none;
+}
+
+.period-menu button {
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.period-menu button:hover {
+  background: var(--bg);
+}
+
+.mobile-nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  padding: 6px 2px;
+  border-radius: 10px;
+}
+
+.mobile-nav-btn span:first-child {
+  font-size: 1.15rem;
+}
+
+.mobile-nav-btn.active {
+  color: var(--primary);
+}
+
 /* Responsivo: tablets (colunas do kanban empilham antes de espremer) */
 @media (max-width: 900px) {
   .kanban-view {
@@ -947,20 +1048,7 @@ a.btn-danger {
 /* Responsivo: celulares */
 @media (max-width: 600px) {
   .main {
-    padding: 14px 16px;
-  }
-
-  .toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .period-tabs {
-    overflow-x: auto;
-  }
-
-  .toolbar-right {
-    justify-content: space-between;
+    padding: 14px 16px calc(132px + env(safe-area-inset-bottom, 0px));
   }
 
   .task-row {
@@ -984,5 +1072,75 @@ a.btn-danger {
     max-height: calc(100vh - 32px);
     overflow-y: auto;
     padding: 18px;
+  }
+
+  /* Esconde os controles de desktop (period-tabs, view-toggle);
+     #newTaskBtn (fixo, vira FAB) e o container do toolbar continuam
+     no DOM normalmente, só ficam vazios/invisíveis visualmente. */
+  #periodTabs,
+  #viewToggle {
+    display: none;
+  }
+
+  .toolbar {
+    margin: 0;
+  }
+
+  #newTaskBtn {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    z-index: 120;
+    border-radius: 999px;
+    box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.35);
+  }
+
+  .mobile-title-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  /* Sidebar vira um painel de tela cheia ("Navegar"), escondido por
+     padrão e mostrado só com a classe .mobile-open. */
+  .sidebar {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 130;
+    max-height: none;
+    border: none;
+    padding: 20px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .sidebar.mobile-open {
+    display: flex;
+  }
+
+  .sidebar-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 120;
+    background: var(--card-bg);
+    border-top: 1px solid var(--border);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
   }
 }

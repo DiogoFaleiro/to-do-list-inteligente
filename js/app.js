@@ -26,6 +26,15 @@
   const listView = document.getElementById('listView');
   const kanbanView = document.getElementById('kanbanView');
 
+  // Navegação mobile (rodapé, sidebar como painel "Navegar", menu de período)
+  const sidebarEl = document.querySelector('.sidebar');
+  const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+  const mobileKanbanToggleBtn = document.getElementById('mobileKanbanToggleBtn');
+  const periodMenuBtn = document.getElementById('periodMenuBtn');
+  const periodMenu = document.getElementById('periodMenu');
+  const searchPlaceholder = document.getElementById('searchPlaceholder');
+  const mobileNavBtns = document.querySelectorAll('.mobile-nav-btn');
+
   // Modal de tarefa
   const taskModal = document.getElementById('taskModal');
   const taskForm = document.getElementById('taskForm');
@@ -113,7 +122,12 @@
       return;
     }
     const item = e.target.closest('[data-project]');
-    if (item) store.setProjectFilter(item.dataset.project);
+    if (item) {
+      store.setProjectFilter(item.dataset.project);
+      hideSearchPlaceholder();
+      setMobileNavActive(null);
+      closeMobileSidebar();
+    }
   });
 
   periodTabs.addEventListener('click', (e) => {
@@ -128,6 +142,78 @@
 
   newTaskBtn.addEventListener('click', () => openTaskModal(null));
   newProjectBtn.addEventListener('click', () => openProjectModal(null));
+
+  // Navegação mobile: sidebar vira painel "Navegar", rodapé fixo, menu ⋮ de período
+  function closeMobileSidebar() {
+    sidebarEl.classList.remove('mobile-open');
+  }
+
+  function openMobileSidebar() {
+    sidebarEl.classList.add('mobile-open');
+  }
+
+  function hideSearchPlaceholder() {
+    searchPlaceholder.hidden = true;
+  }
+
+  function setMobileNavActive(tab) {
+    mobileNavBtns.forEach((btn) => btn.classList.toggle('active', btn.dataset.mobileTab === tab));
+  }
+
+  sidebarCloseBtn.addEventListener('click', closeMobileSidebar);
+
+  mobileKanbanToggleBtn.addEventListener('click', () => {
+    const current = store.getState().ui.view;
+    store.setView(current === 'kanban' ? 'list' : 'kanban');
+  });
+
+  periodMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    periodMenu.hidden = !periodMenu.hidden;
+  });
+
+  periodMenu.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-period]');
+    if (btn) {
+      store.setPeriod(btn.dataset.period);
+      periodMenu.hidden = true;
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!periodMenu.hidden && !e.target.closest('.period-menu-wrap')) {
+      periodMenu.hidden = true;
+    }
+  });
+
+  mobileNavBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.mobileTab;
+      setMobileNavActive(tab);
+      if (tab === 'today') {
+        hideSearchPlaceholder();
+        closeMobileSidebar();
+        store.setProjectFilter('all');
+        store.setPeriod('today');
+      } else if (tab === 'upcoming') {
+        hideSearchPlaceholder();
+        closeMobileSidebar();
+        store.setProjectFilter('all');
+        store.setPeriod('week');
+      } else if (tab === 'search') {
+        closeMobileSidebar();
+        listView.hidden = true;
+        kanbanView.hidden = true;
+        searchPlaceholder.hidden = false;
+      } else if (tab === 'browse') {
+        hideSearchPlaceholder();
+        const view = store.getState().ui.view;
+        listView.hidden = view !== 'list';
+        kanbanView.hidden = view !== 'kanban';
+        openMobileSidebar();
+      }
+    });
+  });
 
   themeToggleBtn.addEventListener('click', () => {
     const current = document.documentElement.getAttribute('data-theme');
