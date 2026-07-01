@@ -1,4 +1,4 @@
-const CACHE_NAME = 'todolist-cache-v2';
+const CACHE_NAME = 'todolist-cache-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -33,18 +33,20 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Rede primeiro (sempre busca a versão mais nova quando online), com o
+// cache como reserva só quando a rede falhar (uso offline do PWA). Evita
+// que o app fique preso servindo uma versão antiga em cache indefinidamente.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
+    fetch(event.request)
+      .then((response) => {
         if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      });
-    })
+      })
+      .catch(() => caches.match(event.request))
   );
 });
