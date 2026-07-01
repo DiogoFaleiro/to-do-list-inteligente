@@ -347,6 +347,31 @@ button {
   cursor: grabbing;
 }
 
+.kanban-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kanban-card-header .task-title {
+  flex: 1;
+}
+
+.kanban-delete {
+  border: none;
+  background: none;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.kanban-delete:hover {
+  background: var(--border);
+}
+
 .empty-column {
   color: var(--text-muted);
   font-size: 0.85rem;

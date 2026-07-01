@@ -202,6 +202,11 @@
   });
 
   kanbanView.addEventListener('click', (e) => {
+    const delBtn = e.target.closest('[data-delete-task]');
+    if (delBtn) {
+      if (confirm('Excluir esta tarefa?')) store.deleteTask(delBtn.dataset.deleteTask);
+      return;
+    }
     const card = e.target.closest('.kanban-card');
     if (card) {
       const task = store.getState().tasks.find((t) => t.id === card.dataset.taskId);

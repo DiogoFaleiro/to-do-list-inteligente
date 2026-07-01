@@ -120,7 +120,10 @@
           .map(
             (task) => `
         <div class="kanban-card" draggable="true" data-task-id="${task.id}">
-          <div class="task-title">${escapeHtml(task.title)}</div>
+          <div class="kanban-card-header">
+            <div class="task-title">${escapeHtml(task.title)}</div>
+            <button type="button" class="kanban-delete" data-delete-task="${task.id}" title="Excluir">🗑️</button>
+          </div>
           <div class="task-meta">${taskMetaHtml(task)}</div>
         </div>`
           )
