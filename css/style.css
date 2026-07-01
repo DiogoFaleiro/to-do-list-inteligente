@@ -469,6 +469,32 @@ button {
   background: var(--border);
 }
 
+.kanban-move {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.kanban-move-btn {
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.kanban-move-btn:hover:not(:disabled) {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.kanban-move-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .empty-column {
   color: var(--text-muted);
   font-size: 0.85rem;
@@ -539,7 +565,30 @@ button {
   margin-top: 6px;
 }
 
-/* Responsivo */
+/* Responsivo: tablets (colunas do kanban empilham antes de espremer) */
+@media (max-width: 900px) {
+  .kanban-view {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-toggle,
+  .task-actions button,
+  .kanban-delete,
+  .kanban-move-btn,
+  .edit-project {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .task-actions button,
+  .kanban-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Responsivo: sidebar empilha acima do conteúdo principal */
 @media (max-width: 760px) {
   .app {
     grid-template-columns: 1fr;
@@ -547,8 +596,50 @@ button {
   .sidebar {
     border-right: none;
     border-bottom: 1px solid var(--border);
+    max-height: 40vh;
+    overflow-y: auto;
   }
+}
+
+/* Responsivo: celulares */
+@media (max-width: 600px) {
+  .main {
+    padding: 14px 16px;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .period-tabs {
+    overflow-x: auto;
+  }
+
+  .toolbar-right {
+    justify-content: space-between;
+  }
+
+  .task-row {
+    flex-wrap: wrap;
+  }
+
+  .task-actions {
+    margin-left: auto;
+  }
+
   .kanban-view {
-    grid-template-columns: repeat(3, minmax(220px, 1fr));
+    grid-template-columns: 1fr;
+  }
+
+  .modal-overlay {
+    align-items: flex-end;
+  }
+
+  .modal {
+    max-width: calc(100% - 32px);
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    padding: 18px;
   }
 }

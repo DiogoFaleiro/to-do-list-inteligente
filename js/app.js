@@ -218,6 +218,11 @@
       if (confirm('Excluir esta tarefa?')) store.deleteTask(delBtn.dataset.deleteTask);
       return;
     }
+    const moveBtn = e.target.closest('[data-move-task]');
+    if (moveBtn) {
+      if (moveBtn.dataset.moveStatus) store.setTaskStatus(moveBtn.dataset.moveTask, moveBtn.dataset.moveStatus);
+      return;
+    }
     const card = e.target.closest('.kanban-card');
     if (card) {
       const task = store.getState().tasks.find((t) => t.id === card.dataset.taskId);

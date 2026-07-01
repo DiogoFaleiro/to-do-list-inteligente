@@ -106,6 +106,20 @@
       .join('');
   }
 
+  const KANBAN_ORDER = ['todo', 'doing', 'done'];
+  const KANBAN_LABELS = { todo: 'A Fazer', doing: 'Fazendo', done: 'Concluído' };
+
+  function kanbanMoveButtonsHtml(task) {
+    const index = KANBAN_ORDER.indexOf(task.status);
+    const prevStatus = KANBAN_ORDER[index - 1];
+    const nextStatus = KANBAN_ORDER[index + 1];
+    return `
+      <div class="kanban-move">
+        <button type="button" class="kanban-move-btn" data-move-task="${task.id}" data-move-status="${prevStatus || ''}" ${prevStatus ? '' : 'disabled'} title="${prevStatus ? `Mover para ${KANBAN_LABELS[prevStatus]}` : ''}">←</button>
+        <button type="button" class="kanban-move-btn" data-move-task="${task.id}" data-move-status="${nextStatus || ''}" ${nextStatus ? '' : 'disabled'} title="${nextStatus ? `Mover para ${KANBAN_LABELS[nextStatus]}` : ''}">→</button>
+      </div>`;
+  }
+
   function renderKanban() {
     const tasks = sortTasks(store.getFilteredTasks());
     const columns = { todo: [], doing: [], done: [] };
@@ -127,6 +141,7 @@
             <button type="button" class="kanban-delete" data-delete-task="${task.id}" title="Excluir">🗑️</button>
           </div>
           <div class="task-meta">${taskMetaHtml(task)}</div>
+          ${kanbanMoveButtonsHtml(task)}
         </div>`
           )
           .join('') || `<p class="empty-column">Vazio</p>`;
