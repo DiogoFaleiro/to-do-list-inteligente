@@ -9,8 +9,7 @@
     kanbanView: document.getElementById('kanbanView'),
     taskProjectSelect: document.getElementById('taskProject'),
     themeToggleBtn: document.getElementById('themeToggleBtn'),
-    themeToggleIcon: document.querySelector('#themeToggleBtn .theme-toggle-icon'),
-    adminPanelBody: document.getElementById('adminPanelBody')
+    themeToggleIcon: document.querySelector('#themeToggleBtn .theme-toggle-icon')
   };
 
   function escapeHtml(str) {
@@ -195,39 +194,10 @@
     }
   }
 
-  const ADMIN_STAT_LABELS = [
-    { key: 'total_users', label: 'Usuários cadastrados' },
-    { key: 'total_tasks_done', label: 'Tarefas concluídas' },
-    { key: 'total_tasks_active', label: 'Tarefas ativas' },
-    { key: 'active_users_7d', label: 'Usuários ativos (7 dias)' },
-    { key: 'avg_tasks_per_user', label: 'Média de tarefas por usuário' }
-  ];
-
-  function renderAdminLoading() {
-    els.adminPanelBody.innerHTML = `<p class="admin-stats-loading">Carregando métricas...</p>`;
-  }
-
-  function renderAdminError(message) {
-    els.adminPanelBody.innerHTML = `<p class="auth-error">${escapeHtml(message)}</p>`;
-  }
-
-  function renderAdminStats(stats) {
-    els.adminPanelBody.innerHTML = ADMIN_STAT_LABELS.map(
-      ({ key, label }) => `
-      <div class="admin-stat-card">
-        <div class="admin-stat-value">${escapeHtml(stats[key])}</div>
-        <div class="admin-stat-label">${label}</div>
-      </div>`
-    ).join('');
-  }
-
   App.render = {
     renderAll,
     renderTaskProjectOptions,
     projectById,
-    applyTheme,
-    renderAdminLoading,
-    renderAdminError,
-    renderAdminStats
+    applyTheme
   };
 })(window.App = window.App || {});

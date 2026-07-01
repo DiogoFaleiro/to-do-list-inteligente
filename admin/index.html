@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel Admin — To-Do List Inteligente</title>
+  <link rel="icon" href="../icons/favicon.ico" sizes="any">
+  <meta name="theme-color" content="#6c5ce7">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/admin.css">
+  <script>
+    (function () {
+      try {
+        var raw = localStorage.getItem('todolist.ui.v1');
+        var parsed = raw ? JSON.parse(raw) : null;
+        var pref = parsed && parsed.theme;
+        if (!pref || pref === 'system') {
+          pref = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', pref);
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <div id="adminLoadingScreen" class="auth-loading">
+    <div class="auth-loading-spinner" aria-hidden="true"></div>
+    <p>Carregando painel...</p>
+  </div>
+
+  <div id="adminAccessDenied" class="admin-denied" hidden>
+    <p>Você não tem acesso a esta página.</p>
+    <a class="btn-primary" href="../index.html">Voltar para o app</a>
+  </div>
+
+  <div id="adminDashboard" class="admin-dashboard" hidden>
+    <header class="admin-header">
+      <div class="admin-header-title">
+        <img src="../icons/icon-192.png" alt="" class="admin-header-logo">
+        <h1>Painel Admin</h1>
+      </div>
+      <div class="admin-header-actions">
+        <a href="../index.html" class="btn-secondary">← Voltar ao app</a>
+        <button id="adminLogoutBtn" class="btn-link" type="button">Sair</button>
+      </div>
+    </header>
+
+    <main class="admin-main">
+      <section id="adminStatsGrid" class="admin-stats"></section>
+
+      <section class="admin-chart-card">
+        <h2>Tarefas concluídas por dia da semana</h2>
+        <canvas id="adminWeekdayChart" height="110"></canvas>
+      </section>
+
+      <section class="admin-users-card">
+        <h2>Usuários cadastrados</h2>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>E-mail</th>
+                <th>Cadastrado em</th>
+                <th>Projetos</th>
+                <th>Tarefas ativas</th>
+                <th>Tarefas concluídas</th>
+                <th>Papel</th>
+              </tr>
+            </thead>
+            <tbody id="adminUsersTbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="../js/supabaseClient.js"></script>
+  <script src="../js/api.js"></script>
+  <script src="../js/adminDashboard.js"></script>
+</body>
+</html>

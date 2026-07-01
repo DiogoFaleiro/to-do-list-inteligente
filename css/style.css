@@ -510,22 +510,11 @@ button {
   }
 }
 
-/* Painel super admin */
-.admin-modal {
-  max-width: 480px;
-}
-
+/* Painel super admin: cards de métricas (compartilhado com admin.css) */
 .admin-stats {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 12px;
-}
-
-.admin-stats-loading {
-  grid-column: 1 / -1;
-  text-align: center;
-  color: var(--text-muted);
-  margin: 12px 0;
 }
 
 .admin-stat-card {
@@ -604,6 +593,16 @@ button {
   border-radius: var(--radius);
   padding: 9px 16px;
   font-size: 0.9rem;
+}
+
+/* Permite usar essas classes também em <a>, mantendo a aparência de botão */
+a.btn-primary,
+a.btn-secondary,
+a.btn-danger {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .btn-primary {

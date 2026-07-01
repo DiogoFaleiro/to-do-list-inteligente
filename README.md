@@ -11,6 +11,7 @@ Aplicação de lista de tarefas feita com **HTML, CSS e JavaScript puro** (sem f
 - ✅ Marcar tarefas como concluídas
 - 🔁 Tarefas recorrentes (diárias) reabrem automaticamente todo dia
 - 🔐 **Login e cadastro** (e-mail/senha via Supabase Auth) — cada usuário só vê suas próprias tarefas e projetos
+- 📊 **Painel Super Admin** (`/admin`) com métricas gerais, gráfico de tarefas concluídas por dia da semana e lista de todos os usuários cadastrados
 - 📱 Layout responsivo para tablets e celulares
 - 📲 Instalável como **PWA** (ícone próprio, funciona offline via service worker)
 
@@ -20,7 +21,7 @@ Aplicação de lista de tarefas feita com **HTML, CSS e JavaScript puro** (sem f
    ```bash
    git clone https://github.com/DiogoFaleiro/to-do-list-inteligente.git
    ```
-2. Crie um projeto gratuito em [supabase.com](https://supabase.com) e rode o SQL de `supabase/migrations/0001_init.sql` no **SQL Editor** do seu projeto (cria as tabelas, as regras de segurança e o super admin automático).
+2. Crie um projeto gratuito em [supabase.com](https://supabase.com) e rode, na ordem, os SQLs de `supabase/migrations/0001_init.sql` e `supabase/migrations/0002_admin_dashboard.sql` no **SQL Editor** do seu projeto (criam as tabelas, as regras de segurança, o super admin automático e as métricas do painel admin).
 3. Configure a URL e a chave pública (`anon`/`publishable`) do seu projeto em `js/supabaseClient.js`.
 4. Abra `index.html` diretamente no navegador, ou sirva a pasta com um servidor local (ex: extensão *Live Server* do VS Code, ou `npx serve`) — necessário para o service worker funcionar.
 
@@ -30,8 +31,11 @@ Aplicação de lista de tarefas feita com **HTML, CSS e JavaScript puro** (sem f
 index.html
 manifest.json  -> manifesto do PWA (nome, ícones, cores)
 sw.js          -> service worker (cache do app shell)
+admin/
+  index.html   -> painel super admin (rota /admin, acesso restrito a is_admin)
 css/
   style.css
+  admin.css    -> layout específico do painel admin
 js/
   utils.js           -> funções de data/id
   localPrefs.js      -> preferências locais de UI (tema, view, filtro) no localStorage
@@ -41,12 +45,14 @@ js/
   store.js           -> estado da aplicação e regras de negócio (mutações otimistas)
   render.js          -> renderização da UI (sidebar, lista, kanban)
   app.js             -> eventos de interface, autenticação e inicialização
+  adminDashboard.js  -> guarda de acesso, gráfico (Chart.js) e tabela do painel admin
 supabase/
-  migrations/0001_init.sql -> schema, RLS, triggers e RPC de métricas do Supabase
+  migrations/0001_init.sql        -> schema, RLS, triggers e super admin
+  migrations/0002_admin_dashboard.sql -> RPCs de métricas por dia da semana e lista de usuários
 logo/
   1.png, 1.ico -> arte original da logo
 icons/
-  favicon.ico, icon-192.png, icon-512.png, icon-512-maskable.png, apple-touch-icon.png
+  favicon.ico, icon-192.png, icon-512.png, icon-512-maskable.png, apple-touch-icon.png, social-preview.png
 ```
 
 ## 🎯 Objetivo

@@ -97,7 +97,7 @@
       <nav id="projectList" class="project-list"></nav>
 
       <div class="sidebar-footer">
-        <button id="adminPanelBtn" class="btn-secondary btn-block" hidden>📊 Painel Admin</button>
+        <a id="adminPanelBtn" class="btn-secondary btn-block" href="admin/index.html" hidden>📊 Painel Admin</a>
         <div class="user-indicator">
           <span id="userEmailLabel" class="user-email" title=""></span>
           <button id="logoutBtn" class="btn-link">Sair</button>
@@ -191,19 +191,6 @@
         <button type="submit" class="btn-primary">Salvar</button>
       </div>
     </form>
-  </div>
-
-  <!-- Painel super admin: métricas gerais do app -->
-  <div id="adminModal" class="modal-overlay" hidden>
-    <div class="modal admin-modal">
-      <h2>Painel Admin</h2>
-      <div id="adminPanelBody" class="admin-stats">
-        <p class="admin-stats-loading">Carregando métricas...</p>
-      </div>
-      <div class="modal-actions">
-        <button type="button" id="adminModalCloseBtn" class="btn-secondary">Fechar</button>
-      </div>
-    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

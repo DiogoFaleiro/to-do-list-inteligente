@@ -1,5 +1,5 @@
 (function (App) {
-  const { store, render, auth, migrate, api } = App;
+  const { store, render, auth, migrate } = App;
 
   // Autenticação
   const authLoadingScreen = document.getElementById('authLoadingScreen');
@@ -16,8 +16,6 @@
   const userEmailLabel = document.getElementById('userEmailLabel');
   const logoutBtn = document.getElementById('logoutBtn');
   const adminPanelBtn = document.getElementById('adminPanelBtn');
-  const adminModal = document.getElementById('adminModal');
-  const adminModalCloseBtn = document.getElementById('adminModalCloseBtn');
 
   const projectListEl = document.getElementById('projectList');
   const periodTabs = document.getElementById('periodTabs');
@@ -367,25 +365,8 @@
     auth.signOut();
   });
 
-  adminPanelBtn.addEventListener('click', async () => {
-    adminModal.hidden = false;
-    render.renderAdminLoading();
-    try {
-      const stats = await api.fetchAdminStats();
-      render.renderAdminStats(stats);
-    } catch (err) {
-      console.error('Falha ao carregar métricas do admin', err);
-      render.renderAdminError('Não foi possível carregar as métricas. Tente novamente.');
-    }
-  });
-
-  adminModalCloseBtn.addEventListener('click', () => {
-    adminModal.hidden = true;
-  });
-
-  adminModal.addEventListener('click', (e) => {
-    if (e.target === adminModal) adminModal.hidden = true;
-  });
+  // O botão "Painel Admin" agora é um link direto para admin/index.html
+  // (visibilidade controlada em enterApp, conforme profile.is_admin).
 
   store.setAuthErrorHandler(() => {
     auth.signOut();

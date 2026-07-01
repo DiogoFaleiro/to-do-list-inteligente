@@ -86,6 +86,18 @@
     return data;
   }
 
+  async function fetchAdminTasksByWeekday() {
+    const { data, error } = await supabaseClient.rpc('admin_tasks_by_weekday');
+    if (error) throw error;
+    return data || [];
+  }
+
+  async function fetchAdminUserList() {
+    const { data, error } = await supabaseClient.rpc('admin_user_list');
+    if (error) throw error;
+    return data || [];
+  }
+
   App.api = {
     fetchProjects,
     fetchTasks,
@@ -99,6 +111,8 @@
     updateTaskStatusRow,
     insertProjectsBatch,
     insertTasksBatch,
-    fetchAdminStats
+    fetchAdminStats,
+    fetchAdminTasksByWeekday,
+    fetchAdminUserList
   };
 })(window.App = window.App || {});
