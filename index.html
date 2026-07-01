@@ -246,7 +246,15 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch((err) => console.error('Falha ao registrar service worker', err));
+        navigator.serviceWorker
+          .register('sw.js')
+          .then((reg) => {
+            // O navegador só verifica automaticamente por uma versão nova do
+            // service worker a cada ~24h. Forçamos essa checagem em toda
+            // carga de página para não ficar preso numa versão antiga.
+            reg.update();
+          })
+          .catch((err) => console.error('Falha ao registrar service worker', err));
       });
     }
   </script>
