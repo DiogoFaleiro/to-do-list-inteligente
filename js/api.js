@@ -98,6 +98,29 @@
     return data || [];
   }
 
+  function updateProfile(userId, { displayName, avatarUrl }) {
+    const payload = {};
+    if (displayName !== undefined) payload.display_name = displayName;
+    if (avatarUrl !== undefined) payload.avatar_url = avatarUrl;
+    return supabaseClient.from('profiles').update(payload).eq('id', userId).select().single();
+  }
+
+  async function uploadAvatar(userId, file) {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const path = `${userId}/avatar.${ext}`;
+    const { error: uploadError } = await supabaseClient.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true, contentType: file.type });
+    if (uploadError) throw uploadError;
+
+    const {
+      data: { publicUrl }
+    } = supabaseClient.storage.from('avatars').getPublicUrl(path);
+    // Cache-busting: o caminho é sempre o mesmo (upsert), então sem isso o
+    // navegador poderia continuar mostrando a foto antiga em cache.
+    return `${publicUrl}?t=${Date.now()}`;
+  }
+
   App.api = {
     fetchProjects,
     fetchTasks,
@@ -113,6 +136,8 @@
     insertTasksBatch,
     fetchAdminStats,
     fetchAdminTasksByWeekday,
-    fetchAdminUserList
+    fetchAdminUserList,
+    updateProfile,
+    uploadAvatar
   };
 })(window.App = window.App || {});

@@ -1,5 +1,5 @@
 (function (App) {
-  const { store, render, auth, migrate } = App;
+  const { store, render, auth, migrate, api } = App;
 
   // Autenticação
   const authLoadingScreen = document.getElementById('authLoadingScreen');
@@ -13,21 +13,18 @@
   const authSubmitBtn = document.getElementById('authSubmitBtn');
   const authSwitchText = document.getElementById('authSwitchText');
   const authSwitchBtn = document.getElementById('authSwitchBtn');
-  const userEmailLabel = document.getElementById('userEmailLabel');
-  const logoutBtn = document.getElementById('logoutBtn');
-  const adminPanelBtn = document.getElementById('adminPanelBtn');
 
   const projectListEl = document.getElementById('projectList');
   const periodTabs = document.getElementById('periodTabs');
   const viewToggle = document.getElementById('viewToggle');
   const newTaskBtn = document.getElementById('newTaskBtn');
   const newProjectBtn = document.getElementById('newProjectBtn');
-  const themeToggleBtn = document.getElementById('themeToggleBtn');
   const listView = document.getElementById('listView');
   const kanbanView = document.getElementById('kanbanView');
 
   // Navegação mobile (rodapé, sidebar como painel "Navegar", menu de período)
   const sidebarEl = document.querySelector('.sidebar');
+  const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
   const mobileKanbanToggleBtn = document.getElementById('mobileKanbanToggleBtn');
   const periodMenuBtn = document.getElementById('periodMenuBtn');
   const periodMenu = document.getElementById('periodMenu');
@@ -42,6 +39,23 @@
   const accountThemeBtn = document.getElementById('accountThemeBtn');
   const accountAdminBtn = document.getElementById('accountAdminBtn');
   const accountLogoutBtn = document.getElementById('accountLogoutBtn');
+
+  // Modal "Minha conta" (nome, foto, senha)
+  const accountModal = document.getElementById('accountModal');
+  const accountForm = document.getElementById('accountForm');
+  const accountFormError = document.getElementById('accountFormError');
+  const accountAvatarPreviewBtn = document.getElementById('accountAvatarPreviewBtn');
+  const accountAvatarLetter = document.getElementById('accountAvatarLetter');
+  const accountAvatarInput = document.getElementById('accountAvatarInput');
+  const accountNameInput = document.getElementById('accountNameInput');
+  const accountNewPasswordInput = document.getElementById('accountNewPasswordInput');
+  const accountConfirmPasswordInput = document.getElementById('accountConfirmPasswordInput');
+  const accountCancelBtn = document.getElementById('accountCancelBtn');
+  const accountSaveBtn = document.getElementById('accountSaveBtn');
+
+  let currentUser = null;
+  let currentProfile = null;
+  let pendingAvatarFile = null;
 
   // Modal de tarefa
   const taskModal = document.getElementById('taskModal');
@@ -215,6 +229,98 @@
     }
   });
 
+  // Modal "Minha conta": editar nome, foto e senha
+  function openAccountModal() {
+    pendingAvatarFile = null;
+    accountForm.reset();
+    accountFormError.hidden = true;
+    accountFormError.classList.remove('info');
+
+    const displayName = (currentProfile && currentProfile.display_name) || currentUser.email.split('@')[0];
+    const avatarUrl = currentProfile && currentProfile.avatar_url;
+    accountNameInput.value = displayName;
+    setAvatarBackground(accountAvatarPreviewBtn, avatarUrl);
+    accountAvatarLetter.textContent = avatarUrl ? '' : displayName.charAt(0).toUpperCase();
+
+    accountModal.hidden = false;
+  }
+
+  function closeAccountModal() {
+    accountModal.hidden = true;
+  }
+
+  sidebarAvatar.addEventListener('click', openAccountModal);
+  accountCancelBtn.addEventListener('click', closeAccountModal);
+
+  accountModal.addEventListener('click', (e) => {
+    if (e.target === accountModal) closeAccountModal();
+  });
+
+  accountAvatarPreviewBtn.addEventListener('click', () => accountAvatarInput.click());
+
+  accountAvatarInput.addEventListener('change', () => {
+    const file = accountAvatarInput.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      accountFormError.hidden = false;
+      accountFormError.textContent = 'A imagem deve ter no máximo 2MB.';
+      accountAvatarInput.value = '';
+      return;
+    }
+    pendingAvatarFile = file;
+    const reader = new FileReader();
+    reader.onload = () => {
+      accountAvatarPreviewBtn.style.backgroundImage = `url("${reader.result}")`;
+      accountAvatarLetter.textContent = '';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  accountForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    accountFormError.hidden = true;
+    accountFormError.classList.remove('info');
+
+    const newPassword = accountNewPasswordInput.value;
+    const confirmPassword = accountConfirmPasswordInput.value;
+    if (newPassword && newPassword !== confirmPassword) {
+      accountFormError.hidden = false;
+      accountFormError.textContent = 'As senhas não coincidem.';
+      return;
+    }
+
+    accountSaveBtn.disabled = true;
+    try {
+      let avatarUrl = currentProfile && currentProfile.avatar_url;
+      if (pendingAvatarFile) {
+        avatarUrl = await api.uploadAvatar(currentUser.id, pendingAvatarFile);
+      }
+
+      const displayName = accountNameInput.value.trim();
+      const { data: updatedProfile, error } = await api.updateProfile(currentUser.id, {
+        displayName: displayName || null,
+        avatarUrl
+      });
+      if (error) throw error;
+      currentProfile = updatedProfile;
+
+      if (newPassword) {
+        const { error: passwordError } = await auth.updatePassword(newPassword);
+        if (passwordError) throw passwordError;
+      }
+
+      pendingAvatarFile = null;
+      renderAccountDisplay();
+      closeAccountModal();
+    } catch (err) {
+      console.error('Falha ao salvar a conta', err);
+      accountFormError.hidden = false;
+      accountFormError.textContent = 'Não foi possível salvar. Tente novamente.';
+    } finally {
+      accountSaveBtn.disabled = false;
+    }
+  });
+
   mobileNavBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.mobileTab;
@@ -244,7 +350,10 @@
     });
   });
 
-  themeToggleBtn.addEventListener('click', toggleTheme);
+  sidebarToggleBtn.addEventListener('click', () => {
+    appEl.classList.toggle('sidebar-collapsed');
+    sidebarToggleBtn.textContent = appEl.classList.contains('sidebar-collapsed') ? '»' : '«';
+  });
 
   const darkSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
   darkSchemeQuery.addEventListener('change', () => {
@@ -362,6 +471,7 @@
     if (e.key === 'Escape') {
       closeTaskModal();
       closeProjectModal();
+      closeAccountModal();
     }
   });
 
@@ -417,18 +527,26 @@
     return message;
   }
 
+  function setAvatarBackground(el, avatarUrl) {
+    el.style.backgroundImage = avatarUrl ? `url("${avatarUrl}")` : '';
+  }
+
+  function renderAccountDisplay() {
+    const displayName = (currentProfile && currentProfile.display_name) || currentUser.email.split('@')[0];
+    const avatarUrl = currentProfile && currentProfile.avatar_url;
+    sidebarAccountName.textContent = displayName;
+    setAvatarBackground(sidebarAvatar, avatarUrl);
+    sidebarAvatar.textContent = avatarUrl ? '' : displayName.charAt(0).toUpperCase();
+  }
+
   async function enterApp(user) {
     showAuthLoading();
     try {
       const profile = await auth.getCurrentProfile(user.id);
-      userEmailLabel.textContent = user.email;
-      userEmailLabel.title = user.email;
-      adminPanelBtn.hidden = !profile.is_admin;
+      currentUser = user;
+      currentProfile = profile;
       accountAdminBtn.hidden = !profile.is_admin;
-
-      const displayName = user.email.split('@')[0];
-      sidebarAccountName.textContent = displayName;
-      sidebarAvatar.textContent = displayName.charAt(0).toUpperCase();
+      renderAccountDisplay();
 
       await migrate.migrateIfNeeded(user.id);
       ensureSubscribed();
@@ -478,12 +596,9 @@
     }
   });
 
-  logoutBtn.addEventListener('click', () => {
-    auth.signOut();
-  });
-
-  // O botão "Painel Admin" agora é um link direto para admin/index.html
-  // (visibilidade controlada em enterApp, conforme profile.is_admin).
+  // Logout, tema e "Painel Admin" ficam no menu de engrenagem da linha de
+  // conta (accountLogoutBtn/accountThemeBtn/accountAdminBtn), visibilidade
+  // do admin controlada em enterApp conforme profile.is_admin.
 
   store.setAuthErrorHandler(() => {
     auth.signOut();
@@ -504,6 +619,8 @@
       if (event === 'SIGNED_IN' && newSession && newSession.user) {
         enterApp(newSession.user);
       } else if (event === 'SIGNED_OUT') {
+        currentUser = null;
+        currentProfile = null;
         store.clearState();
         showAuthScreen();
       }

@@ -30,6 +30,10 @@
     return data;
   }
 
+  function updatePassword(newPassword) {
+    return client.auth.updateUser({ password: newPassword });
+  }
+
   App.supabaseClient = client;
   App.auth = {
     signUp,
@@ -37,6 +41,7 @@
     signOut,
     getSession,
     onAuthStateChange,
-    getCurrentProfile
+    getCurrentProfile,
+    updatePassword
   };
 })(window.App = window.App || {});

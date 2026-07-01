@@ -8,8 +8,7 @@
     listView: document.getElementById('listView'),
     kanbanView: document.getElementById('kanbanView'),
     taskProjectSelect: document.getElementById('taskProject'),
-    themeToggleBtn: document.getElementById('themeToggleBtn'),
-    themeToggleIcon: document.querySelector('#themeToggleBtn .theme-toggle-icon'),
+    accountThemeIcon: document.getElementById('accountThemeIcon'),
     mobileViewTitle: document.getElementById('mobileViewTitle'),
     mobileTaskCount: document.getElementById('mobileTaskCount'),
     mobileKanbanToggleBtn: document.getElementById('mobileKanbanToggleBtn'),
@@ -200,11 +199,8 @@
     const pref = store.getState().ui.theme;
     const effective = resolveEffectiveTheme(pref);
     document.documentElement.setAttribute('data-theme', effective);
-    if (els.themeToggleBtn) {
-      els.themeToggleBtn.setAttribute('aria-pressed', String(effective === 'dark'));
-    }
-    if (els.themeToggleIcon) {
-      els.themeToggleIcon.textContent = effective === 'dark' ? '☀️' : '🌙';
+    if (els.accountThemeIcon) {
+      els.accountThemeIcon.textContent = effective === 'dark' ? '☀️' : '🌙';
     }
   }
 

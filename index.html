@@ -87,23 +87,17 @@
 
   <div class="app" hidden>
     <aside class="sidebar">
-      <div class="sidebar-header">
-        <h1>📝 Minhas Tarefas</h1>
-        <button id="themeToggleBtn" class="theme-toggle" type="button" aria-label="Alternar tema escuro" aria-pressed="false" title="Alternar tema">
-          <span class="theme-toggle-icon" aria-hidden="true">🌙</span>
-        </button>
-      </div>
-
-      <!-- Linha de conta, só visível no painel "Navegar" do mobile -->
+      <!-- Linha de conta: avatar + nome + menu de configurações. Mesmo
+           padrão em qualquer tamanho de tela (mobile, tablet, desktop). -->
       <div class="sidebar-account-row">
         <div class="sidebar-account-info">
-          <span id="sidebarAvatar" class="sidebar-avatar"></span>
+          <button id="sidebarAvatar" class="sidebar-avatar" type="button" aria-label="Minha conta" title="Minha conta"></button>
           <span id="sidebarAccountName" class="sidebar-account-name"></span>
         </div>
         <div class="period-menu-wrap">
           <button id="accountMenuBtn" class="mobile-icon-btn" type="button" aria-label="Configurações da conta" title="Configurações">⚙️</button>
           <div id="accountMenu" class="period-menu" hidden>
-            <button type="button" id="accountThemeBtn">🌙 Alternar tema</button>
+            <button type="button" id="accountThemeBtn"><span id="accountThemeIcon" aria-hidden="true">🌙</span> Alternar tema</button>
             <a id="accountAdminBtn" href="admin/index.html" hidden>📊 Painel Admin</a>
             <button type="button" id="accountLogoutBtn">Sair</button>
           </div>
@@ -113,14 +107,6 @@
       <button id="newProjectBtn" class="btn-secondary btn-block">+ Novo projeto</button>
       <p class="sidebar-section-label">Meus projetos</p>
       <nav id="projectList" class="project-list"></nav>
-
-      <div class="sidebar-footer">
-        <a id="adminPanelBtn" class="btn-secondary btn-block" href="admin/index.html" hidden>📊 Painel Admin</a>
-        <div class="user-indicator">
-          <span id="userEmailLabel" class="user-email" title=""></span>
-          <button id="logoutBtn" class="btn-link">Sair</button>
-        </div>
-      </div>
     </aside>
 
     <main class="main">
@@ -143,6 +129,7 @@
       </header>
 
       <header class="toolbar">
+        <button id="sidebarToggleBtn" class="mobile-icon-btn sidebar-toggle-btn" type="button" aria-label="Mostrar/ocultar barra lateral" title="Mostrar/ocultar barra lateral">«</button>
         <div class="period-tabs" id="periodTabs">
           <button data-period="today" class="active">Hoje</button>
           <button data-period="week">Semana</button>
@@ -247,6 +234,39 @@
         <button type="button" id="projectDeleteBtn" class="btn-danger" hidden>Excluir projeto</button>
         <button type="button" id="projectCancelBtn" class="btn-secondary">Cancelar</button>
         <button type="submit" class="btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Modal "Minha conta": nome, foto e senha -->
+  <div id="accountModal" class="modal-overlay" hidden>
+    <form id="accountForm" class="modal">
+      <h2>Minha conta</h2>
+      <p id="accountFormError" class="auth-error" hidden></p>
+
+      <div class="account-avatar-edit">
+        <button type="button" id="accountAvatarPreviewBtn" class="account-avatar-preview" aria-label="Trocar foto" title="Trocar foto">
+          <span id="accountAvatarLetter"></span>
+          <span class="account-avatar-edit-badge" aria-hidden="true">📷</span>
+        </button>
+        <input type="file" id="accountAvatarInput" accept="image/*" hidden>
+      </div>
+
+      <label>Nome
+        <input type="text" id="accountNameInput" maxlength="60" placeholder="Seu nome">
+      </label>
+
+      <label>Nova senha
+        <input type="password" id="accountNewPasswordInput" minlength="6" autocomplete="new-password" placeholder="Deixe em branco para não alterar">
+      </label>
+
+      <label>Confirmar nova senha
+        <input type="password" id="accountConfirmPasswordInput" minlength="6" autocomplete="new-password" placeholder="Repita a nova senha">
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="accountCancelBtn" class="btn-secondary">Cancelar</button>
+        <button type="submit" id="accountSaveBtn" class="btn-primary">Salvar</button>
       </div>
     </form>
   </div>
