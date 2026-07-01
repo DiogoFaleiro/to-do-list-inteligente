@@ -47,27 +47,42 @@
   </div>
 
   <div id="authScreen" class="auth-screen" hidden>
-    <form id="authForm" class="modal auth-form">
-      <h2 id="authFormTitle">Entrar</h2>
-      <p id="authFormError" class="auth-error" hidden></p>
+    <div class="auth-card">
+      <div class="auth-panel auth-panel-form">
+        <img src="icons/icon-192.png" alt="To-Do List Inteligente" class="auth-logo">
+        <h2 id="authFormTitle" class="auth-title">Bem-vindo(a) de volta!</h2>
+        <p class="auth-subtitle">Seu dia a dia mais organizado.</p>
 
-      <label>E-mail
-        <input type="email" id="authEmail" required autocomplete="email" placeholder="voce@email.com">
-      </label>
+        <form id="authForm" class="auth-form">
+          <p id="authFormError" class="auth-error" hidden></p>
 
-      <label>Senha
-        <input type="password" id="authPassword" required minlength="6" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
-      </label>
+          <label>E-mail
+            <input type="email" id="authEmail" required autocomplete="email" placeholder="voce@email.com">
+          </label>
 
-      <div class="modal-actions">
-        <button type="submit" id="authSubmitBtn" class="btn-primary btn-block">Entrar</button>
+          <label>Senha
+            <input type="password" id="authPassword" required minlength="6" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
+          </label>
+
+          <button type="submit" id="authSubmitBtn" class="btn-primary btn-block">Entrar</button>
+        </form>
+
+        <p class="auth-switch">
+          <span id="authSwitchText">Não tem uma conta?</span>
+          <button type="button" id="authSwitchBtn" class="btn-link">Criar conta</button>
+        </p>
       </div>
 
-      <p class="auth-switch">
-        <span id="authSwitchText">Não tem uma conta?</span>
-        <button type="button" id="authSwitchBtn" class="btn-link">Criar conta</button>
-      </p>
-    </form>
+      <div class="auth-panel auth-panel-visual" aria-hidden="true">
+        <div class="auth-blob auth-blob-1"></div>
+        <div class="auth-blob auth-blob-2"></div>
+        <img src="icons/icon-512.png" alt="" class="auth-visual-logo">
+        <p class="auth-visual-caption">
+          <strong>Organize sua rotina</strong>
+          <span>Tarefas, projetos e prazos, tudo em um só lugar.</span>
+        </p>
+      </div>
+    </div>
   </div>
 
   <div class="app" hidden>

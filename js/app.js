@@ -291,7 +291,7 @@
       authSwitchText.textContent = 'Já tem uma conta?';
       authSwitchBtn.textContent = 'Entrar';
     } else {
-      authFormTitle.textContent = 'Entrar';
+      authFormTitle.textContent = 'Bem-vindo(a) de volta!';
       authSubmitBtn.textContent = 'Entrar';
       authSwitchText.textContent = 'Não tem uma conta?';
       authSwitchBtn.textContent = 'Criar conta';
