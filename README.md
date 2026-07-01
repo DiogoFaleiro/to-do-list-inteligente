@@ -11,6 +11,8 @@ Aplicação de lista de tarefas feita com **HTML, CSS e JavaScript puro** (sem f
 - ✅ Marcar tarefas como concluídas
 - 🔁 Tarefas recorrentes (diárias) reabrem automaticamente todo dia
 - 💾 Tudo salvo no **localStorage** do navegador (sem backend)
+- 📱 Layout responsivo para tablets e celulares
+- 📲 Instalável como **PWA** (ícone próprio, funciona offline via service worker)
 
 ## 🚀 Como usar
 
@@ -24,6 +26,8 @@ Aplicação de lista de tarefas feita com **HTML, CSS e JavaScript puro** (sem f
 
 ```
 index.html
+manifest.json  -> manifesto do PWA (nome, ícones, cores)
+sw.js          -> service worker (cache do app shell)
 css/
   style.css
 js/
@@ -32,6 +36,10 @@ js/
   store.js     -> estado da aplicação e regras de negócio
   render.js    -> renderização da UI (sidebar, lista, kanban)
   app.js       -> eventos de interface e inicialização
+logo/
+  1.png, 1.ico -> arte original da logo
+icons/
+  favicon.ico, icon-192.png, icon-512.png, icon-512-maskable.png, apple-touch-icon.png
 ```
 
 ## 🎯 Objetivo
