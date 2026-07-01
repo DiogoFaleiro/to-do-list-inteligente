@@ -1,5 +1,23 @@
 (function (App) {
-  const { store, render } = App;
+  const { store, render, auth, migrate } = App;
+
+  // Autenticação
+  const authLoadingScreen = document.getElementById('authLoadingScreen');
+  const authScreen = document.getElementById('authScreen');
+  const appEl = document.querySelector('.app');
+  const authForm = document.getElementById('authForm');
+  const authFormTitle = document.getElementById('authFormTitle');
+  const authFormError = document.getElementById('authFormError');
+  const authEmailInput = document.getElementById('authEmail');
+  const authPasswordInput = document.getElementById('authPassword');
+  const authSubmitBtn = document.getElementById('authSubmitBtn');
+  const authSwitchText = document.getElementById('authSwitchText');
+  const authSwitchBtn = document.getElementById('authSwitchBtn');
+  const userEmailLabel = document.getElementById('userEmailLabel');
+  const logoutBtn = document.getElementById('logoutBtn');
+  const adminPanelBtn = document.getElementById('adminPanelBtn');
+  const adminModal = document.getElementById('adminModal');
+  const adminModalCloseBtn = document.getElementById('adminModalCloseBtn');
 
   const projectListEl = document.getElementById('projectList');
   const periodTabs = document.getElementById('periodTabs');
@@ -237,6 +255,152 @@
     }
   });
 
-  store.subscribe(render.renderAll);
-  render.renderAll();
+  // ---------------------------------------------------------------------
+  // Autenticação: login/cadastro, logout, e boot da sessão
+  // ---------------------------------------------------------------------
+
+  let authMode = 'signin';
+  let hasSubscribed = false;
+
+  function ensureSubscribed() {
+    if (hasSubscribed) return;
+    hasSubscribed = true;
+    store.subscribe(render.renderAll);
+  }
+
+  function showAuthLoading() {
+    authLoadingScreen.hidden = false;
+    authScreen.hidden = true;
+    appEl.hidden = true;
+  }
+
+  function showAuthScreen() {
+    authLoadingScreen.hidden = true;
+    authScreen.hidden = false;
+    appEl.hidden = true;
+    authForm.reset();
+  }
+
+  function setAuthMode(mode) {
+    authMode = mode;
+    authFormError.hidden = true;
+    authFormError.classList.remove('info');
+    if (mode === 'signup') {
+      authFormTitle.textContent = 'Criar conta';
+      authSubmitBtn.textContent = 'Criar conta';
+      authSwitchText.textContent = 'Já tem uma conta?';
+      authSwitchBtn.textContent = 'Entrar';
+    } else {
+      authFormTitle.textContent = 'Entrar';
+      authSubmitBtn.textContent = 'Entrar';
+      authSwitchText.textContent = 'Não tem uma conta?';
+      authSwitchBtn.textContent = 'Criar conta';
+    }
+  }
+
+  function translateAuthError(message) {
+    if (!message) return 'Ocorreu um erro. Tente novamente.';
+    if (/invalid login credentials/i.test(message)) return 'E-mail ou senha inválidos.';
+    if (/already registered/i.test(message) || /already exists/i.test(message)) return 'Este e-mail já está cadastrado.';
+    if (/password should be at least/i.test(message)) return 'A senha precisa ter pelo menos 6 caracteres.';
+    if (/email not confirmed/i.test(message)) return 'Confirme seu e-mail antes de entrar (veja sua caixa de entrada).';
+    return message;
+  }
+
+  async function enterApp(user) {
+    showAuthLoading();
+    try {
+      const profile = await auth.getCurrentProfile(user.id);
+      userEmailLabel.textContent = user.email;
+      userEmailLabel.title = user.email;
+      adminPanelBtn.hidden = !profile.is_admin;
+
+      await migrate.migrateIfNeeded(user.id);
+      ensureSubscribed();
+      await store.loadInitialData(user.id);
+
+      authLoadingScreen.hidden = true;
+      authScreen.hidden = true;
+      appEl.hidden = false;
+      render.renderAll();
+    } catch (err) {
+      console.error('Falha ao carregar sessão/dados do usuário', err);
+      authLoadingScreen.hidden = true;
+      showAuthScreen();
+    }
+  }
+
+  authSwitchBtn.addEventListener('click', () => {
+    setAuthMode(authMode === 'signin' ? 'signup' : 'signin');
+  });
+
+  authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    authFormError.hidden = true;
+    authFormError.classList.remove('info');
+    authSubmitBtn.disabled = true;
+    const email = authEmailInput.value.trim();
+    const password = authPasswordInput.value;
+
+    try {
+      if (authMode === 'signup') {
+        const { error } = await auth.signUp(email, password);
+        if (error) throw error;
+        authFormError.classList.add('info');
+        authFormError.textContent = 'Conta criada! Verifique seu e-mail para confirmar antes de entrar.';
+        authFormError.hidden = false;
+      } else {
+        const { error } = await auth.signIn(email, password);
+        if (error) throw error;
+        // onAuthStateChange cuida da transição para o app.
+      }
+    } catch (err) {
+      authFormError.classList.remove('info');
+      authFormError.textContent = translateAuthError(err.message);
+      authFormError.hidden = false;
+    } finally {
+      authSubmitBtn.disabled = false;
+    }
+  });
+
+  logoutBtn.addEventListener('click', () => {
+    auth.signOut();
+  });
+
+  adminPanelBtn.addEventListener('click', () => {
+    adminModal.hidden = false;
+  });
+
+  adminModalCloseBtn.addEventListener('click', () => {
+    adminModal.hidden = true;
+  });
+
+  adminModal.addEventListener('click', (e) => {
+    if (e.target === adminModal) adminModal.hidden = true;
+  });
+
+  store.setAuthErrorHandler(() => {
+    auth.signOut();
+  });
+
+  (async function boot() {
+    const {
+      data: { session }
+    } = await auth.getSession();
+
+    if (session && session.user) {
+      await enterApp(session.user);
+    } else {
+      showAuthScreen();
+    }
+
+    auth.onAuthStateChange((event, newSession) => {
+      if (event === 'SIGNED_IN' && newSession && newSession.user) {
+        enterApp(newSession.user);
+      } else if (event === 'SIGNED_OUT') {
+        store.clearState();
+        showAuthScreen();
+      }
+    });
+  })();
 })(window.App = window.App || {});

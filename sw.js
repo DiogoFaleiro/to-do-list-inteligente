@@ -1,11 +1,14 @@
-const CACHE_NAME = 'todolist-cache-v1';
+const CACHE_NAME = 'todolist-cache-v2';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
   './css/style.css',
   './js/utils.js',
-  './js/storage.js',
+  './js/localPrefs.js',
+  './js/supabaseClient.js',
+  './js/api.js',
+  './js/migrate.js',
   './js/store.js',
   './js/render.js',
   './js/app.js',

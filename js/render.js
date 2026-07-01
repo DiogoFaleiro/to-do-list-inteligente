@@ -183,7 +183,6 @@
   }
 
   function renderAll() {
-    store.normalizeRecurringTasks();
     renderSidebar();
     renderToolbarState();
     applyTheme();

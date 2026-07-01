@@ -29,9 +29,9 @@
   <script>
     (function () {
       try {
-        var raw = localStorage.getItem('todolist.state.v1');
+        var raw = localStorage.getItem('todolist.ui.v1');
         var parsed = raw ? JSON.parse(raw) : null;
-        var pref = parsed && parsed.ui && parsed.ui.theme;
+        var pref = parsed && parsed.theme;
         if (!pref || pref === 'system') {
           pref = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
@@ -41,7 +41,36 @@
   </script>
 </head>
 <body>
-  <div class="app">
+  <div id="authLoadingScreen" class="auth-loading">
+    <div class="auth-loading-spinner" aria-hidden="true"></div>
+    <p>Carregando...</p>
+  </div>
+
+  <div id="authScreen" class="auth-screen" hidden>
+    <form id="authForm" class="modal auth-form">
+      <h2 id="authFormTitle">Entrar</h2>
+      <p id="authFormError" class="auth-error" hidden></p>
+
+      <label>E-mail
+        <input type="email" id="authEmail" required autocomplete="email" placeholder="voce@email.com">
+      </label>
+
+      <label>Senha
+        <input type="password" id="authPassword" required minlength="6" autocomplete="current-password" placeholder="Mínimo 6 caracteres">
+      </label>
+
+      <div class="modal-actions">
+        <button type="submit" id="authSubmitBtn" class="btn-primary btn-block">Entrar</button>
+      </div>
+
+      <p class="auth-switch">
+        <span id="authSwitchText">Não tem uma conta?</span>
+        <button type="button" id="authSwitchBtn" class="btn-link">Criar conta</button>
+      </p>
+    </form>
+  </div>
+
+  <div class="app" hidden>
     <aside class="sidebar">
       <div class="sidebar-header">
         <h1>📝 Minhas Tarefas</h1>
@@ -51,6 +80,14 @@
       </div>
       <button id="newProjectBtn" class="btn-secondary btn-block">+ Novo projeto</button>
       <nav id="projectList" class="project-list"></nav>
+
+      <div class="sidebar-footer">
+        <button id="adminPanelBtn" class="btn-secondary btn-block" hidden>📊 Painel Admin</button>
+        <div class="user-indicator">
+          <span id="userEmailLabel" class="user-email" title=""></span>
+          <button id="logoutBtn" class="btn-link">Sair</button>
+        </div>
+      </div>
     </aside>
 
     <main class="main">
@@ -141,8 +178,23 @@
     </form>
   </div>
 
+  <!-- Painel super admin (conteúdo real chega na próxima etapa) -->
+  <div id="adminModal" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>Painel Admin</h2>
+      <p id="adminPanelBody" class="auth-error" style="color: var(--text-muted); background: none;">Métricas em breve.</p>
+      <div class="modal-actions">
+        <button type="button" id="adminModalCloseBtn" class="btn-secondary">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/utils.js"></script>
-  <script src="js/storage.js"></script>
+  <script src="js/localPrefs.js"></script>
+  <script src="js/supabaseClient.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/migrate.js"></script>
   <script src="js/store.js"></script>
   <script src="js/render.js"></script>
   <script src="js/app.js"></script>
