@@ -1088,12 +1088,26 @@ a.btn-danger {
 
   #newTaskBtn {
     position: fixed;
-    left: 16px;
+    left: auto;
     right: 16px;
     bottom: calc(64px + env(safe-area-inset-bottom, 0px));
     z-index: 120;
-    border-radius: 999px;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.35);
+  }
+
+  #newTaskBtn::after {
+    content: '+';
+    font-size: 1.8rem;
+    line-height: 1;
+    color: #fff;
   }
 
   .mobile-title-bar {
