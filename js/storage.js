@@ -41,7 +41,7 @@
           createdAt: Date.now()
         }
       ],
-      ui: { view: 'list', period: 'today', projectFilter: 'all' }
+      ui: { view: 'list', period: 'today', projectFilter: 'all', theme: 'system' }
     };
   }
 
@@ -53,7 +53,8 @@
       if (!parsed || !Array.isArray(parsed.projects) || !Array.isArray(parsed.tasks)) {
         return seedState();
       }
-      parsed.ui = parsed.ui || { view: 'list', period: 'today', projectFilter: 'all' };
+      parsed.ui = parsed.ui || { view: 'list', period: 'today', projectFilter: 'all', theme: 'system' };
+      parsed.ui.theme = parsed.ui.theme || 'system';
       return parsed;
     } catch (err) {
       console.error('Não foi possível carregar os dados salvos, iniciando com estado padrão.', err);

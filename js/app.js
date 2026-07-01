@@ -6,6 +6,7 @@
   const viewToggle = document.getElementById('viewToggle');
   const newTaskBtn = document.getElementById('newTaskBtn');
   const newProjectBtn = document.getElementById('newProjectBtn');
+  const themeToggleBtn = document.getElementById('themeToggleBtn');
   const listView = document.getElementById('listView');
   const kanbanView = document.getElementById('kanbanView');
 
@@ -111,6 +112,16 @@
 
   newTaskBtn.addEventListener('click', () => openTaskModal(null));
   newProjectBtn.addEventListener('click', () => openProjectModal(null));
+
+  themeToggleBtn.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    store.setTheme(current === 'dark' ? 'light' : 'dark');
+  });
+
+  const darkSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  darkSchemeQuery.addEventListener('change', () => {
+    if (store.getState().ui.theme === 'system') render.applyTheme();
+  });
   taskCancelBtn.addEventListener('click', closeTaskModal);
   projectCancelBtn.addEventListener('click', closeProjectModal);
   taskRecurringInput.addEventListener('change', toggleDueDateRow);

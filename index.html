@@ -5,11 +5,29 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>To-Do List Inteligente</title>
   <link rel="stylesheet" href="css/style.css">
+  <script>
+    (function () {
+      try {
+        var raw = localStorage.getItem('todolist.state.v1');
+        var parsed = raw ? JSON.parse(raw) : null;
+        var pref = parsed && parsed.ui && parsed.ui.theme;
+        if (!pref || pref === 'system') {
+          pref = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', pref);
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
   <div class="app">
     <aside class="sidebar">
-      <h1>📝 Minhas Tarefas</h1>
+      <div class="sidebar-header">
+        <h1>📝 Minhas Tarefas</h1>
+        <button id="themeToggleBtn" class="theme-toggle" type="button" aria-label="Alternar tema escuro" aria-pressed="false" title="Alternar tema">
+          <span class="theme-toggle-icon" aria-hidden="true">🌙</span>
+        </button>
+      </div>
       <button id="newProjectBtn" class="btn-secondary btn-block">+ Novo projeto</button>
       <nav id="projectList" class="project-list"></nav>
     </aside>

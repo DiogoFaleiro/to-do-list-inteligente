@@ -7,7 +7,9 @@
     viewToggle: document.getElementById('viewToggle'),
     listView: document.getElementById('listView'),
     kanbanView: document.getElementById('kanbanView'),
-    taskProjectSelect: document.getElementById('taskProject')
+    taskProjectSelect: document.getElementById('taskProject'),
+    themeToggleBtn: document.getElementById('themeToggleBtn'),
+    themeToggleIcon: document.querySelector('#themeToggleBtn .theme-toggle-icon')
   };
 
   function escapeHtml(str) {
@@ -148,10 +150,28 @@
     els.kanbanView.hidden = state.ui.view !== 'kanban';
   }
 
+  function resolveEffectiveTheme(pref) {
+    if (pref !== 'system') return pref;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function applyTheme() {
+    const pref = store.getState().ui.theme;
+    const effective = resolveEffectiveTheme(pref);
+    document.documentElement.setAttribute('data-theme', effective);
+    if (els.themeToggleBtn) {
+      els.themeToggleBtn.setAttribute('aria-pressed', String(effective === 'dark'));
+    }
+    if (els.themeToggleIcon) {
+      els.themeToggleIcon.textContent = effective === 'dark' ? '☀️' : '🌙';
+    }
+  }
+
   function renderAll() {
     store.normalizeRecurringTasks();
     renderSidebar();
     renderToolbarState();
+    applyTheme();
     const state = store.getState();
     if (state.ui.view === 'list') {
       renderList();
@@ -160,5 +180,5 @@
     }
   }
 
-  App.render = { renderAll, renderTaskProjectOptions, projectById };
+  App.render = { renderAll, renderTaskProjectOptions, projectById, applyTheme };
 })(window.App = window.App || {});

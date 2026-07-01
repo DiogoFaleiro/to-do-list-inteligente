@@ -139,6 +139,12 @@
     emit();
   }
 
+  function setTheme(theme) {
+    state.ui.theme = ['light', 'dark', 'system'].includes(theme) ? theme : 'system';
+    persist();
+    emit();
+  }
+
   App.store = {
     getState,
     getFilteredTasks,
@@ -154,6 +160,7 @@
     toggleComplete,
     setView,
     setPeriod,
-    setProjectFilter
+    setProjectFilter,
+    setTheme
   };
 })(window.App = window.App || {});
