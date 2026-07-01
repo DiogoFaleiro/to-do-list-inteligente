@@ -28,12 +28,20 @@
 
   // Navegação mobile (rodapé, sidebar como painel "Navegar", menu de período)
   const sidebarEl = document.querySelector('.sidebar');
-  const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
   const mobileKanbanToggleBtn = document.getElementById('mobileKanbanToggleBtn');
   const periodMenuBtn = document.getElementById('periodMenuBtn');
   const periodMenu = document.getElementById('periodMenu');
   const searchPlaceholder = document.getElementById('searchPlaceholder');
   const mobileNavBtns = document.querySelectorAll('.mobile-nav-btn');
+
+  // Painel "Navegar": linha de conta (avatar + nome + menu de engrenagem)
+  const sidebarAvatar = document.getElementById('sidebarAvatar');
+  const sidebarAccountName = document.getElementById('sidebarAccountName');
+  const accountMenuBtn = document.getElementById('accountMenuBtn');
+  const accountMenu = document.getElementById('accountMenu');
+  const accountThemeBtn = document.getElementById('accountThemeBtn');
+  const accountAdminBtn = document.getElementById('accountAdminBtn');
+  const accountLogoutBtn = document.getElementById('accountLogoutBtn');
 
   // Modal de tarefa
   const taskModal = document.getElementById('taskModal');
@@ -160,7 +168,10 @@
     mobileNavBtns.forEach((btn) => btn.classList.toggle('active', btn.dataset.mobileTab === tab));
   }
 
-  sidebarCloseBtn.addEventListener('click', closeMobileSidebar);
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute('data-theme');
+    store.setTheme(current === 'dark' ? 'light' : 'dark');
+  }
 
   mobileKanbanToggleBtn.addEventListener('click', () => {
     const current = store.getState().ui.view;
@@ -180,9 +191,27 @@
     }
   });
 
+  accountMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    accountMenu.hidden = !accountMenu.hidden;
+  });
+
+  accountThemeBtn.addEventListener('click', () => {
+    toggleTheme();
+    accountMenu.hidden = true;
+  });
+
+  accountLogoutBtn.addEventListener('click', () => {
+    accountMenu.hidden = true;
+    auth.signOut();
+  });
+
   document.addEventListener('click', (e) => {
-    if (!periodMenu.hidden && !e.target.closest('.period-menu-wrap')) {
+    if (!periodMenu.hidden && !e.target.closest('#periodMenuBtn') && !e.target.closest('#periodMenu')) {
       periodMenu.hidden = true;
+    }
+    if (!accountMenu.hidden && !e.target.closest('#accountMenuBtn') && !e.target.closest('#accountMenu')) {
+      accountMenu.hidden = true;
     }
   });
 
@@ -215,10 +244,7 @@
     });
   });
 
-  themeToggleBtn.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme');
-    store.setTheme(current === 'dark' ? 'light' : 'dark');
-  });
+  themeToggleBtn.addEventListener('click', toggleTheme);
 
   const darkSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
   darkSchemeQuery.addEventListener('change', () => {
@@ -398,6 +424,11 @@
       userEmailLabel.textContent = user.email;
       userEmailLabel.title = user.email;
       adminPanelBtn.hidden = !profile.is_admin;
+      accountAdminBtn.hidden = !profile.is_admin;
+
+      const displayName = user.email.split('@')[0];
+      sidebarAccountName.textContent = displayName;
+      sidebarAvatar.textContent = displayName.charAt(0).toUpperCase();
 
       await migrate.migrateIfNeeded(user.id);
       ensureSubscribed();

@@ -92,9 +92,26 @@
         <button id="themeToggleBtn" class="theme-toggle" type="button" aria-label="Alternar tema escuro" aria-pressed="false" title="Alternar tema">
           <span class="theme-toggle-icon" aria-hidden="true">🌙</span>
         </button>
-        <button id="sidebarCloseBtn" class="sidebar-close" type="button" aria-label="Fechar">✕</button>
       </div>
+
+      <!-- Linha de conta, só visível no painel "Navegar" do mobile -->
+      <div class="sidebar-account-row">
+        <div class="sidebar-account-info">
+          <span id="sidebarAvatar" class="sidebar-avatar"></span>
+          <span id="sidebarAccountName" class="sidebar-account-name"></span>
+        </div>
+        <div class="period-menu-wrap">
+          <button id="accountMenuBtn" class="mobile-icon-btn" type="button" aria-label="Configurações da conta" title="Configurações">⚙️</button>
+          <div id="accountMenu" class="period-menu" hidden>
+            <button type="button" id="accountThemeBtn">🌙 Alternar tema</button>
+            <a id="accountAdminBtn" href="admin/index.html" hidden>📊 Painel Admin</a>
+            <button type="button" id="accountLogoutBtn">Sair</button>
+          </div>
+        </div>
+      </div>
+
       <button id="newProjectBtn" class="btn-secondary btn-block">+ Novo projeto</button>
+      <p class="sidebar-section-label">Meus projetos</p>
       <nav id="projectList" class="project-list"></nav>
 
       <div class="sidebar-footer">

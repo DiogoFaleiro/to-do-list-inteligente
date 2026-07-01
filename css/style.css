@@ -235,6 +235,50 @@ button {
   white-space: nowrap;
 }
 
+/* Linha de conta (avatar + nome + engrenagem) e rótulo "Meus projetos":
+   só aparecem no painel "Navegar" do mobile (ver @media 600px). */
+.sidebar-account-row,
+.sidebar-section-label {
+  display: none;
+}
+
+.sidebar-account-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sidebar-avatar {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.sidebar-account-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-section-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 4px 0 0;
+}
+
 .btn-link {
   border: none;
   background: none;
@@ -914,9 +958,8 @@ a.btn-danger {
   margin-top: 6px;
 }
 
-/* Navegação mobile (rodapé, cabeçalho compacto, botão de fechar da sidebar):
-   escondida por padrão; só aparece em telas de celular (ver @media 600px). */
-.sidebar-close,
+/* Navegação mobile (rodapé, cabeçalho compacto): escondida por padrão,
+   só aparece em telas de celular (ver @media 600px). */
 .mobile-title-bar,
 .mobile-bottom-nav {
   display: none;
@@ -965,7 +1008,8 @@ a.btn-danger {
   box-shadow: var(--modal-shadow), 0 10px 30px -10px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
-  min-width: 140px;
+  min-width: 180px;
+  white-space: nowrap;
   z-index: 160;
   overflow: hidden;
 }
@@ -974,16 +1018,20 @@ a.btn-danger {
   display: none;
 }
 
-.period-menu button {
+.period-menu button,
+.period-menu a {
   border: none;
   background: none;
   text-align: left;
   padding: 10px 14px;
   color: var(--text);
   font-size: 0.9rem;
+  text-decoration: none;
+  display: block;
 }
 
-.period-menu button:hover {
+.period-menu button:hover,
+.period-menu a:hover {
   background: var(--bg);
 }
 
@@ -1091,7 +1139,7 @@ a.btn-danger {
     left: auto;
     right: 16px;
     bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-    z-index: 120;
+    z-index: 140;
     width: 56px;
     height: 56px;
     padding: 0;
@@ -1117,8 +1165,9 @@ a.btn-danger {
     margin-bottom: 12px;
   }
 
-  /* Sidebar vira um painel de tela cheia ("Navegar"), escondido por
-     padrão e mostrado só com a classe .mobile-open. */
+  /* Sidebar vira o painel "Navegar": uma aba de tela cheia (não um modal),
+     escondida por padrão e mostrada só com a classe .mobile-open. O rodapé
+     de navegação e o FAB continuam visíveis por cima (ver z-index deles). */
   .sidebar {
     display: none;
     position: fixed;
@@ -1126,24 +1175,30 @@ a.btn-danger {
     z-index: 130;
     max-height: none;
     border: none;
-    padding: 20px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+    padding: 16px 16px calc(96px + env(safe-area-inset-bottom, 0px));
   }
 
   .sidebar.mobile-open {
     display: flex;
   }
 
-  .sidebar-close {
-    display: inline-flex;
+  /* No painel "Navegar" do mobile, o cabeçalho/rodapé de desktop somem e
+     dão lugar à linha de conta (avatar + nome + engrenagem) e ao rótulo
+     "Meus projetos". */
+  .sidebar-header,
+  .sidebar-footer {
+    display: none;
+  }
+
+  .sidebar-account-row {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    border: 1px solid var(--border);
-    background: var(--card-bg);
-    color: var(--text);
-    font-size: 0.9rem;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .sidebar-section-label {
+    display: block;
   }
 
   .mobile-bottom-nav {
@@ -1152,7 +1207,7 @@ a.btn-danger {
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 120;
+    z-index: 140;
     background: var(--card-bg);
     border-top: 1px solid var(--border);
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
