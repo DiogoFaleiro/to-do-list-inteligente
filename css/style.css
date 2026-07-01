@@ -322,6 +322,44 @@ button {
   margin: 0;
 }
 
+/* Painel super admin */
+.admin-modal {
+  max-width: 480px;
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.admin-stats-loading {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--text-muted);
+  margin: 12px 0;
+}
+
+.admin-stat-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  text-align: center;
+}
+
+.admin-stat-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.admin-stat-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
 /* Main */
 .main {
   padding: 20px 28px;

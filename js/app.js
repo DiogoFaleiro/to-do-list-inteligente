@@ -1,5 +1,5 @@
 (function (App) {
-  const { store, render, auth, migrate } = App;
+  const { store, render, auth, migrate, api } = App;
 
   // Autenticação
   const authLoadingScreen = document.getElementById('authLoadingScreen');
@@ -367,8 +367,16 @@
     auth.signOut();
   });
 
-  adminPanelBtn.addEventListener('click', () => {
+  adminPanelBtn.addEventListener('click', async () => {
     adminModal.hidden = false;
+    render.renderAdminLoading();
+    try {
+      const stats = await api.fetchAdminStats();
+      render.renderAdminStats(stats);
+    } catch (err) {
+      console.error('Falha ao carregar métricas do admin', err);
+      render.renderAdminError('Não foi possível carregar as métricas. Tente novamente.');
+    }
   });
 
   adminModalCloseBtn.addEventListener('click', () => {
