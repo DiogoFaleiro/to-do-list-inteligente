@@ -1,5 +1,5 @@
 (function (App) {
-  const { store, render, auth, migrate, api } = App;
+  const { store, render, auth, migrate, api, utils } = App;
 
   // Autenticação
   const authLoadingScreen = document.getElementById('authLoadingScreen');
@@ -102,12 +102,14 @@
       taskIdInput.value = task.id;
       taskTitleInput.value = task.title;
       taskRecurringInput.checked = task.recurring;
-      taskDueDateInput.value = task.dueDate || '';
+      // Tarefas antigas sem data (não deveria mais acontecer daqui pra
+      // frente) também ganham "hoje" como padrão ao serem editadas.
+      taskDueDateInput.value = task.dueDate || (task.recurring ? '' : utils.todayISO());
     } else {
       taskModalTitle.textContent = 'Nova tarefa';
       taskIdInput.value = '';
       taskRecurringInput.checked = false;
-      taskDueDateInput.value = '';
+      taskDueDateInput.value = utils.todayISO();
     }
     toggleDueDateRow();
     taskModal.hidden = false;
