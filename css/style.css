@@ -818,6 +818,8 @@ a.btn-danger {
    (evita rolagem nativa concorrendo com o drag-to-scroll no toque). */
 .board-view {
   display: flex;
+  flex: 1;
+  min-height: 0;
   gap: 16px;
   align-items: start;
   overflow-x: auto;
