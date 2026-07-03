@@ -6,7 +6,8 @@ Aplicação de lista de tarefas feita com **HTML, CSS e JavaScript puro** (sem f
 
 - ➕ Criar tarefas com título, projeto, data de vencimento ou repetição diária
 - 📅 Filtrar tarefas por **Hoje**, **Semana**, **Mês** ou **Todas**
-- 📋 Alternar entre visualização em **Lista** e em **Kanban** (A Fazer / Fazendo / Concluído, com drag-and-drop ou pelos botões de mover)
+- 📋 Alternar entre visualização em **Lista** e em **Painel** (colunas por projeto)
+- 📁 Agrupar tarefas por projeto (Lista em seções ou Painel em colunas) e mostrar/esconder tarefas concluídas
 - 📁 Criar, editar e excluir **projetos**, com cor e contador de tarefas
 - ✅ Marcar tarefas como concluídas
 - 🔁 Tarefas recorrentes (diárias) reabrem automaticamente todo dia
@@ -44,7 +45,7 @@ js/
   api.js             -> CRUD assíncrono contra o Supabase (projetos, tarefas, métricas)
   migrate.js         -> migração única dos dados antigos do localStorage para o Supabase
   store.js           -> estado da aplicação e regras de negócio (mutações otimistas)
-  render.js          -> renderização da UI (sidebar, lista, kanban)
+  render.js          -> renderização da UI (sidebar, lista, painel)
   app.js             -> eventos de interface, autenticação e inicialização
   adminDashboard.js  -> guarda de acesso, gráfico (Chart.js) e tabela do painel admin
 supabase/

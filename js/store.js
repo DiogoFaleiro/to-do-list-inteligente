@@ -285,6 +285,18 @@
     emit();
   }
 
+  function setGroupByProject(groupByProject) {
+    state.ui.groupByProject = !!groupByProject;
+    persistUi();
+    emit();
+  }
+
+  function setShowCompleted(showCompleted) {
+    state.ui.showCompleted = !!showCompleted;
+    persistUi();
+    emit();
+  }
+
   App.store = {
     getState,
     getFilteredTasks,
@@ -303,6 +315,8 @@
     setView,
     setPeriod,
     setProjectFilter,
-    setTheme
+    setTheme,
+    setGroupByProject,
+    setShowCompleted
   };
 })(window.App = window.App || {});

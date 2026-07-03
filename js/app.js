@@ -20,14 +20,18 @@
   const newTaskBtn = document.getElementById('newTaskBtn');
   const newProjectBtn = document.getElementById('newProjectBtn');
   const listView = document.getElementById('listView');
-  const kanbanView = document.getElementById('kanbanView');
+  const boardView = document.getElementById('boardView');
+  const groupByProjectToggleBtn = document.getElementById('groupByProjectToggleBtn');
+  const showCompletedToggleBtn = document.getElementById('showCompletedToggleBtn');
 
   // Navegação mobile (rodapé, sidebar como painel "Navegar", menu de período)
   const sidebarEl = document.querySelector('.sidebar');
   const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
-  const mobileKanbanToggleBtn = document.getElementById('mobileKanbanToggleBtn');
+  const mobileBoardToggleBtn = document.getElementById('mobileBoardToggleBtn');
   const periodMenuBtn = document.getElementById('periodMenuBtn');
   const periodMenu = document.getElementById('periodMenu');
+  const groupByProjectMenuBtn = document.getElementById('groupByProjectMenuBtn');
+  const showCompletedMenuBtn = document.getElementById('showCompletedMenuBtn');
   const searchPlaceholder = document.getElementById('searchPlaceholder');
   const mobileNavBtns = document.querySelectorAll('.mobile-nav-btn');
 
@@ -187,9 +191,25 @@
     store.setTheme(current === 'dark' ? 'light' : 'dark');
   }
 
-  mobileKanbanToggleBtn.addEventListener('click', () => {
+  mobileBoardToggleBtn.addEventListener('click', () => {
     const current = store.getState().ui.view;
-    store.setView(current === 'kanban' ? 'list' : 'kanban');
+    store.setView(current === 'board' ? 'list' : 'board');
+  });
+
+  groupByProjectToggleBtn.addEventListener('click', () => {
+    store.setGroupByProject(!store.getState().ui.groupByProject);
+  });
+
+  showCompletedToggleBtn.addEventListener('click', () => {
+    store.setShowCompleted(!store.getState().ui.showCompleted);
+  });
+
+  groupByProjectMenuBtn.addEventListener('click', () => {
+    store.setGroupByProject(!store.getState().ui.groupByProject);
+  });
+
+  showCompletedMenuBtn.addEventListener('click', () => {
+    store.setShowCompleted(!store.getState().ui.showCompleted);
   });
 
   periodMenuBtn.addEventListener('click', (e) => {
@@ -338,13 +358,13 @@
       } else if (tab === 'search') {
         closeMobileSidebar();
         listView.hidden = true;
-        kanbanView.hidden = true;
+        boardView.hidden = true;
         searchPlaceholder.hidden = false;
       } else if (tab === 'browse') {
         hideSearchPlaceholder();
         const view = store.getState().ui.view;
         listView.hidden = view !== 'list';
-        kanbanView.hidden = view !== 'kanban';
+        boardView.hidden = view !== 'board';
         openMobileSidebar();
       }
     });
@@ -429,38 +449,19 @@
     }
   });
 
-  // Kanban: drag and drop entre colunas
-  kanbanView.addEventListener('dragstart', (e) => {
-    const card = e.target.closest('.kanban-card');
-    if (card) e.dataTransfer.setData('text/plain', card.dataset.taskId);
-  });
-
-  kanbanView.querySelectorAll('.kanban-cards').forEach((col) => {
-    col.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      col.classList.add('drag-over');
-    });
-    col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
-    col.addEventListener('drop', (e) => {
-      e.preventDefault();
-      col.classList.remove('drag-over');
-      const taskId = e.dataTransfer.getData('text/plain');
-      if (taskId) store.setTaskStatus(taskId, col.dataset.column);
-    });
-  });
-
-  kanbanView.addEventListener('click', (e) => {
+  // Painel: concluir, editar, excluir (colunas por projeto, geradas dinamicamente)
+  boardView.addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-toggle]');
+    if (toggle) {
+      store.toggleComplete(toggle.dataset.toggle);
+      return;
+    }
     const delBtn = e.target.closest('[data-delete-task]');
     if (delBtn) {
       if (confirm('Excluir esta tarefa?')) store.deleteTask(delBtn.dataset.deleteTask);
       return;
     }
-    const moveBtn = e.target.closest('[data-move-task]');
-    if (moveBtn) {
-      if (moveBtn.dataset.moveStatus) store.setTaskStatus(moveBtn.dataset.moveTask, moveBtn.dataset.moveStatus);
-      return;
-    }
-    const card = e.target.closest('.kanban-card');
+    const card = e.target.closest('.board-card');
     if (card) {
       const task = store.getState().tasks.find((t) => t.id === card.dataset.taskId);
       if (task) openTaskModal(task);

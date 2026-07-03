@@ -1,6 +1,13 @@
 (function (App) {
   const STORAGE_KEY = 'todolist.ui.v1';
-  const DEFAULT_UI = { view: 'list', period: 'today', projectFilter: 'all', theme: 'system' };
+  const DEFAULT_UI = {
+    view: 'list',
+    period: 'today',
+    projectFilter: 'all',
+    theme: 'system',
+    groupByProject: false,
+    showCompleted: true
+  };
 
   function load() {
     try {

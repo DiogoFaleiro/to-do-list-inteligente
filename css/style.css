@@ -58,9 +58,9 @@ body,
 .period-tabs,
 .view-toggle,
 .task-row,
-.kanban-column,
-.kanban-card,
-.kanban-cards,
+.board-column,
+.board-card,
+.board-cards,
 .modal,
 .modal-overlay,
 .tag,
@@ -679,6 +679,13 @@ a.btn-danger {
   border: 1px solid var(--border);
 }
 
+/* Toggles "Agrupar por projeto" / "Mostrar concluídas" (toolbar e menu ⋮) */
+.toggle-btn.active {
+  background: var(--primary-tint);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
 .btn-danger {
   background: var(--card-bg);
   color: var(--danger);
@@ -698,8 +705,27 @@ a.btn-danger {
 }
 
 .list-view[hidden],
-.kanban-view[hidden] {
+.board-view[hidden] {
   display: none;
+}
+
+/* Lista agrupada por projeto */
+.list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.list-section + .list-section {
+  margin-top: 12px;
+}
+
+.list-section-title {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .task-row {
@@ -785,16 +811,16 @@ a.btn-danger {
   padding: 40px 0;
 }
 
-/* Kanban */
-.kanban-view {
+/* Painel (colunas por projeto) */
+.board-view {
   display: grid;
-  grid-template-columns: repeat(3, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px;
   align-items: start;
   overflow-x: auto;
 }
 
-.kanban-column {
+.board-column {
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -802,7 +828,7 @@ a.btn-danger {
   min-height: 200px;
 }
 
-.kanban-column h2 {
+.board-column h2 {
   font-size: 0.95rem;
   margin: 0 0 12px;
   display: flex;
@@ -811,53 +837,47 @@ a.btn-danger {
   color: var(--text-muted);
 }
 
-.kanban-column h2 .count {
+.board-column h2 .count {
   background: var(--bg);
   border-radius: 999px;
   padding: 0 8px;
   font-size: 0.75rem;
 }
 
-.kanban-cards {
+.board-cards {
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-height: 60px;
   border-radius: var(--radius);
-  transition: background 0.15s ease;
 }
 
-.kanban-cards.drag-over {
-  background: var(--primary-tint);
-}
-
-.kanban-card {
+.board-card {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 10px 12px;
-  cursor: grab;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.kanban-card:active {
-  cursor: grabbing;
+.board-card.done .task-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
 }
 
-.kanban-card-header {
+.board-card-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
   gap: 8px;
 }
 
-.kanban-card-header .task-title {
+.board-card-header .task-title {
   flex: 1;
 }
 
-.kanban-delete {
+.board-delete {
   border: none;
   background: none;
   font-size: 0.9rem;
@@ -867,34 +887,8 @@ a.btn-danger {
   flex-shrink: 0;
 }
 
-.kanban-delete:hover {
+.board-delete:hover {
   background: var(--border);
-}
-
-.kanban-move {
-  display: flex;
-  gap: 6px;
-  justify-content: flex-end;
-}
-
-.kanban-move-btn {
-  border: 1px solid var(--border);
-  background: var(--card-bg);
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  line-height: 1;
-  padding: 4px 10px;
-  border-radius: 6px;
-}
-
-.kanban-move-btn:hover:not(:disabled) {
-  background: var(--bg);
-  color: var(--text);
-}
-
-.kanban-move-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
 }
 
 .empty-column {
@@ -1066,23 +1060,21 @@ a.btn-danger {
   color: var(--primary);
 }
 
-/* Responsivo: tablets (colunas do kanban empilham antes de espremer) */
+/* Responsivo: tablets (colunas do painel empilham antes de espremer) */
 @media (max-width: 900px) {
-  .kanban-view {
+  .board-view {
     grid-template-columns: 1fr;
   }
 
-  .theme-toggle,
   .task-actions button,
-  .kanban-delete,
-  .kanban-move-btn,
+  .board-delete,
   .edit-project {
     min-width: 40px;
     min-height: 40px;
   }
 
   .task-actions button,
-  .kanban-delete {
+  .board-delete {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1116,7 +1108,7 @@ a.btn-danger {
     margin-left: auto;
   }
 
-  .kanban-view {
+  .board-view {
     grid-template-columns: 1fr;
   }
 
@@ -1137,6 +1129,8 @@ a.btn-danger {
      visualmente. */
   #periodTabs,
   #viewToggle,
+  #groupByProjectToggleBtn,
+  #showCompletedToggleBtn,
   .sidebar-toggle-btn {
     display: none;
   }

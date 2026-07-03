@@ -6,14 +6,18 @@
     periodTabs: document.getElementById('periodTabs'),
     viewToggle: document.getElementById('viewToggle'),
     listView: document.getElementById('listView'),
-    kanbanView: document.getElementById('kanbanView'),
+    boardView: document.getElementById('boardView'),
     taskProjectSelect: document.getElementById('taskProject'),
     accountThemeIcon: document.getElementById('accountThemeIcon'),
     mobileViewTitle: document.getElementById('mobileViewTitle'),
     mobileTaskCount: document.getElementById('mobileTaskCount'),
-    mobileKanbanToggleBtn: document.getElementById('mobileKanbanToggleBtn'),
+    mobileBoardToggleBtn: document.getElementById('mobileBoardToggleBtn'),
     mobileNavToday: document.querySelector('.mobile-nav-btn[data-mobile-tab="today"]'),
-    mobileNavUpcoming: document.querySelector('.mobile-nav-btn[data-mobile-tab="upcoming"]')
+    mobileNavUpcoming: document.querySelector('.mobile-nav-btn[data-mobile-tab="upcoming"]'),
+    showCompletedToggleBtn: document.getElementById('showCompletedToggleBtn'),
+    groupByProjectToggleBtn: document.getElementById('groupByProjectToggleBtn'),
+    showCompletedMenuBtn: document.getElementById('showCompletedMenuBtn'),
+    groupByProjectMenuBtn: document.getElementById('groupByProjectMenuBtn')
   };
 
   const PERIOD_TITLES = { today: 'Hoje', week: 'Em breve', month: 'Mês', all: 'Todas as tarefas' };
@@ -88,15 +92,8 @@
     return parts.join('');
   }
 
-  function renderList() {
-    const tasks = sortTasks(store.getFilteredTasks());
-    if (tasks.length === 0) {
-      els.listView.innerHTML = `<p class="empty-state">Nenhuma tarefa por aqui. Que tal adicionar uma? 🎉</p>`;
-      return;
-    }
-    els.listView.innerHTML = tasks
-      .map(
-        (task) => `
+  function taskRowHtml(task) {
+    return `
       <div class="task-row ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
         <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
         <div class="task-info">
@@ -107,51 +104,90 @@
           <button data-edit-task="${task.id}" title="Editar">✏️</button>
           <button data-delete-task="${task.id}" title="Excluir">🗑️</button>
         </div>
+      </div>`;
+  }
+
+  function visibleTasks() {
+    const state = store.getState();
+    const tasks = store.getFilteredTasks();
+    return state.ui.showCompleted ? tasks : tasks.filter((t) => t.status !== 'done');
+  }
+
+  // Agrupa tarefas por projeto (usado tanto pela Lista quando "Agrupar por
+  // projeto" está ligado, quanto sempre pelo Painel). Inclui um grupo
+  // "Sem projeto" mesmo vazio, para o Painel mostrar a coluna.
+  function groupTasksByProject(tasks) {
+    const state = store.getState();
+    const groups = state.projects.map((p) => ({ id: p.id, name: p.name, color: p.color, tasks: [] }));
+    const groupById = {};
+    groups.forEach((g) => {
+      groupById[g.id] = g;
+    });
+    const none = { id: null, name: 'Sem projeto', color: '#636e72', tasks: [] };
+
+    tasks.forEach((t) => {
+      const group = t.projectId && groupById[t.projectId] ? groupById[t.projectId] : none;
+      group.tasks.push(t);
+    });
+
+    return groups.concat(none);
+  }
+
+  function renderList() {
+    const state = store.getState();
+    const tasks = sortTasks(visibleTasks());
+
+    if (tasks.length === 0) {
+      els.listView.innerHTML = `<p class="empty-state">Nenhuma tarefa por aqui. Que tal adicionar uma? 🎉</p>`;
+      return;
+    }
+
+    if (!state.ui.groupByProject) {
+      els.listView.innerHTML = tasks.map(taskRowHtml).join('');
+      return;
+    }
+
+    const groups = groupTasksByProject(tasks).filter((g) => g.tasks.length > 0);
+    els.listView.innerHTML = groups
+      .map(
+        (g) => `
+      <div class="list-section">
+        <h3 class="list-section-title" style="color:${g.color}">${escapeHtml(g.name)}</h3>
+        ${g.tasks.map(taskRowHtml).join('')}
       </div>`
       )
       .join('');
   }
 
-  const KANBAN_ORDER = ['todo', 'doing', 'done'];
-  const KANBAN_LABELS = { todo: 'A Fazer', doing: 'Fazendo', done: 'Concluído' };
+  function renderBoard() {
+    const tasks = sortTasks(visibleTasks());
+    const groups = groupTasksByProject(tasks);
 
-  function kanbanMoveButtonsHtml(task) {
-    const index = KANBAN_ORDER.indexOf(task.status);
-    const prevStatus = KANBAN_ORDER[index - 1];
-    const nextStatus = KANBAN_ORDER[index + 1];
-    return `
-      <div class="kanban-move">
-        <button type="button" class="kanban-move-btn" data-move-task="${task.id}" data-move-status="${prevStatus || ''}" ${prevStatus ? '' : 'disabled'} title="${prevStatus ? `Mover para ${KANBAN_LABELS[prevStatus]}` : ''}">←</button>
-        <button type="button" class="kanban-move-btn" data-move-task="${task.id}" data-move-status="${nextStatus || ''}" ${nextStatus ? '' : 'disabled'} title="${nextStatus ? `Mover para ${KANBAN_LABELS[nextStatus]}` : ''}">→</button>
-      </div>`;
-  }
-
-  function renderKanban() {
-    const tasks = sortTasks(store.getFilteredTasks());
-    const columns = { todo: [], doing: [], done: [] };
-    tasks.forEach((t) => {
-      if (columns[t.status]) columns[t.status].push(t);
-    });
-
-    Object.keys(columns).forEach((status) => {
-      const col = els.kanbanView.querySelector(`[data-column="${status}"]`);
-      const countEl = els.kanbanView.querySelector(`[data-count="${status}"]`);
-      countEl.textContent = columns[status].length;
-      col.innerHTML =
-        columns[status]
-          .map(
-            (task) => `
-        <div class="kanban-card" draggable="true" data-task-id="${task.id}">
-          <div class="kanban-card-header">
-            <div class="task-title">${escapeHtml(task.title)}</div>
-            <button type="button" class="kanban-delete" data-delete-task="${task.id}" title="Excluir">🗑️</button>
-          </div>
-          <div class="task-meta">${taskMetaHtml(task)}</div>
-          ${kanbanMoveButtonsHtml(task)}
-        </div>`
-          )
-          .join('') || `<p class="empty-column">Vazio</p>`;
-    });
+    els.boardView.innerHTML = groups
+      .map(
+        (g) => `
+      <div class="board-column">
+        <h2>${escapeHtml(g.name)} <span class="count">${g.tasks.length}</span></h2>
+        <div class="board-cards">
+          ${
+            g.tasks
+              .map(
+                (task) => `
+          <div class="board-card ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
+            <div class="board-card-header">
+              <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
+              <div class="task-title">${escapeHtml(task.title)}</div>
+              <button type="button" class="board-delete" data-delete-task="${task.id}" title="Excluir">🗑️</button>
+            </div>
+            <div class="task-meta">${taskMetaHtml(task)}</div>
+          </div>`
+              )
+              .join('') || `<p class="empty-column">Vazio</p>`
+          }
+        </div>
+      </div>`
+      )
+      .join('');
   }
 
   function renderTaskProjectOptions(selectedId) {
@@ -168,7 +204,7 @@
     els.periodTabs.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.period === state.ui.period));
     els.viewToggle.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.view === state.ui.view));
     els.listView.hidden = state.ui.view !== 'list';
-    els.kanbanView.hidden = state.ui.view !== 'kanban';
+    els.boardView.hidden = state.ui.view !== 'board';
 
     // Cabeçalho e rodapé de navegação mobile
     if (els.mobileViewTitle) {
@@ -179,8 +215,8 @@
       const openCount = store.getFilteredTasks().filter((t) => t.status !== 'done').length;
       els.mobileTaskCount.textContent = `${openCount} tarefa${openCount === 1 ? '' : 's'}`;
     }
-    if (els.mobileKanbanToggleBtn) {
-      els.mobileKanbanToggleBtn.textContent = state.ui.view === 'kanban' ? '☰' : '▤';
+    if (els.mobileBoardToggleBtn) {
+      els.mobileBoardToggleBtn.textContent = state.ui.view === 'board' ? '☰' : '▤';
     }
     if (els.mobileNavToday) {
       els.mobileNavToday.classList.toggle('active', state.ui.period === 'today' && state.ui.projectFilter === 'all');
@@ -188,6 +224,19 @@
     if (els.mobileNavUpcoming) {
       els.mobileNavUpcoming.classList.toggle('active', state.ui.period === 'week' && state.ui.projectFilter === 'all');
     }
+
+    // Toggles de "Agrupar por projeto" (só faz sentido na Lista, no Painel
+    // já é sempre agrupado) e "Mostrar concluídas" (desktop + menu mobile)
+    const isListView = state.ui.view === 'list';
+    [els.groupByProjectToggleBtn, els.groupByProjectMenuBtn].forEach((btn) => {
+      if (!btn) return;
+      btn.hidden = !isListView;
+      btn.classList.toggle('active', state.ui.groupByProject);
+    });
+    [els.showCompletedToggleBtn, els.showCompletedMenuBtn].forEach((btn) => {
+      if (!btn) return;
+      btn.classList.toggle('active', state.ui.showCompleted);
+    });
   }
 
   function resolveEffectiveTheme(pref) {
@@ -212,7 +261,7 @@
     if (state.ui.view === 'list') {
       renderList();
     } else {
-      renderKanban();
+      renderBoard();
     }
   }
 
