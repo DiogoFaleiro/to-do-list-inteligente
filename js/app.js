@@ -305,6 +305,10 @@
     if (!accountMenu.hidden && !e.target.closest('#accountMenuBtn') && !e.target.closest('#accountMenu')) {
       accountMenu.hidden = true;
     }
+    const openTaskMenu = document.querySelector('.task-menu:not([hidden])');
+    if (openTaskMenu && !e.target.closest('.task-menu-wrap')) {
+      render.closeTaskMenu();
+    }
   });
 
   // Modal "Minha conta": editar nome, foto e senha
@@ -521,8 +525,47 @@
     }
   });
 
+  // Menu "⋯" da tarefa (Editar/Data/Excluir): compartilhado entre Lista e
+  // Painel, já que os dois usam os mesmos atributos data-menu-*.
+  function handleTaskMenuClick(e) {
+    const menuToggle = e.target.closest('[data-menu-toggle]');
+    if (menuToggle) {
+      render.toggleTaskMenu(menuToggle.dataset.menuToggle);
+      return true;
+    }
+    const menuEdit = e.target.closest('[data-menu-edit]');
+    if (menuEdit) {
+      const task = store.getState().tasks.find((t) => t.id === menuEdit.dataset.menuEdit);
+      if (task) openTaskModal(task);
+      render.closeTaskMenu();
+      return true;
+    }
+    const menuDelete = e.target.closest('[data-menu-delete]');
+    if (menuDelete) {
+      if (confirm('Excluir esta tarefa?')) store.deleteTask(menuDelete.dataset.menuDelete);
+      return true;
+    }
+    return false;
+  }
+
+  function handleTaskMenuDateChange(e) {
+    const dateInput = e.target.closest('[data-menu-date]');
+    if (!dateInput) return;
+    const id = dateInput.dataset.menuDate;
+    const task = store.getState().tasks.find((t) => t.id === id);
+    if (!task) return;
+    store.updateTask(id, {
+      title: task.title,
+      projectId: task.projectId,
+      recurring: task.recurring,
+      dueDate: dateInput.value || null
+    });
+    render.closeTaskMenu();
+  }
+
   // Lista: concluir, editar, excluir, expandir/adicionar subtarefas
   listView.addEventListener('click', (e) => {
+    if (handleTaskMenuClick(e)) return;
     const expandBtn = e.target.closest('[data-toggle-subtasks]');
     if (expandBtn) {
       render.toggleTaskExpanded(expandBtn.dataset.toggleSubtasks);
@@ -533,17 +576,13 @@
       store.toggleComplete(toggle.dataset.toggle);
       return;
     }
-    const editBtn = e.target.closest('[data-edit-task]');
-    if (editBtn) {
-      const task = store.getState().tasks.find((t) => t.id === editBtn.dataset.editTask);
-      if (task) openTaskModal(task);
-      return;
-    }
     const delBtn = e.target.closest('[data-delete-task]');
     if (delBtn) {
       if (confirm('Excluir esta tarefa?')) store.deleteTask(delBtn.dataset.deleteTask);
     }
   });
+
+  listView.addEventListener('change', handleTaskMenuDateChange);
 
   listView.addEventListener('submit', (e) => {
     const form = e.target.closest('[data-add-subtask]');
@@ -559,6 +598,7 @@
   // Painel: concluir, editar, excluir, expandir/adicionar subtarefas
   // (colunas por projeto, geradas dinamicamente)
   boardView.addEventListener('click', (e) => {
+    if (handleTaskMenuClick(e)) return;
     const expandBtn = e.target.closest('[data-toggle-subtasks]');
     if (expandBtn) {
       render.toggleTaskExpanded(expandBtn.dataset.toggleSubtasks);
@@ -574,13 +614,15 @@
       if (confirm('Excluir esta tarefa?')) store.deleteTask(delBtn.dataset.deleteTask);
       return;
     }
-    if (e.target.closest('.subtask-panel')) return;
+    if (e.target.closest('.subtask-panel') || e.target.closest('.task-menu')) return;
     const card = e.target.closest('.board-card');
     if (card) {
       const task = store.getState().tasks.find((t) => t.id === card.dataset.taskId);
       if (task) openTaskModal(task);
     }
   });
+
+  boardView.addEventListener('change', handleTaskMenuDateChange);
 
   boardView.addEventListener('submit', (e) => {
     const form = e.target.closest('[data-add-subtask]');

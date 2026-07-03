@@ -787,28 +787,93 @@ a.btn-danger {
   font-weight: 600;
 }
 
-.task-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.task-actions button {
-  border: none;
-  background: none;
-  font-size: 1rem;
-  padding: 4px;
-  border-radius: 6px;
-}
-
-.task-actions button:hover {
-  background: var(--bg);
-}
-
 .empty-state {
   text-align: center;
   color: var(--text-muted);
   padding: 40px 0;
+}
+
+/* Menu "⋯" da tarefa (Editar/Data/Excluir), na Lista e no Painel. Mesma
+   lógica de posicionamento do .period-menu (menu do rodapé mobile). */
+.task-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.task-menu-btn {
+  border: none;
+  background: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.task-menu-btn:hover {
+  background: var(--bg);
+}
+
+.task-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--modal-shadow), 0 10px 30px -10px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  white-space: nowrap;
+  z-index: 160;
+  overflow: hidden;
+}
+
+.task-menu[hidden] {
+  display: none;
+}
+
+.task-menu button {
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 0.9rem;
+  display: block;
+  width: 100%;
+}
+
+.task-menu button:hover {
+  background: var(--bg);
+}
+
+.task-menu button.danger {
+  color: var(--danger);
+}
+
+.task-menu-date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.task-menu-date-row:hover {
+  background: var(--bg);
+}
+
+.task-menu-date-row input[type='date'] {
+  flex: 1;
+  font: inherit;
+  font-size: 0.85rem;
+  border: none;
+  background: none;
+  color: var(--text);
+  padding: 0;
 }
 
 /* Subtarefas: setinha de expandir/recolher, tag de progresso e o
@@ -976,20 +1041,6 @@ a.btn-danger {
 
 .board-card-header .task-title {
   flex: 1;
-}
-
-.board-delete {
-  border: none;
-  background: none;
-  font-size: 0.9rem;
-  line-height: 1;
-  padding: 2px 4px;
-  border-radius: 6px;
-  flex-shrink: 0;
-}
-
-.board-delete:hover {
-  background: var(--border);
 }
 
 /* Modal */
@@ -1214,15 +1265,13 @@ a.btn-danger {
 
 /* Responsivo: tablets */
 @media (max-width: 900px) {
-  .task-actions button,
-  .board-delete,
+  .task-menu-btn,
   .edit-project {
     min-width: 40px;
     min-height: 40px;
   }
 
-  .task-actions button,
-  .board-delete {
+  .task-menu-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1252,7 +1301,7 @@ a.btn-danger {
     flex-wrap: wrap;
   }
 
-  .task-actions {
+  .task-menu-wrap {
     margin-left: auto;
   }
 

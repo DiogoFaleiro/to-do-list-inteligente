@@ -35,6 +35,21 @@
     renderAll();
   }
 
+  // Menu "⋯" (Editar/Data/Excluir) de uma tarefa por vez, na Lista ou no
+  // Painel. Estado puramente visual, igual ao expandedTaskIds acima.
+  let openMenuTaskId = null;
+
+  function toggleTaskMenu(taskId) {
+    openMenuTaskId = openMenuTaskId === taskId ? null : taskId;
+    renderAll();
+  }
+
+  function closeTaskMenu() {
+    if (openMenuTaskId === null) return;
+    openMenuTaskId = null;
+    renderAll();
+  }
+
   function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str == null ? '' : str;
@@ -120,6 +135,28 @@
     return `<span class="tag subtask-progress-tag">☑ ${done}/${subtasks.length}</span>`;
   }
 
+  // Menu "⋯" com Editar/Data/Excluir. Substitui os antigos botões soltos de
+  // editar/excluir, reaproveitado tanto na Lista quanto no Painel.
+  function taskMenuHtml(task) {
+    const isOpen = openMenuTaskId === task.id;
+    const dateRow = task.recurring
+      ? ''
+      : `
+      <label class="task-menu-date-row">
+        📅 Data
+        <input type="date" data-menu-date="${task.id}" value="${task.dueDate || ''}">
+      </label>`;
+    return `
+      <div class="task-menu-wrap">
+        <button type="button" class="task-menu-btn" data-menu-toggle="${task.id}" title="Mais ações">⋯</button>
+        <div class="task-menu" data-menu-for="${task.id}" ${isOpen ? '' : 'hidden'}>
+          <button type="button" data-menu-edit="${task.id}">✏️ Editar</button>
+          ${dateRow}
+          <button type="button" class="danger" data-menu-delete="${task.id}">🗑️ Excluir</button>
+        </div>
+      </div>`;
+  }
+
   // Painel expansível com o checklist de subtarefas + miniformulário de
   // adicionar. Reaproveitado tanto na Lista quanto no Painel (Kanban).
   function subtaskPanelHtml(task, subtasks) {
@@ -154,10 +191,7 @@
             <div class="task-title">${escapeHtml(task.title)}</div>
             <div class="task-meta">${taskMetaHtml(task)}${subtaskProgressTagHtml(subtasks)}</div>
           </div>
-          <div class="task-actions">
-            <button data-edit-task="${task.id}" title="Editar">✏️</button>
-            <button data-delete-task="${task.id}" title="Excluir">🗑️</button>
-          </div>
+          ${taskMenuHtml(task)}
         </div>
         ${subtaskPanelHtml(task, subtasks)}
       </div>`;
@@ -239,7 +273,7 @@
               ${subtaskToggleHtml(task, subtasks)}
               <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
               <div class="task-title">${escapeHtml(task.title)}</div>
-              <button type="button" class="board-delete" data-delete-task="${task.id}" title="Excluir">🗑️</button>
+              ${taskMenuHtml(task)}
             </div>
             <div class="task-meta">${taskMetaHtml(task)}${subtaskProgressTagHtml(subtasks)}</div>
             ${subtaskPanelHtml(task, subtasks)}
@@ -332,6 +366,8 @@
     renderTaskProjectOptions,
     projectById,
     applyTheme,
-    toggleTaskExpanded
+    toggleTaskExpanded,
+    toggleTaskMenu,
+    closeTaskMenu
   };
 })(window.App = window.App || {});
