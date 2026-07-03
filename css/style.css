@@ -812,13 +812,23 @@ a.btn-danger {
 }
 
 /* Painel (colunas por projeto): uma linha só, com rolagem horizontal
-   quando não couberem todas as colunas — nunca quebra para baixo. */
+   quando não couberem todas as colunas — nunca quebra para baixo.
+   touch-action: pan-y deixa a rolagem vertical da página passar normal,
+   mas devolve o eixo horizontal pro nosso JS de "arrastar pra rolar"
+   (evita rolagem nativa concorrendo com o drag-to-scroll no toque). */
 .board-view {
   display: flex;
   gap: 16px;
   align-items: start;
   overflow-x: auto;
   padding-bottom: 6px;
+  touch-action: pan-y;
+  cursor: grab;
+  user-select: none;
+}
+
+.board-view.dragging {
+  cursor: grabbing;
 }
 
 .board-column {

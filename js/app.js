@@ -470,6 +470,58 @@
     }
   });
 
+  // Painel: arrastar (mouse ou toque) em qualquer ponto para rolar
+  // horizontalmente, não só pela barra de rolagem física do navegador.
+  function enableDragScroll(el) {
+    let isPointerDown = false;
+    let dragged = false;
+    let startX = 0;
+    let startScrollLeft = 0;
+
+    el.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      isPointerDown = true;
+      dragged = false;
+      startX = e.clientX;
+      startScrollLeft = el.scrollLeft;
+    });
+
+    el.addEventListener('pointermove', (e) => {
+      if (!isPointerDown) return;
+      const delta = e.clientX - startX;
+      if (dragged || Math.abs(delta) > 4) {
+        dragged = true;
+        el.classList.add('dragging');
+        el.scrollLeft = startScrollLeft - delta;
+      }
+    });
+
+    function endDrag() {
+      isPointerDown = false;
+      el.classList.remove('dragging');
+    }
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointerleave', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+
+    // Depois de um arraste de verdade, suprime o clique seguinte (fase de
+    // captura, roda antes do listener de clique acima) para não abrir o
+    // modal/marcar concluída sem querer por causa do gesto de arrastar.
+    el.addEventListener(
+      'click',
+      (e) => {
+        if (dragged) {
+          e.stopPropagation();
+          e.preventDefault();
+          dragged = false;
+        }
+      },
+      true
+    );
+  }
+
+  enableDragScroll(boardView);
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       closeTaskModal();
