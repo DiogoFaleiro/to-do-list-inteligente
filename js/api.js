@@ -29,7 +29,7 @@
     return supabaseClient.from('tasks').delete().eq('project_id', projectId);
   }
 
-  function insertTask(userId, { title, projectId, dueDate, recurring }) {
+  function insertTask(userId, { title, projectId, dueDate, recurring, parentTaskId }) {
     return supabaseClient
       .from('tasks')
       .insert({
@@ -39,7 +39,8 @@
         due_date: dueDate || null,
         recurring: !!recurring,
         status: 'todo',
-        completed_date: null
+        completed_date: null,
+        parent_task_id: parentTaskId || null
       })
       .select()
       .single();

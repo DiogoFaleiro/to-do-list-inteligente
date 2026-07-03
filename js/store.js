@@ -53,6 +53,7 @@
       recurring: row.recurring,
       status: row.status,
       completedDate: row.completed_date,
+      parentTaskId: row.parent_task_id,
       createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now()
     };
   }
@@ -64,6 +65,9 @@
     const weekEnd = utils.endOfWeek(utils.parseISO(today));
 
     return tasks.filter((t) => {
+      // Subtarefas nunca aparecem como linha/card independente — só
+      // aninhadas dentro da tarefa mãe (ver getSubtasks).
+      if (t.parentTaskId) return false;
       if (ui.projectFilter !== 'all' && t.projectId !== ui.projectFilter) return false;
       if (ui.period === 'all') return true;
       if (t.recurring) return true;
@@ -73,6 +77,10 @@
       if (ui.period === 'month') return t.dueDate.slice(0, 7) === today.slice(0, 7);
       return true;
     });
+  }
+
+  function getSubtasks(parentTaskId) {
+    return state.tasks.filter((t) => t.parentTaskId === parentTaskId);
   }
 
   // Tarefas diárias "reabrem" automaticamente quando viram o dia. Roda uma
@@ -172,7 +180,11 @@
       });
   }
 
-  function addTask({ title, projectId, dueDate, recurring }) {
+  // Retorna uma Promise que resolve com a tarefa final (já com o id de
+  // verdade do Supabase) ou null se a criação falhar — usado pelo modal
+  // de criação para só criar as subtarefas depois que a tarefa mãe tiver
+  // sido salva de verdade.
+  function addTask({ title, projectId, dueDate, recurring, parentTaskId }) {
     const tempId = `tmp-${utils.uid()}`;
     const optimistic = {
       id: tempId,
@@ -182,22 +194,30 @@
       recurring: !!recurring,
       status: 'todo',
       completedDate: null,
+      parentTaskId: parentTaskId || null,
       createdAt: Date.now()
     };
     state.tasks.push(optimistic);
     emit();
 
-    api.insertTask(currentUserId, optimistic).then(({ data, error }) => {
+    return api.insertTask(currentUserId, optimistic).then(({ data, error }) => {
       if (error) {
         state.tasks = state.tasks.filter((t) => t.id !== tempId);
         emit();
         handleMutationError('Falha ao criar tarefa', error);
-        return;
+        return null;
       }
       const idx = state.tasks.findIndex((t) => t.id === tempId);
-      if (idx !== -1) state.tasks[idx] = mapTaskFromRow(data);
+      const finalTask = mapTaskFromRow(data);
+      if (idx !== -1) state.tasks[idx] = finalTask;
       emit();
+      return finalTask;
     });
+  }
+
+  // Subtarefa: só título + concluída, sem data/projeto/recorrência próprios.
+  function addSubtask(parentTaskId, title) {
+    return addTask({ title, projectId: null, dueDate: null, recurring: false, parentTaskId });
   }
 
   function updateTask(id, { title, projectId, dueDate, recurring }) {
@@ -224,12 +244,16 @@
   function deleteTask(id) {
     const removedIndex = state.tasks.findIndex((t) => t.id === id);
     const removed = state.tasks[removedIndex];
-    state.tasks = state.tasks.filter((t) => t.id !== id);
+    // Espelha o "on delete cascade" do banco: apagar a tarefa mãe também
+    // some com as subtarefas dela localmente.
+    const removedSubtasks = state.tasks.filter((t) => t.parentTaskId === id);
+    state.tasks = state.tasks.filter((t) => t.id !== id && t.parentTaskId !== id);
     emit();
 
     api.deleteTaskRow(id).then(({ error }) => {
       if (error) {
         if (removed) state.tasks.splice(removedIndex, 0, removed);
+        state.tasks = state.tasks.concat(removedSubtasks);
         emit();
         handleMutationError('Falha ao excluir tarefa', error);
       }
@@ -300,6 +324,7 @@
   App.store = {
     getState,
     getFilteredTasks,
+    getSubtasks,
     subscribe,
     setAuthErrorHandler,
     loadInitialData,
@@ -308,6 +333,7 @@
     updateProject,
     deleteProject,
     addTask,
+    addSubtask,
     updateTask,
     deleteTask,
     setTaskStatus,

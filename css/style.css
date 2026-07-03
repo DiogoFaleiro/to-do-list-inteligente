@@ -811,6 +811,93 @@ a.btn-danger {
   padding: 40px 0;
 }
 
+/* Subtarefas: setinha de expandir/recolher, tag de progresso e o
+   checklist que abre dentro da própria Lista/Painel. */
+.subtask-toggle-btn {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  padding: 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.subtask-toggle-btn:hover {
+  background: var(--bg);
+}
+
+.subtask-progress-tag {
+  white-space: nowrap;
+}
+
+.subtask-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 10px 10px 10px 30px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.subtask-row.done .subtask-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.subtask-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.subtask-delete {
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  padding: 2px 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.subtask-delete:hover {
+  background: var(--card-bg);
+}
+
+.subtask-add-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.subtask-add-form input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text);
+}
+
+/* Lista: o wrap junta a linha da tarefa e o painel de subtarefas para que
+   a setinha de expandir/recolher fique associada visualmente aos dois. */
+.task-row-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
 /* Painel (colunas por projeto): uma linha só, com rolagem horizontal
    quando não couberem todas as colunas — nunca quebra para baixo.
    touch-action: pan-y deixa a rolagem vertical da página passar normal,
@@ -966,6 +1053,64 @@ a.btn-danger {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 6px;
+}
+
+/* Editor de subtarefas dentro do modal de tarefa (criar e editar) */
+.subtask-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.subtask-editor-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.subtask-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.subtask-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subtask-editor-row.done .subtask-editor-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.subtask-editor-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.subtask-editor-row button {
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  padding: 2px 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.subtask-editor-row button:hover {
+  background: var(--bg);
+}
+
+.subtask-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.subtask-add-row input {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Navegação mobile (rodapé, cabeçalho compacto): escondida por padrão,

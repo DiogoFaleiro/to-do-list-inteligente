@@ -72,6 +72,13 @@
   const taskDueDateInput = document.getElementById('taskDueDate');
   const taskDueDateRow = document.getElementById('taskDueDateRow');
   const taskCancelBtn = document.getElementById('taskCancelBtn');
+  const taskSubtaskList = document.getElementById('taskSubtaskList');
+  const taskNewSubtaskInput = document.getElementById('taskNewSubtaskInput');
+  const taskAddSubtaskBtn = document.getElementById('taskAddSubtaskBtn');
+
+  // Subtarefas digitadas antes de a tarefa mãe existir de verdade (modo
+  // "criar"); só viram tarefas reais depois que a tarefa mãe for salva.
+  let pendingNewSubtasks = [];
 
   // Modal de projeto
   const projectModal = document.getElementById('projectModal');
@@ -87,8 +94,56 @@
     taskDueDateRow.style.display = taskRecurringInput.checked ? 'none' : '';
   }
 
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : str;
+    return div.innerHTML;
+  }
+
+  // Mostra as subtarefas da tarefa em edição (vindas do store, ao vivo) ou,
+  // no modo "criar", as subtarefas ainda só digitadas (pendingNewSubtasks).
+  function renderModalSubtasks() {
+    if (taskIdInput.value) {
+      const subtasks = store.getSubtasks(taskIdInput.value);
+      taskSubtaskList.innerHTML = subtasks
+        .map(
+          (s) => `
+        <div class="subtask-editor-row ${s.status === 'done' ? 'done' : ''}" data-task-id="${s.id}">
+          <input type="checkbox" data-toggle="${s.id}" ${s.status === 'done' ? 'checked' : ''}>
+          <span class="subtask-editor-title">${escapeHtml(s.title)}</span>
+          <button type="button" data-delete-task="${s.id}" title="Excluir">🗑️</button>
+        </div>`
+        )
+        .join('');
+    } else {
+      taskSubtaskList.innerHTML = pendingNewSubtasks
+        .map(
+          (title, index) => `
+        <div class="subtask-editor-row" data-pending-index="${index}">
+          <span class="subtask-editor-title">${escapeHtml(title)}</span>
+          <button type="button" data-remove-pending="${index}" title="Remover">🗑️</button>
+        </div>`
+        )
+        .join('');
+    }
+  }
+
+  function addSubtaskFromModal() {
+    const title = taskNewSubtaskInput.value.trim();
+    if (!title) return;
+    if (taskIdInput.value) {
+      store.addSubtask(taskIdInput.value, title);
+    } else {
+      pendingNewSubtasks.push(title);
+    }
+    taskNewSubtaskInput.value = '';
+    renderModalSubtasks();
+    taskNewSubtaskInput.focus();
+  }
+
   function openTaskModal(task) {
     taskForm.reset();
+    pendingNewSubtasks = [];
     const state = store.getState();
     const defaultProject = task
       ? task.projectId
@@ -112,6 +167,7 @@
       taskDueDateInput.value = utils.todayISO();
     }
     toggleDueDateRow();
+    renderModalSubtasks();
     taskModal.hidden = false;
     taskTitleInput.focus();
   }
@@ -385,6 +441,33 @@
   projectCancelBtn.addEventListener('click', closeProjectModal);
   taskRecurringInput.addEventListener('change', toggleDueDateRow);
 
+  // Subtarefas dentro do modal de tarefa
+  taskAddSubtaskBtn.addEventListener('click', addSubtaskFromModal);
+  taskNewSubtaskInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addSubtaskFromModal();
+    }
+  });
+
+  taskSubtaskList.addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-toggle]');
+    if (toggle) {
+      store.toggleComplete(toggle.dataset.toggle);
+      return;
+    }
+    const delBtn = e.target.closest('[data-delete-task]');
+    if (delBtn) {
+      store.deleteTask(delBtn.dataset.deleteTask);
+      return;
+    }
+    const removeBtn = e.target.closest('[data-remove-pending]');
+    if (removeBtn) {
+      pendingNewSubtasks.splice(Number(removeBtn.dataset.removePending), 1);
+      renderModalSubtasks();
+    }
+  });
+
   taskModal.addEventListener('click', (e) => {
     if (e.target === taskModal) closeTaskModal();
   });
@@ -403,6 +486,12 @@
     if (!payload.title.trim()) return;
     if (taskIdInput.value) {
       store.updateTask(taskIdInput.value, payload);
+    } else if (pendingNewSubtasks.length) {
+      const subtaskTitles = pendingNewSubtasks.slice();
+      store.addTask(payload).then((newTask) => {
+        if (!newTask) return;
+        subtaskTitles.forEach((title) => store.addSubtask(newTask.id, title));
+      });
     } else {
       store.addTask(payload);
     }
@@ -432,8 +521,13 @@
     }
   });
 
-  // Lista: concluir, editar, excluir
+  // Lista: concluir, editar, excluir, expandir/adicionar subtarefas
   listView.addEventListener('click', (e) => {
+    const expandBtn = e.target.closest('[data-toggle-subtasks]');
+    if (expandBtn) {
+      render.toggleTaskExpanded(expandBtn.dataset.toggleSubtasks);
+      return;
+    }
     const toggle = e.target.closest('[data-toggle]');
     if (toggle) {
       store.toggleComplete(toggle.dataset.toggle);
@@ -451,8 +545,25 @@
     }
   });
 
-  // Painel: concluir, editar, excluir (colunas por projeto, geradas dinamicamente)
+  listView.addEventListener('submit', (e) => {
+    const form = e.target.closest('[data-add-subtask]');
+    if (!form) return;
+    e.preventDefault();
+    const input = form.querySelector('input');
+    const title = input.value.trim();
+    if (!title) return;
+    store.addSubtask(form.dataset.addSubtask, title);
+    input.value = '';
+  });
+
+  // Painel: concluir, editar, excluir, expandir/adicionar subtarefas
+  // (colunas por projeto, geradas dinamicamente)
   boardView.addEventListener('click', (e) => {
+    const expandBtn = e.target.closest('[data-toggle-subtasks]');
+    if (expandBtn) {
+      render.toggleTaskExpanded(expandBtn.dataset.toggleSubtasks);
+      return;
+    }
     const toggle = e.target.closest('[data-toggle]');
     if (toggle) {
       store.toggleComplete(toggle.dataset.toggle);
@@ -463,11 +574,23 @@
       if (confirm('Excluir esta tarefa?')) store.deleteTask(delBtn.dataset.deleteTask);
       return;
     }
+    if (e.target.closest('.subtask-panel')) return;
     const card = e.target.closest('.board-card');
     if (card) {
       const task = store.getState().tasks.find((t) => t.id === card.dataset.taskId);
       if (task) openTaskModal(task);
     }
+  });
+
+  boardView.addEventListener('submit', (e) => {
+    const form = e.target.closest('[data-add-subtask]');
+    if (!form) return;
+    e.preventDefault();
+    const input = form.querySelector('input');
+    const title = input.value.trim();
+    if (!title) return;
+    store.addSubtask(form.dataset.addSubtask, title);
+    input.value = '';
   });
 
   // Painel: arrastar (mouse ou toque) em qualquer ponto para rolar
@@ -541,6 +664,11 @@
     if (hasSubscribed) return;
     hasSubscribed = true;
     store.subscribe(render.renderAll);
+    // Mantém a lista de subtarefas do modal em dia com mudanças assíncronas
+    // (ex.: rollback de uma subtarefa que falhou ao salvar).
+    store.subscribe(() => {
+      if (!taskModal.hidden && taskIdInput.value) renderModalSubtasks();
+    });
   }
 
   function showAuthLoading() {

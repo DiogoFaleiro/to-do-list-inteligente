@@ -22,6 +22,19 @@
 
   const PERIOD_TITLES = { today: 'Hoje', week: 'Em breve', month: 'Mês', all: 'Todas as tarefas' };
 
+  // Quais tarefas estão com o checklist de subtarefas expandido na Lista/
+  // Painel. Estado puramente visual, não persiste entre recarregamentos.
+  const expandedTaskIds = new Set();
+
+  function toggleTaskExpanded(taskId) {
+    if (expandedTaskIds.has(taskId)) {
+      expandedTaskIds.delete(taskId);
+    } else {
+      expandedTaskIds.add(taskId);
+    }
+    renderAll();
+  }
+
   function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str == null ? '' : str;
@@ -49,9 +62,10 @@
     const state = store.getState();
     const openCounts = {};
     state.tasks.forEach((t) => {
+      if (t.parentTaskId) return; // subtarefas não contam nos totais
       if (t.status !== 'done') openCounts[t.projectId] = (openCounts[t.projectId] || 0) + 1;
     });
-    const totalOpen = state.tasks.filter((t) => t.status !== 'done').length;
+    const totalOpen = state.tasks.filter((t) => !t.parentTaskId && t.status !== 'done').length;
 
     const allBtn = `
       <button class="project-item ${state.ui.projectFilter === 'all' ? 'active' : ''}" data-project="all">
@@ -92,18 +106,60 @@
     return parts.join('');
   }
 
-  function taskRowHtml(task) {
+  // Setinha de expandir/recolher (só existe quando a tarefa tem subtarefas)
+  function subtaskToggleHtml(task, subtasks) {
+    if (!subtasks.length) return '';
+    const isExpanded = expandedTaskIds.has(task.id);
+    return `<button type="button" class="subtask-toggle-btn" data-toggle-subtasks="${task.id}" title="${isExpanded ? 'Recolher' : 'Expandir'} subtarefas">${isExpanded ? '▾' : '▸'}</button>`;
+  }
+
+  // Tag "☑ 2/5" com o progresso das subtarefas (só existe quando há alguma)
+  function subtaskProgressTagHtml(subtasks) {
+    if (!subtasks.length) return '';
+    const done = subtasks.filter((s) => s.status === 'done').length;
+    return `<span class="tag subtask-progress-tag">☑ ${done}/${subtasks.length}</span>`;
+  }
+
+  // Painel expansível com o checklist de subtarefas + miniformulário de
+  // adicionar. Reaproveitado tanto na Lista quanto no Painel (Kanban).
+  function subtaskPanelHtml(task, subtasks) {
+    if (!subtasks.length || !expandedTaskIds.has(task.id)) return '';
     return `
-      <div class="task-row ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
-        <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
-        <div class="task-info">
-          <div class="task-title">${escapeHtml(task.title)}</div>
-          <div class="task-meta">${taskMetaHtml(task)}</div>
+      <div class="subtask-panel">
+        ${subtasks
+          .map(
+            (s) => `
+          <div class="subtask-row ${s.status === 'done' ? 'done' : ''}" data-task-id="${s.id}">
+            <input type="checkbox" class="task-check" data-toggle="${s.id}" ${s.status === 'done' ? 'checked' : ''}>
+            <span class="subtask-title">${escapeHtml(s.title)}</span>
+            <button type="button" class="subtask-delete" data-delete-task="${s.id}" title="Excluir">🗑️</button>
+          </div>`
+          )
+          .join('')}
+        <form class="subtask-add-form" data-add-subtask="${task.id}">
+          <input type="text" placeholder="Adicionar subtarefa" maxlength="120">
+          <button type="submit" class="btn-link">+ Adicionar</button>
+        </form>
+      </div>`;
+  }
+
+  function taskRowHtml(task) {
+    const subtasks = store.getSubtasks(task.id);
+    return `
+      <div class="task-row-wrap" data-task-wrap="${task.id}">
+        <div class="task-row ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
+          ${subtaskToggleHtml(task, subtasks)}
+          <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
+          <div class="task-info">
+            <div class="task-title">${escapeHtml(task.title)}</div>
+            <div class="task-meta">${taskMetaHtml(task)}${subtaskProgressTagHtml(subtasks)}</div>
+          </div>
+          <div class="task-actions">
+            <button data-edit-task="${task.id}" title="Editar">✏️</button>
+            <button data-delete-task="${task.id}" title="Excluir">🗑️</button>
+          </div>
         </div>
-        <div class="task-actions">
-          <button data-edit-task="${task.id}" title="Editar">✏️</button>
-          <button data-delete-task="${task.id}" title="Excluir">🗑️</button>
-        </div>
+        ${subtaskPanelHtml(task, subtasks)}
       </div>`;
   }
 
@@ -175,17 +231,20 @@
         <h2>${escapeHtml(g.name)} <span class="count">${g.tasks.length}</span></h2>
         <div class="board-cards">
           ${g.tasks
-            .map(
-              (task) => `
+            .map((task) => {
+              const subtasks = store.getSubtasks(task.id);
+              return `
           <div class="board-card ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
             <div class="board-card-header">
+              ${subtaskToggleHtml(task, subtasks)}
               <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
               <div class="task-title">${escapeHtml(task.title)}</div>
               <button type="button" class="board-delete" data-delete-task="${task.id}" title="Excluir">🗑️</button>
             </div>
-            <div class="task-meta">${taskMetaHtml(task)}</div>
-          </div>`
-            )
+            <div class="task-meta">${taskMetaHtml(task)}${subtaskProgressTagHtml(subtasks)}</div>
+            ${subtaskPanelHtml(task, subtasks)}
+          </div>`;
+            })
             .join('')}
         </div>
       </div>`
@@ -272,6 +331,7 @@
     renderAll,
     renderTaskProjectOptions,
     projectById,
-    applyTheme
+    applyTheme,
+    toggleTaskExpanded
   };
 })(window.App = window.App || {});

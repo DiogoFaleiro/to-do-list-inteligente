@@ -200,6 +200,15 @@
         <input type="date" id="taskDueDate" required>
       </label>
 
+      <div class="subtask-editor">
+        <span class="subtask-editor-label">Subtarefas</span>
+        <div id="taskSubtaskList" class="subtask-editor-list"></div>
+        <div class="subtask-add-row">
+          <input type="text" id="taskNewSubtaskInput" placeholder="Adicionar subtarefa" maxlength="120">
+          <button type="button" id="taskAddSubtaskBtn" class="btn-secondary">+ Adicionar</button>
+        </div>
+      </div>
+
       <div class="modal-actions">
         <button type="button" id="taskCancelBtn" class="btn-secondary">Cancelar</button>
         <button type="submit" class="btn-primary">Salvar</button>
