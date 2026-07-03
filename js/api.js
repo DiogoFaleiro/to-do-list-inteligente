@@ -21,8 +21,48 @@
     return supabaseClient.from('projects').update({ name, color }).eq('id', id).select().single();
   }
 
+  function updateProjectFavorite(id, isFavorite) {
+    return supabaseClient.from('projects').update({ is_favorite: isFavorite }).eq('id', id).select().single();
+  }
+
   function deleteProjectRow(id) {
     return supabaseClient.from('projects').delete().eq('id', id);
+  }
+
+  function fetchTags() {
+    return supabaseClient.from('tags').select('*').order('created_at', { ascending: true });
+  }
+
+  function fetchTaskTags() {
+    return supabaseClient.from('task_tags').select('task_id, tag_id');
+  }
+
+  function insertTagRow(userId, { name, color }) {
+    return supabaseClient
+      .from('tags')
+      .insert({ user_id: userId, name, color })
+      .select()
+      .single();
+  }
+
+  function updateTagRow(id, { name, color }) {
+    return supabaseClient.from('tags').update({ name, color }).eq('id', id).select().single();
+  }
+
+  function updateTagFavorite(id, isFavorite) {
+    return supabaseClient.from('tags').update({ is_favorite: isFavorite }).eq('id', id).select().single();
+  }
+
+  function deleteTagRow(id) {
+    return supabaseClient.from('tags').delete().eq('id', id);
+  }
+
+  function insertTaskTag(taskId, tagId) {
+    return supabaseClient.from('task_tags').insert({ task_id: taskId, tag_id: tagId });
+  }
+
+  function deleteTaskTag(taskId, tagId) {
+    return supabaseClient.from('task_tags').delete().eq('task_id', taskId).eq('tag_id', tagId);
   }
 
   function deleteTasksByProject(projectId) {
@@ -127,8 +167,17 @@
     fetchTasks,
     insertProject,
     updateProjectRow,
+    updateProjectFavorite,
     deleteProjectRow,
     deleteTasksByProject,
+    fetchTags,
+    fetchTaskTags,
+    insertTagRow,
+    updateTagRow,
+    updateTagFavorite,
+    deleteTagRow,
+    insertTaskTag,
+    deleteTaskTag,
     insertTask,
     updateTaskRow,
     deleteTaskRow,

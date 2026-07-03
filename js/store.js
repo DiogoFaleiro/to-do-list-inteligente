@@ -5,6 +5,12 @@
   const state = {
     projects: [],
     tasks: [],
+    tags: [],
+    // Mapa taskId -> [tagId, ...]. Não é persistido: reconstruído a cada
+    // loadInitialData a partir das linhas de task_tags.
+    taskTags: {},
+    // Texto de busca digitado no momento — não persiste entre recarregamentos.
+    search: '',
     ui: localPrefs.load()
   };
 
@@ -41,7 +47,11 @@
   }
 
   function mapProjectFromRow(row) {
-    return { id: row.id, name: row.name, color: row.color };
+    return { id: row.id, name: row.name, color: row.color, isFavorite: !!row.is_favorite };
+  }
+
+  function mapTagFromRow(row) {
+    return { id: row.id, name: row.name, color: row.color, isFavorite: !!row.is_favorite };
   }
 
   function mapTaskFromRow(row) {
@@ -59,16 +69,21 @@
   }
 
   function getFilteredTasks() {
-    const { tasks, ui } = state;
+    const { tasks, ui, search } = state;
     const today = utils.todayISO();
     const weekStart = utils.startOfWeek(utils.parseISO(today));
     const weekEnd = utils.endOfWeek(utils.parseISO(today));
+    const query = search.trim().toLowerCase();
 
     return tasks.filter((t) => {
       // Subtarefas nunca aparecem como linha/card independente — só
       // aninhadas dentro da tarefa mãe (ver getSubtasks).
       if (t.parentTaskId) return false;
       if (ui.projectFilter !== 'all' && t.projectId !== ui.projectFilter) return false;
+      if (ui.tagFilter && !(state.taskTags[t.id] || []).includes(ui.tagFilter)) return false;
+      // Buscando por texto, o filtro de período não se aplica — a busca
+      // precisa achar a tarefa não importa quando ela vence.
+      if (query) return t.title.toLowerCase().includes(query);
       if (ui.period === 'all') return true;
       if (t.recurring) return true;
       if (!t.dueDate) return false;
@@ -81,6 +96,11 @@
 
   function getSubtasks(parentTaskId) {
     return state.tasks.filter((t) => t.parentTaskId === parentTaskId);
+  }
+
+  function getTaskTags(taskId) {
+    const ids = state.taskTags[taskId] || [];
+    return ids.map((id) => state.tags.find((tag) => tag.id === id)).filter(Boolean);
   }
 
   // Tarefas diárias "reabrem" automaticamente quando viram o dia. Roda uma
@@ -101,12 +121,25 @@
 
   async function loadInitialData(userId) {
     currentUserId = userId;
-    const [projectsRes, tasksRes] = await Promise.all([api.fetchProjects(), api.fetchTasks()]);
+    const [projectsRes, tasksRes, tagsRes, taskTagsRes] = await Promise.all([
+      api.fetchProjects(),
+      api.fetchTasks(),
+      api.fetchTags(),
+      api.fetchTaskTags()
+    ]);
     if (projectsRes.error) throw projectsRes.error;
     if (tasksRes.error) throw tasksRes.error;
+    if (tagsRes.error) throw tagsRes.error;
+    if (taskTagsRes.error) throw taskTagsRes.error;
 
     state.projects = (projectsRes.data || []).map(mapProjectFromRow);
     state.tasks = (tasksRes.data || []).map(mapTaskFromRow);
+    state.tags = (tagsRes.data || []).map(mapTagFromRow);
+    state.taskTags = {};
+    (taskTagsRes.data || []).forEach((row) => {
+      if (!state.taskTags[row.task_id]) state.taskTags[row.task_id] = [];
+      state.taskTags[row.task_id].push(row.tag_id);
+    });
     normalizeRecurringTasksOnce();
     emit();
   }
@@ -115,6 +148,9 @@
     currentUserId = null;
     state.projects = [];
     state.tasks = [];
+    state.tags = [];
+    state.taskTags = {};
+    state.search = '';
     emit();
   }
 
@@ -178,6 +214,132 @@
         emit();
         handleMutationError('Falha ao excluir projeto', err);
       });
+  }
+
+  function toggleProjectFavorite(id) {
+    const p = state.projects.find((p) => p.id === id);
+    if (!p) return;
+    const previous = p.isFavorite;
+    p.isFavorite = !previous;
+    emit();
+
+    api.updateProjectFavorite(id, p.isFavorite).then(({ error }) => {
+      if (error) {
+        p.isFavorite = previous;
+        emit();
+        handleMutationError('Falha ao favoritar projeto', error);
+      }
+    });
+  }
+
+  function addTag({ name, color }) {
+    const tempId = `tmp-${utils.uid()}`;
+    const optimistic = { id: tempId, name: name.trim(), color: color || '#6c5ce7', isFavorite: false };
+    state.tags.push(optimistic);
+    emit();
+
+    return api.insertTagRow(currentUserId, optimistic).then(({ data, error }) => {
+      if (error) {
+        state.tags = state.tags.filter((t) => t.id !== tempId);
+        emit();
+        handleMutationError('Falha ao criar etiqueta', error);
+        return null;
+      }
+      const idx = state.tags.findIndex((t) => t.id === tempId);
+      const finalTag = mapTagFromRow(data);
+      if (idx !== -1) state.tags[idx] = finalTag;
+      emit();
+      return finalTag;
+    });
+  }
+
+  function updateTag(id, { name, color }) {
+    const tag = state.tags.find((t) => t.id === id);
+    if (!tag) return;
+    const previous = { ...tag };
+    tag.name = name.trim();
+    tag.color = color;
+    emit();
+
+    api.updateTagRow(id, { name: tag.name, color: tag.color }).then(({ error }) => {
+      if (error) {
+        Object.assign(tag, previous);
+        emit();
+        handleMutationError('Falha ao atualizar etiqueta', error);
+      }
+    });
+  }
+
+  function deleteTag(id) {
+    const removedTag = state.tags.find((t) => t.id === id);
+    const removedFromTasks = [];
+    Object.keys(state.taskTags).forEach((taskId) => {
+      if (state.taskTags[taskId].includes(id)) {
+        removedFromTasks.push(taskId);
+        state.taskTags[taskId] = state.taskTags[taskId].filter((tagId) => tagId !== id);
+      }
+    });
+    state.tags = state.tags.filter((t) => t.id !== id);
+    if (state.ui.tagFilter === id) state.ui.tagFilter = null;
+    persistUi();
+    emit();
+
+    api.deleteTagRow(id).then(({ error }) => {
+      if (error) {
+        if (removedTag) state.tags.push(removedTag);
+        removedFromTasks.forEach((taskId) => {
+          if (!state.taskTags[taskId]) state.taskTags[taskId] = [];
+          state.taskTags[taskId].push(id);
+        });
+        emit();
+        handleMutationError('Falha ao excluir etiqueta', error);
+      }
+    });
+  }
+
+  function toggleTagFavorite(id) {
+    const tag = state.tags.find((t) => t.id === id);
+    if (!tag) return;
+    const previous = tag.isFavorite;
+    tag.isFavorite = !previous;
+    emit();
+
+    api.updateTagFavorite(id, tag.isFavorite).then(({ error }) => {
+      if (error) {
+        tag.isFavorite = previous;
+        emit();
+        handleMutationError('Falha ao favoritar etiqueta', error);
+      }
+    });
+  }
+
+  function addTagToTask(taskId, tagId) {
+    if (!state.taskTags[taskId]) state.taskTags[taskId] = [];
+    if (state.taskTags[taskId].includes(tagId)) return;
+    state.taskTags[taskId].push(tagId);
+    emit();
+
+    api.insertTaskTag(taskId, tagId).then(({ error }) => {
+      if (error) {
+        state.taskTags[taskId] = state.taskTags[taskId].filter((id) => id !== tagId);
+        emit();
+        handleMutationError('Falha ao vincular etiqueta', error);
+      }
+    });
+  }
+
+  function removeTagFromTask(taskId, tagId) {
+    if (!state.taskTags[taskId] || !state.taskTags[taskId].includes(tagId)) return;
+    state.taskTags[taskId] = state.taskTags[taskId].filter((id) => id !== tagId);
+    emit();
+
+    api.deleteTaskTag(taskId, tagId).then(({ error }) => {
+      if (error) {
+        state.taskTags[taskId].push(tagId);
+        emit();
+        handleMutationError('Falha ao remover etiqueta', error);
+      }
+    });
   }
 
   // Retorna uma Promise que resolve com a tarefa final (já com o id de
@@ -299,7 +461,24 @@
 
   function setProjectFilter(projectId) {
     state.ui.projectFilter = projectId;
+    state.ui.tagFilter = null;
     persistUi();
+    emit();
+  }
+
+  // Filtro por etiqueta é global (não amarrado a um projeto): selecionar
+  // uma etiqueta favorita mostra a tarefa em qualquer projeto que ela
+  // esteja, por isso zera o filtro de projeto (mesmo "um filtro por vez"
+  // que já existia entre projeto e período).
+  function setTagFilter(tagId) {
+    state.ui.tagFilter = tagId;
+    state.ui.projectFilter = 'all';
+    persistUi();
+    emit();
+  }
+
+  function setSearchQuery(text) {
+    state.search = text || '';
     emit();
   }
 
@@ -325,6 +504,7 @@
     getState,
     getFilteredTasks,
     getSubtasks,
+    getTaskTags,
     subscribe,
     setAuthErrorHandler,
     loadInitialData,
@@ -332,6 +512,13 @@
     addProject,
     updateProject,
     deleteProject,
+    toggleProjectFavorite,
+    addTag,
+    updateTag,
+    deleteTag,
+    toggleTagFavorite,
+    addTagToTask,
+    removeTagFromTask,
     addTask,
     addSubtask,
     updateTask,
@@ -341,6 +528,8 @@
     setView,
     setPeriod,
     setProjectFilter,
+    setTagFilter,
+    setSearchQuery,
     setTheme,
     setGroupByProject,
     setShowCompleted

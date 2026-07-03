@@ -4,6 +4,7 @@
     view: 'list',
     period: 'today',
     projectFilter: 'all',
+    tagFilter: null,
     theme: 'system',
     groupByProject: false,
     showCompleted: true

@@ -6,6 +6,9 @@ Aplicação de lista de tarefas feita com **HTML, CSS e JavaScript puro** (sem f
 
 - ➕ Criar tarefas com título, projeto, data de vencimento ou repetição diária
 - ☑️ **Subtarefas**: quebrar uma tarefa em passos menores, adicionar/concluir/excluir direto na Lista ou no Painel (sem precisar abrir o modal)
+- 🏷️ **Etiquetas**: crie e vincule etiquetas às tarefas digitando `@` no título (com sugestão e criação na hora); filtre por etiqueta na sidebar
+- ⭐ **Favoritos**: fixe projetos e etiquetas numa seção de acesso rápido na sidebar
+- 🔍 **Busca**: encontre tarefas por título em tempo real (ícone de lupa no desktop, aba "Buscar" no mobile)
 - 📅 Filtrar tarefas por **Hoje**, **Semana**, **Mês** ou **Todas**
 - 📋 Alternar entre visualização em **Lista** e em **Painel** (colunas por projeto)
 - 📁 Agrupar tarefas por projeto (Lista em seções ou Painel em colunas) e mostrar/esconder tarefas concluídas
@@ -24,7 +27,7 @@ Aplicação de lista de tarefas feita com **HTML, CSS e JavaScript puro** (sem f
    ```bash
    git clone https://github.com/DiogoFaleiro/to-do-list-inteligente.git
    ```
-2. Crie um projeto gratuito em [supabase.com](https://supabase.com) e rode, na ordem, os SQLs de `supabase/migrations/0001_init.sql`, `0002_admin_dashboard.sql`, `0003_profile_avatar.sql` e `0004_subtasks.sql` no **SQL Editor** do seu projeto (criam as tabelas, as regras de segurança, o super admin automático, as métricas do painel admin, o bucket de fotos de avatar e a coluna de subtarefas).
+2. Crie um projeto gratuito em [supabase.com](https://supabase.com) e rode, na ordem, os SQLs de `supabase/migrations/0001_init.sql`, `0002_admin_dashboard.sql`, `0003_profile_avatar.sql`, `0004_subtasks.sql` e `0005_tags.sql` no **SQL Editor** do seu projeto (criam as tabelas, as regras de segurança, o super admin automático, as métricas do painel admin, o bucket de fotos de avatar, a coluna de subtarefas e as etiquetas/favoritos).
 3. Configure a URL e a chave pública (`anon`/`publishable`) do seu projeto em `js/supabaseClient.js`.
 4. Abra `index.html` diretamente no navegador, ou sirva a pasta com um servidor local (ex: extensão *Live Server* do VS Code, ou `npx serve`) — necessário para o service worker funcionar.
 
@@ -54,6 +57,7 @@ supabase/
   migrations/0002_admin_dashboard.sql -> RPCs de métricas por dia da semana e lista de usuários
   migrations/0003_profile_avatar.sql  -> nome de exibição, foto de avatar e bucket de storage
   migrations/0004_subtasks.sql        -> coluna parent_task_id para subtarefas
+  migrations/0005_tags.sql            -> tabelas tags/task_tags e coluna is_favorite
 logo/
   1.png, 1.ico -> arte original da logo
 icons/

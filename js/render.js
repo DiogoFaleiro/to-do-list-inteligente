@@ -3,6 +3,9 @@
 
   const els = {
     projectList: document.getElementById('projectList'),
+    tagList: document.getElementById('tagList'),
+    favoritesSection: document.getElementById('favoritesSection'),
+    favoritesList: document.getElementById('favoritesList'),
     periodTabs: document.getElementById('periodTabs'),
     viewToggle: document.getElementById('viewToggle'),
     listView: document.getElementById('listView'),
@@ -73,35 +76,72 @@
     return store.getState().projects.find((p) => p.id === id);
   }
 
+  // Item de projeto na sidebar. `compact` omite a estrela de favorito e o
+  // lápis de editar (usado na seção Favoritos, que é só um atalho).
+  function projectItemHtml(p, openCounts, { compact = false } = {}) {
+    const state = store.getState();
+    const active = !state.ui.tagFilter && state.ui.projectFilter === p.id;
+    const extras = compact
+      ? ''
+      : `
+      <span class="fav-toggle ${p.isFavorite ? 'is-favorite' : ''}" data-fav-project="${p.id}" title="${p.isFavorite ? 'Remover dos favoritos' : 'Favoritar'}">${p.isFavorite ? '⭐' : '☆'}</span>
+      <span class="edit-project" data-edit-project="${p.id}" title="Editar projeto">✏️</span>`;
+    return `
+      <button class="project-item ${active ? 'active' : ''}" data-project="${p.id}">
+        <span class="dot" style="background:${p.color}"></span>
+        <span class="project-name">${escapeHtml(p.name)}</span>
+        <span class="badge">${openCounts[p.id] || 0}</span>
+        ${extras}
+      </button>`;
+  }
+
+  // Item de etiqueta na sidebar — mesmo visual do item de projeto.
+  function tagItemHtml(tag, tagCounts, { compact = false } = {}) {
+    const state = store.getState();
+    const active = state.ui.tagFilter === tag.id;
+    const extras = compact
+      ? ''
+      : `
+      <span class="fav-toggle ${tag.isFavorite ? 'is-favorite' : ''}" data-fav-tag="${tag.id}" title="${tag.isFavorite ? 'Remover dos favoritos' : 'Favoritar'}">${tag.isFavorite ? '⭐' : '☆'}</span>
+      <span class="edit-project" data-edit-tag="${tag.id}" title="Editar etiqueta">✏️</span>`;
+    return `
+      <button class="project-item ${active ? 'active' : ''}" data-tag="${tag.id}">
+        <span class="dot" style="background:${tag.color}"></span>
+        <span class="project-name">${escapeHtml(tag.name)}</span>
+        <span class="badge">${tagCounts[tag.id] || 0}</span>
+        ${extras}
+      </button>`;
+  }
+
   function renderSidebar() {
     const state = store.getState();
     const openCounts = {};
+    const tagCounts = {};
     state.tasks.forEach((t) => {
-      if (t.parentTaskId) return; // subtarefas não contam nos totais
-      if (t.status !== 'done') openCounts[t.projectId] = (openCounts[t.projectId] || 0) + 1;
+      if (t.parentTaskId || t.status === 'done') return; // subtarefas e concluídas não contam
+      openCounts[t.projectId] = (openCounts[t.projectId] || 0) + 1;
+      (state.taskTags[t.id] || []).forEach((tagId) => {
+        tagCounts[tagId] = (tagCounts[tagId] || 0) + 1;
+      });
     });
     const totalOpen = state.tasks.filter((t) => !t.parentTaskId && t.status !== 'done').length;
 
     const allBtn = `
-      <button class="project-item ${state.ui.projectFilter === 'all' ? 'active' : ''}" data-project="all">
+      <button class="project-item ${state.ui.projectFilter === 'all' && !state.ui.tagFilter ? 'active' : ''}" data-project="all">
         <span class="dot" style="background:#636e72"></span>
         <span class="project-name">Todas as tarefas</span>
         <span class="badge">${totalOpen}</span>
       </button>`;
 
-    const items = state.projects
-      .map(
-        (p) => `
-      <button class="project-item ${state.ui.projectFilter === p.id ? 'active' : ''}" data-project="${p.id}">
-        <span class="dot" style="background:${p.color}"></span>
-        <span class="project-name">${escapeHtml(p.name)}</span>
-        <span class="badge">${openCounts[p.id] || 0}</span>
-        <span class="edit-project" data-edit-project="${p.id}" title="Editar projeto">✏️</span>
-      </button>`
-      )
-      .join('');
+    els.projectList.innerHTML = allBtn + state.projects.map((p) => projectItemHtml(p, openCounts)).join('');
+    els.tagList.innerHTML = state.tags.map((tag) => tagItemHtml(tag, tagCounts)).join('');
 
-    els.projectList.innerHTML = allBtn + items;
+    const favProjects = state.projects.filter((p) => p.isFavorite);
+    const favTags = state.tags.filter((t) => t.isFavorite);
+    els.favoritesSection.hidden = favProjects.length === 0 && favTags.length === 0;
+    els.favoritesList.innerHTML =
+      favProjects.map((p) => projectItemHtml(p, openCounts, { compact: true })).join('') +
+      favTags.map((tag) => tagItemHtml(tag, tagCounts, { compact: true })).join('');
   }
 
   function taskMetaHtml(task) {
@@ -118,6 +158,9 @@
       const overdue = utils.isOverdue(task.dueDate, today) && task.status !== 'done';
       parts.push(`<span class="tag ${overdue ? 'tag-overdue' : ''}">📅 ${utils.formatDateBR(task.dueDate)}</span>`);
     }
+    store.getTaskTags(task.id).forEach((tag) => {
+      parts.push(`<span class="tag" style="background:${tag.color}22;color:${tag.color}">@${escapeHtml(tag.name)}</span>`);
+    });
     return parts.join('');
   }
 
@@ -315,10 +358,16 @@
       els.mobileBoardToggleBtn.textContent = state.ui.view === 'board' ? '☰' : '▤';
     }
     if (els.mobileNavToday) {
-      els.mobileNavToday.classList.toggle('active', state.ui.period === 'today' && state.ui.projectFilter === 'all');
+      els.mobileNavToday.classList.toggle(
+        'active',
+        state.ui.period === 'today' && state.ui.projectFilter === 'all' && !state.ui.tagFilter
+      );
     }
     if (els.mobileNavUpcoming) {
-      els.mobileNavUpcoming.classList.toggle('active', state.ui.period === 'week' && state.ui.projectFilter === 'all');
+      els.mobileNavUpcoming.classList.toggle(
+        'active',
+        state.ui.period === 'week' && state.ui.projectFilter === 'all' && !state.ui.tagFilter
+      );
     }
 
     // Toggles de "Agrupar por projeto" (só faz sentido na Lista, no Painel

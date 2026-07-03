@@ -104,9 +104,18 @@
         </div>
       </div>
 
+      <div id="favoritesSection" hidden>
+        <p class="sidebar-section-label">Favoritos</p>
+        <nav id="favoritesList" class="project-list"></nav>
+      </div>
+
       <button id="newProjectBtn" class="btn-secondary btn-block">+ Novo projeto</button>
       <p class="sidebar-section-label">Meus projetos</p>
       <nav id="projectList" class="project-list"></nav>
+
+      <button id="newTagBtn" class="btn-secondary btn-block">+ Nova etiqueta</button>
+      <p class="sidebar-section-label">Etiquetas</p>
+      <nav id="tagList" class="project-list"></nav>
     </aside>
 
     <main class="main">
@@ -139,6 +148,7 @@
           <button data-period="all">Todas</button>
         </div>
         <div class="toolbar-right">
+          <button id="searchToggleBtn" class="mobile-icon-btn" type="button" aria-label="Buscar" title="Buscar">🔍</button>
           <button id="groupByProjectToggleBtn" class="btn-secondary toggle-btn" type="button" title="Agrupar por projeto">📁 Agrupar</button>
           <button id="showCompletedToggleBtn" class="btn-secondary toggle-btn active" type="button" title="Mostrar tarefas concluídas">✅ Concluídas</button>
           <div class="view-toggle" id="viewToggle">
@@ -149,11 +159,18 @@
         </div>
       </header>
 
+      <div id="desktopSearchBar" class="search-bar" hidden>
+        <input type="text" id="desktopSearchInput" placeholder="Buscar tarefas..." maxlength="120">
+        <button type="button" id="desktopSearchCloseBtn" class="mobile-icon-btn" aria-label="Fechar busca" title="Fechar busca">✕</button>
+      </div>
+
+      <div id="mobileSearchBar" class="search-bar" hidden>
+        <input type="text" id="mobileSearchInput" placeholder="Buscar tarefas..." maxlength="120">
+      </div>
+
       <section id="listView" class="list-view"></section>
 
       <section id="boardView" class="board-view" hidden></section>
-
-      <p id="searchPlaceholder" class="empty-state" hidden>🔍 Busca em breve!</p>
     </main>
 
     <!-- Rodapé de navegação, só visível no mobile (≤600px) -->
@@ -183,9 +200,15 @@
       <h2 id="taskModalTitle">Nova tarefa</h2>
       <input type="hidden" id="taskId">
 
-      <label>Título
-        <input type="text" id="taskTitle" required maxlength="120" placeholder="O que precisa ser feito?">
+      <label class="task-title-label">Título
+        <input type="text" id="taskTitle" required maxlength="120" placeholder="O que precisa ser feito? (@ para etiquetar)">
+        <div id="taskTagSuggest" class="tag-suggest-menu" hidden></div>
       </label>
+
+      <div class="tag-editor">
+        <span class="tag-editor-label">Etiquetas</span>
+        <div id="taskTagList" class="tag-editor-chips"></div>
+      </div>
 
       <label>Projeto
         <select id="taskProject"></select>
@@ -233,6 +256,28 @@
       <div class="modal-actions">
         <button type="button" id="projectDeleteBtn" class="btn-danger" hidden>Excluir projeto</button>
         <button type="button" id="projectCancelBtn" class="btn-secondary">Cancelar</button>
+        <button type="submit" class="btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Modal de etiqueta -->
+  <div id="tagModal" class="modal-overlay" hidden>
+    <form id="tagForm" class="modal">
+      <h2 id="tagModalTitle">Nova etiqueta</h2>
+      <input type="hidden" id="tagId">
+
+      <label>Nome
+        <input type="text" id="tagName" required maxlength="40" placeholder="Ex: Urgente">
+      </label>
+
+      <label>Cor
+        <input type="color" id="tagColor" value="#6c5ce7">
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="tagDeleteBtn" class="btn-danger" hidden>Excluir etiqueta</button>
+        <button type="button" id="tagCancelBtn" class="btn-secondary">Cancelar</button>
         <button type="submit" class="btn-primary">Salvar</button>
       </div>
     </form>

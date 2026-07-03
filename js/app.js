@@ -15,6 +15,9 @@
   const authSwitchBtn = document.getElementById('authSwitchBtn');
 
   const projectListEl = document.getElementById('projectList');
+  const tagListEl = document.getElementById('tagList');
+  const favoritesListEl = document.getElementById('favoritesList');
+  const newTagBtn = document.getElementById('newTagBtn');
   const periodTabs = document.getElementById('periodTabs');
   const viewToggle = document.getElementById('viewToggle');
   const newTaskBtn = document.getElementById('newTaskBtn');
@@ -24,6 +27,14 @@
   const groupByProjectToggleBtn = document.getElementById('groupByProjectToggleBtn');
   const showCompletedToggleBtn = document.getElementById('showCompletedToggleBtn');
 
+  // Busca (desktop: ícone + barra na toolbar; mobile: aba "Buscar" do rodapé)
+  const searchToggleBtn = document.getElementById('searchToggleBtn');
+  const desktopSearchBar = document.getElementById('desktopSearchBar');
+  const desktopSearchInput = document.getElementById('desktopSearchInput');
+  const desktopSearchCloseBtn = document.getElementById('desktopSearchCloseBtn');
+  const mobileSearchBar = document.getElementById('mobileSearchBar');
+  const mobileSearchInput = document.getElementById('mobileSearchInput');
+
   // Navegação mobile (rodapé, sidebar como painel "Navegar", menu de período)
   const sidebarEl = document.querySelector('.sidebar');
   const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
@@ -32,7 +43,6 @@
   const periodMenu = document.getElementById('periodMenu');
   const groupByProjectMenuBtn = document.getElementById('groupByProjectMenuBtn');
   const showCompletedMenuBtn = document.getElementById('showCompletedMenuBtn');
-  const searchPlaceholder = document.getElementById('searchPlaceholder');
   const mobileNavBtns = document.querySelectorAll('.mobile-nav-btn');
 
   // Painel "Navegar": linha de conta (avatar + nome + menu de engrenagem)
@@ -75,10 +85,14 @@
   const taskSubtaskList = document.getElementById('taskSubtaskList');
   const taskNewSubtaskInput = document.getElementById('taskNewSubtaskInput');
   const taskAddSubtaskBtn = document.getElementById('taskAddSubtaskBtn');
+  const taskTagList = document.getElementById('taskTagList');
+  const taskTagSuggest = document.getElementById('taskTagSuggest');
 
   // Subtarefas digitadas antes de a tarefa mãe existir de verdade (modo
   // "criar"); só viram tarefas reais depois que a tarefa mãe for salva.
   let pendingNewSubtasks = [];
+  // Mesma ideia para etiquetas escolhidas/criadas via "@" antes de salvar.
+  let pendingNewTagIds = [];
 
   // Modal de projeto
   const projectModal = document.getElementById('projectModal');
@@ -89,6 +103,16 @@
   const projectColorInput = document.getElementById('projectColor');
   const projectCancelBtn = document.getElementById('projectCancelBtn');
   const projectDeleteBtn = document.getElementById('projectDeleteBtn');
+
+  // Modal de etiqueta
+  const tagModal = document.getElementById('tagModal');
+  const tagForm = document.getElementById('tagForm');
+  const tagModalTitle = document.getElementById('tagModalTitle');
+  const tagIdInput = document.getElementById('tagId');
+  const tagNameInput = document.getElementById('tagName');
+  const tagColorInput = document.getElementById('tagColor');
+  const tagCancelBtn = document.getElementById('tagCancelBtn');
+  const tagDeleteBtn = document.getElementById('tagDeleteBtn');
 
   function toggleDueDateRow() {
     taskDueDateRow.style.display = taskRecurringInput.checked ? 'none' : '';
@@ -141,9 +165,97 @@
     taskNewSubtaskInput.focus();
   }
 
+  // Mostra os chips de etiqueta já vinculados à tarefa em edição (vindos do
+  // store, ao vivo) ou, no modo "criar", as escolhidas via "@" antes de
+  // salvar (pendingNewTagIds) — mesmo papel do renderModalSubtasks acima.
+  function renderModalTags() {
+    const tags = taskIdInput.value
+      ? store.getTaskTags(taskIdInput.value)
+      : pendingNewTagIds.map((id) => store.getState().tags.find((t) => t.id === id)).filter(Boolean);
+    taskTagList.innerHTML = tags
+      .map(
+        (tag) => `
+      <span class="tag-chip" style="background:${tag.color}22;color:${tag.color}" data-tag-chip="${tag.id}">
+        ${escapeHtml(tag.name)}
+        <button type="button" data-remove-tag="${tag.id}" title="Remover">×</button>
+      </span>`
+      )
+      .join('');
+  }
+
+  // Encontra o "@algo" (se houver) entre o último @ antes do cursor e o
+  // próprio cursor, em #taskTitle. Um espaço encerra a menção.
+  function currentMentionQuery() {
+    const value = taskTitleInput.value;
+    const caret = taskTitleInput.selectionStart;
+    const atIndex = value.lastIndexOf('@', caret - 1);
+    if (atIndex === -1) return null;
+    const between = value.slice(atIndex + 1, caret);
+    if (/\s/.test(between)) return null;
+    return { atIndex, query: between };
+  }
+
+  function renderTagSuggestions() {
+    const mention = currentMentionQuery();
+    if (!mention) {
+      taskTagSuggest.hidden = true;
+      taskTagSuggest.innerHTML = '';
+      return;
+    }
+    const query = mention.query.trim().toLowerCase();
+    const allTags = store.getState().tags;
+    const attachedIds = taskIdInput.value ? store.getTaskTags(taskIdInput.value).map((t) => t.id) : pendingNewTagIds;
+    const matches = allTags.filter(
+      (tag) => !attachedIds.includes(tag.id) && (!query || tag.name.toLowerCase().includes(query))
+    );
+    const exactMatch = allTags.some((tag) => tag.name.toLowerCase() === query);
+
+    const items = matches
+      .map(
+        (tag) => `
+      <button type="button" data-suggest-tag="${tag.id}"><span class="dot" style="background:${tag.color}"></span>${escapeHtml(tag.name)}</button>`
+      )
+      .join('');
+    const createLabel = mention.query.trim();
+    const createItem =
+      createLabel && !exactMatch
+        ? `<button type="button" data-suggest-create="${escapeHtml(createLabel)}">+ Criar etiqueta "${escapeHtml(createLabel)}"</button>`
+        : '';
+
+    if (!items && !createItem) {
+      taskTagSuggest.hidden = true;
+      taskTagSuggest.innerHTML = '';
+      return;
+    }
+    taskTagSuggest.innerHTML = items + createItem;
+    taskTagSuggest.hidden = false;
+  }
+
+  function attachTagToModal(tagId) {
+    const mention = currentMentionQuery();
+    if (mention) {
+      const value = taskTitleInput.value;
+      const caret = taskTitleInput.selectionStart;
+      taskTitleInput.value = value.slice(0, mention.atIndex) + value.slice(caret);
+      taskTitleInput.setSelectionRange(mention.atIndex, mention.atIndex);
+    }
+    if (taskIdInput.value) {
+      store.addTagToTask(taskIdInput.value, tagId);
+    } else if (!pendingNewTagIds.includes(tagId)) {
+      pendingNewTagIds.push(tagId);
+    }
+    renderModalTags();
+    taskTagSuggest.hidden = true;
+    taskTagSuggest.innerHTML = '';
+    taskTitleInput.focus();
+  }
+
   function openTaskModal(task) {
     taskForm.reset();
     pendingNewSubtasks = [];
+    pendingNewTagIds = [];
+    taskTagSuggest.hidden = true;
+    taskTagSuggest.innerHTML = '';
     const state = store.getState();
     const defaultProject = task
       ? task.projectId
@@ -168,6 +280,7 @@
     }
     toggleDueDateRow();
     renderModalSubtasks();
+    renderModalTags();
     taskModal.hidden = false;
     taskTitleInput.focus();
   }
@@ -197,6 +310,53 @@
     projectModal.hidden = true;
   }
 
+  function openTagModal(tag) {
+    tagForm.reset();
+    tagColorInput.value = tag ? tag.color : '#6c5ce7';
+    if (tag) {
+      tagModalTitle.textContent = 'Editar etiqueta';
+      tagIdInput.value = tag.id;
+      tagNameInput.value = tag.name;
+      tagDeleteBtn.hidden = false;
+    } else {
+      tagModalTitle.textContent = 'Nova etiqueta';
+      tagIdInput.value = '';
+      tagDeleteBtn.hidden = true;
+    }
+    tagModal.hidden = false;
+    tagNameInput.focus();
+  }
+
+  function closeTagModal() {
+    tagModal.hidden = true;
+  }
+
+  // Fecha busca (desktop e mobile) e limpa o texto — usado sempre que o
+  // usuário navega para outro filtro/aba.
+  function closeAllSearch() {
+    desktopSearchBar.hidden = true;
+    desktopSearchInput.value = '';
+    mobileSearchBar.hidden = true;
+    mobileSearchInput.value = '';
+    store.setSearchQuery('');
+  }
+
+  function selectProjectFilter(id) {
+    store.setProjectFilter(id);
+    closeAllSearch();
+    setMobileNavActive(null);
+    closeMobileSidebar();
+  }
+
+  // Etiqueta é um filtro global (não amarrado a projeto), mesma navegação
+  // do filtro de projeto.
+  function selectTagFilter(id) {
+    store.setTagFilter(id);
+    closeAllSearch();
+    setMobileNavActive(null);
+    closeMobileSidebar();
+  }
+
   // Sidebar: seleção e edição de projetos
   projectListEl.addEventListener('click', (e) => {
     const editBtn = e.target.closest('[data-edit-project]');
@@ -205,13 +365,41 @@
       if (project) openProjectModal(project);
       return;
     }
-    const item = e.target.closest('[data-project]');
-    if (item) {
-      store.setProjectFilter(item.dataset.project);
-      hideSearchPlaceholder();
-      setMobileNavActive(null);
-      closeMobileSidebar();
+    const favBtn = e.target.closest('[data-fav-project]');
+    if (favBtn) {
+      store.toggleProjectFavorite(favBtn.dataset.favProject);
+      return;
     }
+    const item = e.target.closest('[data-project]');
+    if (item) selectProjectFilter(item.dataset.project);
+  });
+
+  // Sidebar: seleção, edição e favoritar etiquetas
+  tagListEl.addEventListener('click', (e) => {
+    const editBtn = e.target.closest('[data-edit-tag]');
+    if (editBtn) {
+      const tag = store.getState().tags.find((t) => t.id === editBtn.dataset.editTag);
+      if (tag) openTagModal(tag);
+      return;
+    }
+    const favBtn = e.target.closest('[data-fav-tag]');
+    if (favBtn) {
+      store.toggleTagFavorite(favBtn.dataset.favTag);
+      return;
+    }
+    const item = e.target.closest('[data-tag]');
+    if (item) selectTagFilter(item.dataset.tag);
+  });
+
+  // Sidebar: Favoritos (projetos e etiquetas fixados), sem ícones extras
+  favoritesListEl.addEventListener('click', (e) => {
+    const projectItem = e.target.closest('[data-project]');
+    if (projectItem) {
+      selectProjectFilter(projectItem.dataset.project);
+      return;
+    }
+    const tagItem = e.target.closest('[data-tag]');
+    if (tagItem) selectTagFilter(tagItem.dataset.tag);
   });
 
   periodTabs.addEventListener('click', (e) => {
@@ -226,6 +414,7 @@
 
   newTaskBtn.addEventListener('click', () => openTaskModal(null));
   newProjectBtn.addEventListener('click', () => openProjectModal(null));
+  newTagBtn.addEventListener('click', () => openTagModal(null));
 
   // Navegação mobile: sidebar vira painel "Navegar", rodapé fixo, menu ⋮ de período
   function closeMobileSidebar() {
@@ -234,10 +423,6 @@
 
   function openMobileSidebar() {
     sidebarEl.classList.add('mobile-open');
-  }
-
-  function hideSearchPlaceholder() {
-    searchPlaceholder.hidden = true;
   }
 
   function setMobileNavActive(tab) {
@@ -408,22 +593,23 @@
       const tab = btn.dataset.mobileTab;
       setMobileNavActive(tab);
       if (tab === 'today') {
-        hideSearchPlaceholder();
+        closeAllSearch();
         closeMobileSidebar();
         store.setProjectFilter('all');
         store.setPeriod('today');
       } else if (tab === 'upcoming') {
-        hideSearchPlaceholder();
+        closeAllSearch();
         closeMobileSidebar();
         store.setProjectFilter('all');
         store.setPeriod('week');
       } else if (tab === 'search') {
         closeMobileSidebar();
-        listView.hidden = true;
         boardView.hidden = true;
-        searchPlaceholder.hidden = false;
+        listView.hidden = false;
+        mobileSearchBar.hidden = false;
+        mobileSearchInput.focus();
       } else if (tab === 'browse') {
-        hideSearchPlaceholder();
+        closeAllSearch();
         const view = store.getState().ui.view;
         listView.hidden = view !== 'list';
         boardView.hidden = view !== 'board';
@@ -443,6 +629,7 @@
   });
   taskCancelBtn.addEventListener('click', closeTaskModal);
   projectCancelBtn.addEventListener('click', closeProjectModal);
+  tagCancelBtn.addEventListener('click', closeTagModal);
   taskRecurringInput.addEventListener('change', toggleDueDateRow);
 
   // Subtarefas dentro do modal de tarefa
@@ -472,11 +659,56 @@
     }
   });
 
+  // Etiquetas dentro do modal de tarefa: menção "@" no título + chips
+  taskTitleInput.addEventListener('input', renderTagSuggestions);
+  taskTitleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !taskTagSuggest.hidden) {
+      taskTagSuggest.hidden = true;
+      taskTagSuggest.innerHTML = '';
+    }
+  });
+  taskTitleInput.addEventListener('blur', () => {
+    // Delay pra não esconder antes do mousedown na sugestão poder rodar.
+    setTimeout(() => {
+      taskTagSuggest.hidden = true;
+    }, 150);
+  });
+
+  taskTagSuggest.addEventListener('mousedown', (e) => {
+    // mousedown (não click) evita que o input perca o foco/dispare blur
+    // antes da seleção ser processada.
+    e.preventDefault();
+    const createBtn = e.target.closest('[data-suggest-create]');
+    if (createBtn) {
+      store.addTag({ name: createBtn.dataset.suggestCreate, color: '#6c5ce7' }).then((newTag) => {
+        if (newTag) attachTagToModal(newTag.id);
+      });
+      return;
+    }
+    const suggestBtn = e.target.closest('[data-suggest-tag]');
+    if (suggestBtn) attachTagToModal(suggestBtn.dataset.suggestTag);
+  });
+
+  taskTagList.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('[data-remove-tag]');
+    if (!removeBtn) return;
+    const tagId = removeBtn.dataset.removeTag;
+    if (taskIdInput.value) {
+      store.removeTagFromTask(taskIdInput.value, tagId);
+    } else {
+      pendingNewTagIds = pendingNewTagIds.filter((id) => id !== tagId);
+      renderModalTags();
+    }
+  });
+
   taskModal.addEventListener('click', (e) => {
     if (e.target === taskModal) closeTaskModal();
   });
   projectModal.addEventListener('click', (e) => {
     if (e.target === projectModal) closeProjectModal();
+  });
+  tagModal.addEventListener('click', (e) => {
+    if (e.target === tagModal) closeTagModal();
   });
 
   taskForm.addEventListener('submit', (e) => {
@@ -490,11 +722,13 @@
     if (!payload.title.trim()) return;
     if (taskIdInput.value) {
       store.updateTask(taskIdInput.value, payload);
-    } else if (pendingNewSubtasks.length) {
+    } else if (pendingNewSubtasks.length || pendingNewTagIds.length) {
       const subtaskTitles = pendingNewSubtasks.slice();
+      const tagIds = pendingNewTagIds.slice();
       store.addTask(payload).then((newTask) => {
         if (!newTask) return;
         subtaskTitles.forEach((title) => store.addSubtask(newTask.id, title));
+        tagIds.forEach((tagId) => store.addTagToTask(newTask.id, tagId));
       });
     } else {
       store.addTask(payload);
@@ -524,6 +758,43 @@
       closeProjectModal();
     }
   });
+
+  tagForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const payload = { name: tagNameInput.value, color: tagColorInput.value };
+    if (!payload.name.trim()) return;
+    if (tagIdInput.value) {
+      store.updateTag(tagIdInput.value, payload);
+    } else {
+      store.addTag(payload);
+    }
+    closeTagModal();
+  });
+
+  tagDeleteBtn.addEventListener('click', () => {
+    const id = tagIdInput.value;
+    if (!id) return;
+    const tag = store.getState().tags.find((t) => t.id === id);
+    const ok = confirm(`Excluir a etiqueta "${tag ? tag.name : ''}"? Ela será removida de todas as tarefas vinculadas.`);
+    if (ok) {
+      store.deleteTag(id);
+      closeTagModal();
+    }
+  });
+
+  // Busca: ícone de lupa no desktop e aba "Buscar" no rodapé mobile
+  function openDesktopSearch() {
+    desktopSearchBar.hidden = false;
+    desktopSearchInput.focus();
+  }
+
+  searchToggleBtn.addEventListener('click', () => {
+    if (desktopSearchBar.hidden) openDesktopSearch();
+    else closeAllSearch();
+  });
+  desktopSearchCloseBtn.addEventListener('click', closeAllSearch);
+  desktopSearchInput.addEventListener('input', () => store.setSearchQuery(desktopSearchInput.value));
+  mobileSearchInput.addEventListener('input', () => store.setSearchQuery(mobileSearchInput.value));
 
   // Menu "⋯" da tarefa (Editar/Data/Excluir): compartilhado entre Lista e
   // Painel, já que os dois usam os mesmos atributos data-menu-*.
@@ -692,6 +963,7 @@
       closeTaskModal();
       closeProjectModal();
       closeAccountModal();
+      closeTagModal();
     }
   });
 
@@ -706,10 +978,13 @@
     if (hasSubscribed) return;
     hasSubscribed = true;
     store.subscribe(render.renderAll);
-    // Mantém a lista de subtarefas do modal em dia com mudanças assíncronas
-    // (ex.: rollback de uma subtarefa que falhou ao salvar).
+    // Mantém a lista de subtarefas/etiquetas do modal em dia com mudanças
+    // assíncronas (ex.: rollback de uma mutação que falhou ao salvar).
     store.subscribe(() => {
-      if (!taskModal.hidden && taskIdInput.value) renderModalSubtasks();
+      if (!taskModal.hidden && taskIdInput.value) {
+        renderModalSubtasks();
+        renderModalTags();
+      }
     });
   }
 
