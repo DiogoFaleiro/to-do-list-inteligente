@@ -161,7 +161,12 @@
 
   function renderBoard() {
     const tasks = sortTasks(visibleTasks());
-    const groups = groupTasksByProject(tasks);
+    const groups = groupTasksByProject(tasks).filter((g) => g.tasks.length > 0);
+
+    if (groups.length === 0) {
+      els.boardView.innerHTML = `<p class="empty-state">Nenhuma tarefa por aqui. Que tal adicionar uma? 🎉</p>`;
+      return;
+    }
 
     els.boardView.innerHTML = groups
       .map(
@@ -169,10 +174,9 @@
       <div class="board-column">
         <h2>${escapeHtml(g.name)} <span class="count">${g.tasks.length}</span></h2>
         <div class="board-cards">
-          ${
-            g.tasks
-              .map(
-                (task) => `
+          ${g.tasks
+            .map(
+              (task) => `
           <div class="board-card ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
             <div class="board-card-header">
               <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
@@ -181,9 +185,8 @@
             </div>
             <div class="task-meta">${taskMetaHtml(task)}</div>
           </div>`
-              )
-              .join('') || `<p class="empty-column">Vazio</p>`
-          }
+            )
+            .join('')}
         </div>
       </div>`
       )

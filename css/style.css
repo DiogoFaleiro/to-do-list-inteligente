@@ -811,16 +811,18 @@ a.btn-danger {
   padding: 40px 0;
 }
 
-/* Painel (colunas por projeto) */
+/* Painel (colunas por projeto): uma linha só, com rolagem horizontal
+   quando não couberem todas as colunas — nunca quebra para baixo. */
 .board-view {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  display: flex;
   gap: 16px;
   align-items: start;
   overflow-x: auto;
+  padding-bottom: 6px;
 }
 
 .board-column {
+  flex: 0 0 260px;
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -889,13 +891,6 @@ a.btn-danger {
 
 .board-delete:hover {
   background: var(--border);
-}
-
-.empty-column {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  text-align: center;
-  padding: 12px 0;
 }
 
 /* Modal */
@@ -1060,12 +1055,8 @@ a.btn-danger {
   color: var(--primary);
 }
 
-/* Responsivo: tablets (colunas do painel empilham antes de espremer) */
+/* Responsivo: tablets */
 @media (max-width: 900px) {
-  .board-view {
-    grid-template-columns: 1fr;
-  }
-
   .task-actions button,
   .board-delete,
   .edit-project {
@@ -1108,8 +1099,8 @@ a.btn-danger {
     margin-left: auto;
   }
 
-  .board-view {
-    grid-template-columns: 1fr;
+  .board-column {
+    flex-basis: 220px;
   }
 
   .modal-overlay {
