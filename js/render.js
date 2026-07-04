@@ -308,7 +308,11 @@
       group.tasks.push(t);
     });
 
-    return groups.concat(none).filter((g) => g.tasks.length > 0);
+    // Sessões de verdade sempre aparecem, mesmo vazias — já que o usuário
+    // as criou de propósito e quer ver a coluna pronta pra adicionar
+    // tarefas nela. "Sem sessão" não é uma sessão de verdade, então só
+    // aparece quando tiver alguma tarefa solta ali.
+    return none.tasks.length > 0 ? groups.concat(none) : groups;
   }
 
   function renderList() {
