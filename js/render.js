@@ -319,36 +319,51 @@
     const state = store.getState();
     const tasks = sortTasks(visibleTasks());
 
-    if (tasks.length === 0) {
-      els.listView.innerHTML = `<p class="empty-state">Nenhuma tarefa por aqui. Que tal adicionar uma? 🎉</p>`;
-      return;
-    }
-
     if (!state.ui.groupByProject) {
-      els.listView.innerHTML = tasks.map(taskRowHtml).join('');
+      if (tasks.length === 0) {
+        els.listView.innerHTML = `<p class="empty-state">Nenhuma tarefa por aqui. Que tal adicionar uma? 🎉</p>`;
+        return;
+      }
+      els.listView.innerHTML = tasks.map((t) => taskRowHtml(t)).join('');
       return;
     }
 
-    const groups = groupTasksByProject(tasks).filter((g) => g.tasks.length > 0);
-    els.listView.innerHTML = groups
+    // Não filtra por "tem tarefa" ainda — um projeto com sessões precisa
+    // continuar aqui mesmo com 0 tarefas no total, pra suas sessões
+    // (sempre visíveis, ver groupTasksBySession) aparecerem como sub-seção.
+    const sections = groupTasksByProject(tasks)
       .map((g) => {
         const sessionGroups = groupTasksBySession(g.tasks, g.id);
-        const body = sessionGroups
-          ? sessionGroups
-              .map(
-                (sg) => `
+        if (sessionGroups) {
+          const body = sessionGroups
+            .map(
+              (sg) => `
           <h4 class="list-session-title">${escapeHtml(sg.name)}</h4>
           ${sg.tasks.map((t) => taskRowHtml(t, { hideSessionTag: true })).join('')}`
-              )
-              .join('')
-          : g.tasks.map((t) => taskRowHtml(t)).join('');
-        return `
+            )
+            .join('');
+          return `
       <div class="list-section">
         <h3 class="list-section-title" style="color:${g.color}">${escapeHtml(g.name)}</h3>
         ${body}
       </div>`;
+        }
+        // Projeto sem sessão: só vira seção se tiver alguma tarefa —
+        // continua igual a antes.
+        if (g.tasks.length === 0) return '';
+        return `
+      <div class="list-section">
+        <h3 class="list-section-title" style="color:${g.color}">${escapeHtml(g.name)}</h3>
+        ${g.tasks.map((t) => taskRowHtml(t)).join('')}
+      </div>`;
       })
-      .join('');
+      .filter(Boolean);
+
+    if (sections.length === 0) {
+      els.listView.innerHTML = `<p class="empty-state">Nenhuma tarefa por aqui. Que tal adicionar uma? 🎉</p>`;
+      return;
+    }
+    els.listView.innerHTML = sections.join('');
   }
 
   function boardCardHtml(task, options) {
@@ -376,18 +391,25 @@
   // a coluna deixa de indicar uma sessão específica).
   function buildBoardColumns(tasks) {
     const splitBySession = store.getState().ui.projectFilter !== 'all';
-    const projectGroups = groupTasksByProject(tasks).filter((g) => g.tasks.length > 0);
+    // Não filtra por "tem tarefa" ainda — um projeto com sessões precisa
+    // continuar na lista mesmo com 0 tarefas no total, pra suas sessões
+    // (sempre visíveis, ver groupTasksBySession) aparecerem como coluna.
+    const projectGroups = groupTasksByProject(tasks);
     const columns = [];
 
     projectGroups.forEach((g) => {
       const sessionGroups = splitBySession ? groupTasksBySession(g.tasks, g.id) : null;
-      if (!sessionGroups) {
-        columns.push({ projectId: g.id, sessionId: null, name: g.name, color: g.color, tasks: g.tasks, isSessionColumn: false });
+      if (sessionGroups) {
+        sessionGroups.forEach((sg) => {
+          columns.push({ projectId: g.id, sessionId: sg.id, name: sg.name, color: g.color, tasks: sg.tasks, isSessionColumn: true });
+        });
         return;
       }
-      sessionGroups.forEach((sg) => {
-        columns.push({ projectId: g.id, sessionId: sg.id, name: sg.name, color: g.color, tasks: sg.tasks, isSessionColumn: true });
-      });
+      // Projeto sem sessão (ou fora do filtro de projeto específico): só
+      // vira coluna se tiver alguma tarefa — continua igual a antes.
+      if (g.tasks.length > 0) {
+        columns.push({ projectId: g.id, sessionId: null, name: g.name, color: g.color, tasks: g.tasks, isSessionColumn: false });
+      }
     });
 
     return columns;
