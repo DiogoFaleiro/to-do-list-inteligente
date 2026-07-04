@@ -215,6 +215,10 @@
         <select id="taskProject"></select>
       </label>
 
+      <label id="taskSessionRow" hidden>Sessão
+        <select id="taskSession"></select>
+      </label>
+
       <label class="checkbox-row">
         <input type="checkbox" id="taskRecurring">
         🔁 Repetir diariamente
@@ -253,6 +257,15 @@
       <label>Cor
         <input type="color" id="projectColor" value="#6c5ce7">
       </label>
+
+      <div class="session-editor" id="projectSessionEditor" hidden>
+        <span class="session-editor-label">Sessões</span>
+        <div id="projectSessionList" class="session-editor-list"></div>
+        <div class="session-add-row">
+          <input type="text" id="projectNewSessionInput" placeholder="Adicionar sessão" maxlength="60">
+          <button type="button" id="projectAddSessionBtn" class="btn-secondary">+ Adicionar</button>
+        </div>
+      </div>
 
       <div class="modal-actions">
         <button type="button" id="projectDeleteBtn" class="btn-danger" hidden>Excluir projeto</button>

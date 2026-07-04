@@ -69,12 +69,33 @@
     return supabaseClient.from('tasks').delete().eq('project_id', projectId);
   }
 
-  function insertTask(userId, { title, projectId, dueDate, recurring, parentTaskId }) {
+  function fetchSessions() {
+    return supabaseClient.from('sessions').select('*').order('created_at', { ascending: true });
+  }
+
+  function insertSessionRow(userId, { projectId, name }) {
+    return supabaseClient
+      .from('sessions')
+      .insert({ user_id: userId, project_id: projectId, name })
+      .select()
+      .single();
+  }
+
+  function updateSessionRow(id, { name }) {
+    return supabaseClient.from('sessions').update({ name }).eq('id', id).select().single();
+  }
+
+  function deleteSessionRow(id) {
+    return supabaseClient.from('sessions').delete().eq('id', id);
+  }
+
+  function insertTask(userId, { title, projectId, sessionId, dueDate, recurring, parentTaskId }) {
     return supabaseClient
       .from('tasks')
       .insert({
         user_id: userId,
         project_id: projectId || null,
+        session_id: sessionId || null,
         title,
         due_date: dueDate || null,
         recurring: !!recurring,
@@ -86,12 +107,13 @@
       .single();
   }
 
-  function updateTaskRow(id, { title, projectId, dueDate, recurring }) {
+  function updateTaskRow(id, { title, projectId, sessionId, dueDate, recurring }) {
     return supabaseClient
       .from('tasks')
       .update({
         title,
         project_id: projectId || null,
+        session_id: sessionId || null,
         due_date: dueDate || null,
         recurring: !!recurring
       })
@@ -170,6 +192,10 @@
     updateProjectFavorite,
     deleteProjectRow,
     deleteTasksByProject,
+    fetchSessions,
+    insertSessionRow,
+    updateSessionRow,
+    deleteSessionRow,
     fetchTags,
     fetchTaskTags,
     insertTagRow,

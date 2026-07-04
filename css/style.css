@@ -1221,6 +1221,92 @@ a.btn-danger {
   min-width: 0;
 }
 
+/* Editor de sessões dentro do modal "Editar projeto" — mesmo molde do
+   editor de subtarefas, com o nome já editável direto no campo. */
+.session-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-editor-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.session-editor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.session-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-editor-name-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.session-editor-row button {
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  padding: 2px 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.session-editor-row button:hover {
+  background: var(--bg);
+}
+
+.session-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.session-add-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Sub-cabeçalho de sessão dentro de uma seção de projeto na Lista */
+.list-session-title {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Bloco de sessão dentro de uma coluna do Painel */
+.board-session-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.board-session-group + .board-session-group {
+  margin-top: 12px;
+}
+
+.board-session-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 /* Etiquetas dentro do modal de tarefa: chips das já vinculadas + menu de
    sugestão "@" ancorado embaixo do campo de título inteiro. */
 .task-title-label {

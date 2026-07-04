@@ -12,6 +12,8 @@
     boardView: document.getElementById('boardView'),
     boardDots: document.getElementById('boardDots'),
     taskProjectSelect: document.getElementById('taskProject'),
+    taskSessionRow: document.getElementById('taskSessionRow'),
+    taskSessionSelect: document.getElementById('taskSession'),
     accountThemeIcon: document.getElementById('accountThemeIcon'),
     mobileViewTitle: document.getElementById('mobileViewTitle'),
     mobileTaskCount: document.getElementById('mobileTaskCount'),
@@ -173,6 +175,10 @@
       const overdue = utils.isOverdue(task.dueDate, today) && task.status !== 'done';
       parts.push(`<span class="tag ${overdue ? 'tag-overdue' : ''}">📅 ${utils.formatDateBR(task.dueDate)}</span>`);
     }
+    if (task.sessionId) {
+      const session = store.getState().sessions.find((s) => s.id === task.sessionId);
+      if (session) parts.push(`<span class="tag">🗂️ ${escapeHtml(session.name)}</span>`);
+    }
     store.getTaskTags(task.id).forEach((tag) => {
       parts.push(`<span class="tag" style="background:${tag.color}22;color:${tag.color}">@${escapeHtml(tag.name)}</span>`);
     });
@@ -281,6 +287,30 @@
     return groups.concat(none);
   }
 
+  // Sub-agrupa as tarefas de UM projeto por sessão (usado dentro do bloco/
+  // coluna daquele projeto na Lista e no Painel). Se o projeto não tem
+  // nenhuma sessão cadastrada, retorna null — sinal pra renderizar a lista
+  // de tarefas "achatada", exatamente como projetos sem sessão sempre
+  // mostraram (não muda nada pra quem não usa a funcionalidade).
+  function groupTasksBySession(tasks, projectId) {
+    const sessions = store.getSessionsForProject(projectId);
+    if (!sessions.length) return null;
+
+    const groups = sessions.map((s) => ({ id: s.id, name: s.name, tasks: [] }));
+    const groupById = {};
+    groups.forEach((g) => {
+      groupById[g.id] = g;
+    });
+    const none = { id: null, name: 'Sem sessão', tasks: [] };
+
+    tasks.forEach((t) => {
+      const group = t.sessionId && groupById[t.sessionId] ? groupById[t.sessionId] : none;
+      group.tasks.push(t);
+    });
+
+    return groups.concat(none).filter((g) => g.tasks.length > 0);
+  }
+
   function renderList() {
     const state = store.getState();
     const tasks = sortTasks(visibleTasks());
@@ -297,14 +327,39 @@
 
     const groups = groupTasksByProject(tasks).filter((g) => g.tasks.length > 0);
     els.listView.innerHTML = groups
-      .map(
-        (g) => `
+      .map((g) => {
+        const sessionGroups = groupTasksBySession(g.tasks, g.id);
+        const body = sessionGroups
+          ? sessionGroups
+              .map(
+                (sg) => `
+          <h4 class="list-session-title">${escapeHtml(sg.name)}</h4>
+          ${sg.tasks.map(taskRowHtml).join('')}`
+              )
+              .join('')
+          : g.tasks.map(taskRowHtml).join('');
+        return `
       <div class="list-section">
         <h3 class="list-section-title" style="color:${g.color}">${escapeHtml(g.name)}</h3>
-        ${g.tasks.map(taskRowHtml).join('')}
-      </div>`
-      )
+        ${body}
+      </div>`;
+      })
       .join('');
+  }
+
+  function boardCardHtml(task) {
+    const subtasks = store.getSubtasks(task.id);
+    return `
+      <div class="board-card ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
+        <div class="board-card-header">
+          ${subtaskToggleHtml(task, subtasks)}
+          <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
+          <div class="task-title">${escapeHtml(task.title)}</div>
+          ${taskMenuHtml(task)}
+        </div>
+        <div class="task-meta">${taskMetaHtml(task)}${subtaskProgressTagHtml(subtasks)}</div>
+        ${subtaskPanelHtml(task, subtasks)}
+      </div>`;
   }
 
   function renderBoard() {
@@ -318,31 +373,26 @@
     }
 
     els.boardView.innerHTML = groups
-      .map(
-        (g) => `
+      .map((g) => {
+        const sessionGroups = groupTasksBySession(g.tasks, g.id);
+        const body = sessionGroups
+          ? sessionGroups
+              .map(
+                (sg) => `
+          <div class="board-session-group">
+            <h3 class="board-session-title">${escapeHtml(sg.name)}</h3>
+            <div class="board-cards">${sg.tasks.map(boardCardHtml).join('')}</div>
+          </div>`
+              )
+              .join('')
+          : `<div class="board-cards">${g.tasks.map(boardCardHtml).join('')}</div>`;
+        return `
       <div class="board-column">
         <h2>${escapeHtml(g.name)} <span class="count">${g.tasks.length}</span></h2>
-        <div class="board-cards">
-          ${g.tasks
-            .map((task) => {
-              const subtasks = store.getSubtasks(task.id);
-              return `
-          <div class="board-card ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
-            <div class="board-card-header">
-              ${subtaskToggleHtml(task, subtasks)}
-              <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
-              <div class="task-title">${escapeHtml(task.title)}</div>
-              ${taskMenuHtml(task)}
-            </div>
-            <div class="task-meta">${taskMetaHtml(task)}${subtaskProgressTagHtml(subtasks)}</div>
-            ${subtaskPanelHtml(task, subtasks)}
-          </div>`;
-            })
-            .join('')}
-        </div>
+        ${body}
         <button type="button" class="board-add-task-btn" data-add-task-project="${g.id || ''}">+ Adicionar tarefa</button>
-      </div>`
-      )
+      </div>`;
+      })
       .join('');
 
     renderBoardDots(groups.length);
@@ -380,6 +430,19 @@
       `<option value="">Sem projeto</option>` +
       state.projects
         .map((p) => `<option value="${p.id}" ${p.id === selectedId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`)
+        .join('');
+  }
+
+  // Só mostra o campo "Sessão" quando o projeto selecionado tiver alguma
+  // sessão cadastrada — projetos que nunca usarem sessão não ganham esse
+  // campo extra no modal de tarefa.
+  function renderTaskSessionOptions(projectId, selectedId) {
+    const sessions = projectId ? store.getSessionsForProject(projectId) : [];
+    els.taskSessionRow.hidden = sessions.length === 0;
+    els.taskSessionSelect.innerHTML =
+      `<option value="">Sem sessão</option>` +
+      sessions
+        .map((s) => `<option value="${s.id}" ${s.id === selectedId ? 'selected' : ''}>${escapeHtml(s.name)}</option>`)
         .join('');
   }
 
@@ -459,6 +522,7 @@
   App.render = {
     renderAll,
     renderTaskProjectOptions,
+    renderTaskSessionOptions,
     projectById,
     applyTheme,
     toggleTaskExpanded,

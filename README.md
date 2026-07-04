@@ -13,6 +13,7 @@ Aplicação de lista de tarefas feita com **HTML, CSS e JavaScript puro** (sem f
 - 📋 Alternar entre visualização em **Lista** e em **Painel** (colunas por projeto)
 - 📁 Agrupar tarefas por projeto (Lista em seções ou Painel em colunas) e mostrar/esconder tarefas concluídas
 - 📁 Criar, editar e excluir **projetos**, com cor e contador de tarefas
+- 🗂️ **Sessões**: crie sub-grupos nomeados dentro de um projeto (ex: "Fase 1", "Reunião") pra organizar as tarefas dele na Lista e no Painel
 - ✅ Marcar tarefas como concluídas
 - 🔁 Tarefas recorrentes (diárias) reabrem automaticamente todo dia
 - 🔐 **Login e cadastro** (e-mail/senha via Supabase Auth) — cada usuário só vê suas próprias tarefas e projetos
@@ -27,7 +28,7 @@ Aplicação de lista de tarefas feita com **HTML, CSS e JavaScript puro** (sem f
    ```bash
    git clone https://github.com/DiogoFaleiro/to-do-list-inteligente.git
    ```
-2. Crie um projeto gratuito em [supabase.com](https://supabase.com) e rode, na ordem, os SQLs de `supabase/migrations/0001_init.sql`, `0002_admin_dashboard.sql`, `0003_profile_avatar.sql`, `0004_subtasks.sql` e `0005_tags.sql` no **SQL Editor** do seu projeto (criam as tabelas, as regras de segurança, o super admin automático, as métricas do painel admin, o bucket de fotos de avatar, a coluna de subtarefas e as etiquetas/favoritos).
+2. Crie um projeto gratuito em [supabase.com](https://supabase.com) e rode, na ordem, os SQLs de `supabase/migrations/0001_init.sql` até `0007_sessions.sql` no **SQL Editor** do seu projeto (criam as tabelas, as regras de segurança, o super admin automático, as métricas do painel admin, o bucket de fotos de avatar, a coluna de subtarefas, as etiquetas/favoritos, a correção de isolamento de dados entre contas e as sessões dentro de projetos).
 3. Configure a URL e a chave pública (`anon`/`publishable`) do seu projeto em `js/supabaseClient.js`.
 4. Abra `index.html` diretamente no navegador, ou sirva a pasta com um servidor local (ex: extensão *Live Server* do VS Code, ou `npx serve`) — necessário para o service worker funcionar.
 
@@ -58,6 +59,8 @@ supabase/
   migrations/0003_profile_avatar.sql  -> nome de exibição, foto de avatar e bucket de storage
   migrations/0004_subtasks.sql        -> coluna parent_task_id para subtarefas
   migrations/0005_tags.sql            -> tabelas tags/task_tags e coluna is_favorite
+  migrations/0006_fix_admin_select_leak.sql -> remove leitura cross-user das policies de select
+  migrations/0007_sessions.sql        -> tabela sessions e coluna session_id em tasks
 logo/
   1.png, 1.ico -> arte original da logo
 icons/

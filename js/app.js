@@ -78,6 +78,7 @@
   const taskIdInput = document.getElementById('taskId');
   const taskTitleInput = document.getElementById('taskTitle');
   const taskProjectSelect = document.getElementById('taskProject');
+  const taskSessionSelect = document.getElementById('taskSession');
   const taskRecurringInput = document.getElementById('taskRecurring');
   const taskDueDateInput = document.getElementById('taskDueDate');
   const taskDueDateRow = document.getElementById('taskDueDateRow');
@@ -103,6 +104,10 @@
   const projectColorInput = document.getElementById('projectColor');
   const projectCancelBtn = document.getElementById('projectCancelBtn');
   const projectDeleteBtn = document.getElementById('projectDeleteBtn');
+  const projectSessionEditor = document.getElementById('projectSessionEditor');
+  const projectSessionList = document.getElementById('projectSessionList');
+  const projectNewSessionInput = document.getElementById('projectNewSessionInput');
+  const projectAddSessionBtn = document.getElementById('projectAddSessionBtn');
 
   // Modal de etiqueta
   const tagModal = document.getElementById('tagModal');
@@ -278,6 +283,7 @@
       ? state.ui.projectFilter
       : '';
     render.renderTaskProjectOptions(defaultProject);
+    render.renderTaskSessionOptions(defaultProject || null, task ? task.sessionId : null);
 
     if (task) {
       taskModalTitle.textContent = 'Editar tarefa';
@@ -304,6 +310,30 @@
     taskModal.hidden = true;
   }
 
+  // Sessões só existem pra editar um projeto que já foi salvo (um projeto
+  // novo ainda não tem id pra vincular sessões a ele).
+  function renderProjectSessions() {
+    if (!projectIdInput.value) return;
+    const sessions = store.getSessionsForProject(projectIdInput.value);
+    projectSessionList.innerHTML = sessions
+      .map(
+        (s) => `
+      <div class="session-editor-row" data-session-id="${s.id}">
+        <input type="text" class="session-editor-name-input" data-rename-session="${s.id}" value="${escapeHtml(s.name)}" maxlength="60">
+        <button type="button" data-delete-session="${s.id}" title="Excluir">🗑️</button>
+      </div>`
+      )
+      .join('');
+  }
+
+  function addSessionFromModal() {
+    const name = projectNewSessionInput.value.trim();
+    if (!name || !projectIdInput.value) return;
+    store.addSession({ projectId: projectIdInput.value, name });
+    projectNewSessionInput.value = '';
+    projectNewSessionInput.focus();
+  }
+
   function openProjectModal(project) {
     projectForm.reset();
     projectColorInput.value = project ? project.color : '#6c5ce7';
@@ -312,10 +342,14 @@
       projectIdInput.value = project.id;
       projectNameInput.value = project.name;
       projectDeleteBtn.hidden = false;
+      projectSessionEditor.hidden = false;
+      renderProjectSessions();
     } else {
       projectModalTitle.textContent = 'Novo projeto';
       projectIdInput.value = '';
       projectDeleteBtn.hidden = true;
+      projectSessionEditor.hidden = true;
+      projectSessionList.innerHTML = '';
     }
     projectModal.hidden = false;
     projectNameInput.focus();
@@ -647,6 +681,12 @@
   tagCancelBtn.addEventListener('click', closeTagModal);
   taskRecurringInput.addEventListener('change', toggleDueDateRow);
 
+  // Trocar de projeto dentro do modal atualiza as sessões disponíveis
+  // (cada sessão pertence a um projeto só).
+  taskProjectSelect.addEventListener('change', () => {
+    render.renderTaskSessionOptions(taskProjectSelect.value || null, null);
+  });
+
   // Subtarefas dentro do modal de tarefa
   taskAddSubtaskBtn.addEventListener('click', addSubtaskFromModal);
   taskNewSubtaskInput.addEventListener('keydown', (e) => {
@@ -731,6 +771,7 @@
     const payload = {
       title: taskTitleInput.value,
       projectId: taskProjectSelect.value || null,
+      sessionId: taskSessionSelect.value || null,
       dueDate: taskDueDateInput.value || null,
       recurring: taskRecurringInput.checked
     };
@@ -771,6 +812,34 @@
     if (ok) {
       store.deleteProject(id);
       closeProjectModal();
+    }
+  });
+
+  // Sessões dentro do modal de "Editar projeto"
+  projectAddSessionBtn.addEventListener('click', addSessionFromModal);
+  projectNewSessionInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addSessionFromModal();
+    }
+  });
+
+  projectSessionList.addEventListener('change', (e) => {
+    const input = e.target.closest('[data-rename-session]');
+    if (!input) return;
+    const name = input.value.trim();
+    if (!name) {
+      renderProjectSessions();
+      return;
+    }
+    store.updateSession(input.dataset.renameSession, { name });
+  });
+
+  projectSessionList.addEventListener('click', (e) => {
+    const delBtn = e.target.closest('[data-delete-session]');
+    if (!delBtn) return;
+    if (confirm('Excluir esta sessão? As tarefas dela ficam sem sessão.')) {
+      store.deleteSession(delBtn.dataset.deleteSession);
     }
   });
 
@@ -1027,6 +1096,9 @@
       if (!taskModal.hidden && taskIdInput.value) {
         renderModalSubtasks();
         renderModalTags();
+      }
+      if (!projectModal.hidden && projectIdInput.value) {
+        renderProjectSessions();
       }
     });
   }

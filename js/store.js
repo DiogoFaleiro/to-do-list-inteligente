@@ -4,6 +4,7 @@
 
   const state = {
     projects: [],
+    sessions: [],
     tasks: [],
     tags: [],
     // Mapa taskId -> [tagId, ...]. Não é persistido: reconstruído a cada
@@ -60,11 +61,16 @@
     return { id: row.id, name: row.name, color: row.color, isFavorite: !!row.is_favorite };
   }
 
+  function mapSessionFromRow(row) {
+    return { id: row.id, projectId: row.project_id, name: row.name };
+  }
+
   function mapTaskFromRow(row) {
     return {
       id: row.id,
       title: row.title,
       projectId: row.project_id,
+      sessionId: row.session_id,
       dueDate: row.due_date,
       recurring: row.recurring,
       status: row.status,
@@ -112,6 +118,10 @@
     return ids.map((id) => state.tags.find((tag) => tag.id === id)).filter(Boolean);
   }
 
+  function getSessionsForProject(projectId) {
+    return state.sessions.filter((s) => s.projectId === projectId);
+  }
+
   // Tarefas diárias "reabrem" automaticamente quando viram o dia. Roda uma
   // vez por carregamento de dados (não a cada render, para não gerar
   // updates de rede redundantes).
@@ -132,18 +142,21 @@
 
   async function loadInitialData(userId) {
     currentUserId = userId;
-    const [projectsRes, tasksRes, tagsRes, taskTagsRes] = await Promise.all([
+    const [projectsRes, sessionsRes, tasksRes, tagsRes, taskTagsRes] = await Promise.all([
       api.fetchProjects(),
+      api.fetchSessions(),
       api.fetchTasks(),
       api.fetchTags(),
       api.fetchTaskTags()
     ]);
     if (projectsRes.error) throw projectsRes.error;
+    if (sessionsRes.error) throw sessionsRes.error;
     if (tasksRes.error) throw tasksRes.error;
     if (tagsRes.error) throw tagsRes.error;
     if (taskTagsRes.error) throw taskTagsRes.error;
 
     state.projects = (projectsRes.data || []).map(mapProjectFromRow);
+    state.sessions = (sessionsRes.data || []).map(mapSessionFromRow);
     state.tasks = (tasksRes.data || []).map(mapTaskFromRow);
     state.tags = (tagsRes.data || []).map(mapTagFromRow);
     state.taskTags = {};
@@ -158,6 +171,7 @@
   function clearState() {
     currentUserId = null;
     state.projects = [];
+    state.sessions = [];
     state.tasks = [];
     state.tags = [];
     state.taskTags = {};
@@ -204,7 +218,11 @@
   function deleteProject(id) {
     const removedProject = state.projects.find((p) => p.id === id);
     const removedTasks = state.tasks.filter((t) => t.projectId === id);
+    // As sessões do projeto somem junto (o banco já faz isso via cascade;
+    // aqui só espelha no estado local pra sidebar/modal atualizarem na hora).
+    const removedSessions = state.sessions.filter((s) => s.projectId === id);
     state.projects = state.projects.filter((p) => p.id !== id);
+    state.sessions = state.sessions.filter((s) => s.projectId !== id);
     state.tasks = state.tasks.filter((t) => t.projectId !== id);
     if (state.ui.projectFilter === id) state.ui.projectFilter = 'all';
     persistUi();
@@ -221,6 +239,7 @@
       })
       .catch((err) => {
         if (removedProject) state.projects.push(removedProject);
+        state.sessions = state.sessions.concat(removedSessions);
         state.tasks = state.tasks.concat(removedTasks);
         emit();
         handleMutationError('Falha ao excluir projeto', err);
@@ -239,6 +258,62 @@
         p.isFavorite = previous;
         emit();
         handleMutationError('Falha ao favoritar projeto', error);
+      }
+    });
+  }
+
+  function addSession({ projectId, name }) {
+    const tempId = `tmp-${utils.uid()}`;
+    const optimistic = { id: tempId, projectId, name: name.trim() };
+    state.sessions.push(optimistic);
+    emit();
+
+    api.insertSessionRow(currentUserId, { projectId, name: optimistic.name }).then(({ data, error }) => {
+      if (error) {
+        state.sessions = state.sessions.filter((s) => s.id !== tempId);
+        emit();
+        handleMutationError('Falha ao criar sessão', error);
+        return;
+      }
+      const idx = state.sessions.findIndex((s) => s.id === tempId);
+      if (idx !== -1) state.sessions[idx] = mapSessionFromRow(data);
+      emit();
+    });
+  }
+
+  function updateSession(id, { name }) {
+    const s = state.sessions.find((s) => s.id === id);
+    if (!s) return;
+    const previous = { ...s };
+    s.name = name.trim();
+    emit();
+
+    api.updateSessionRow(id, { name: s.name }).then(({ error }) => {
+      if (error) {
+        Object.assign(s, previous);
+        emit();
+        handleMutationError('Falha ao atualizar sessão', error);
+      }
+    });
+  }
+
+  function deleteSession(id) {
+    const removedSession = state.sessions.find((s) => s.id === id);
+    const affectedTasks = state.tasks.filter((t) => t.sessionId === id);
+    state.sessions = state.sessions.filter((s) => s.id !== id);
+    affectedTasks.forEach((t) => {
+      t.sessionId = null;
+    });
+    emit();
+
+    api.deleteSessionRow(id).then(({ error }) => {
+      if (error) {
+        if (removedSession) state.sessions.push(removedSession);
+        affectedTasks.forEach((t) => {
+          t.sessionId = id;
+        });
+        emit();
+        handleMutationError('Falha ao excluir sessão', error);
       }
     });
   }
@@ -357,12 +432,13 @@
   // verdade do Supabase) ou null se a criação falhar — usado pelo modal
   // de criação para só criar as subtarefas depois que a tarefa mãe tiver
   // sido salva de verdade.
-  function addTask({ title, projectId, dueDate, recurring, parentTaskId }) {
+  function addTask({ title, projectId, sessionId, dueDate, recurring, parentTaskId }) {
     const tempId = `tmp-${utils.uid()}`;
     const optimistic = {
       id: tempId,
       title: title.trim(),
       projectId: projectId || null,
+      sessionId: sessionId || null,
       dueDate: recurring ? null : dueDate || null,
       recurring: !!recurring,
       status: 'todo',
@@ -388,23 +464,30 @@
     });
   }
 
-  // Subtarefa: só título + concluída, sem data/projeto/recorrência próprios.
+  // Subtarefa: só título + concluída, sem data/projeto/sessão/recorrência próprios.
   function addSubtask(parentTaskId, title) {
-    return addTask({ title, projectId: null, dueDate: null, recurring: false, parentTaskId });
+    return addTask({ title, projectId: null, sessionId: null, dueDate: null, recurring: false, parentTaskId });
   }
 
-  function updateTask(id, { title, projectId, dueDate, recurring }) {
+  function updateTask(id, { title, projectId, sessionId, dueDate, recurring }) {
     const t = state.tasks.find((t) => t.id === id);
     if (!t) return;
     const previous = { ...t };
     t.title = title.trim();
     t.projectId = projectId || null;
+    t.sessionId = sessionId || null;
     t.recurring = !!recurring;
     t.dueDate = t.recurring ? null : dueDate || null;
     emit();
 
     api
-      .updateTaskRow(id, { title: t.title, projectId: t.projectId, dueDate: t.dueDate, recurring: t.recurring })
+      .updateTaskRow(id, {
+        title: t.title,
+        projectId: t.projectId,
+        sessionId: t.sessionId,
+        dueDate: t.dueDate,
+        recurring: t.recurring
+      })
       .then(({ error }) => {
         if (error) {
           Object.assign(t, previous);
@@ -523,6 +606,7 @@
     getFilteredTasks,
     getSubtasks,
     getTaskTags,
+    getSessionsForProject,
     subscribe,
     setAuthErrorHandler,
     loadInitialData,
@@ -531,6 +615,9 @@
     updateProject,
     deleteProject,
     toggleProjectFavorite,
+    addSession,
+    updateSession,
+    deleteSession,
     addTag,
     updateTag,
     deleteTag,
