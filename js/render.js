@@ -147,7 +147,7 @@
       favTags.map((tag) => tagItemHtml(tag, tagCounts, { compact: true })).join('');
   }
 
-  function taskMetaHtml(task) {
+  function taskMetaHtml(task, { hideSessionTag = false } = {}) {
     const project = projectById(task.projectId);
     const today = utils.todayISO();
     const parts = [];
@@ -175,7 +175,7 @@
       const overdue = utils.isOverdue(task.dueDate, today) && task.status !== 'done';
       parts.push(`<span class="tag ${overdue ? 'tag-overdue' : ''}">📅 ${utils.formatDateBR(task.dueDate)}</span>`);
     }
-    if (task.sessionId) {
+    if (task.sessionId && !hideSessionTag) {
       const session = store.getState().sessions.find((s) => s.id === task.sessionId);
       if (session) parts.push(`<span class="tag">🗂️ ${escapeHtml(session.name)}</span>`);
     }
@@ -244,7 +244,7 @@
       </div>`;
   }
 
-  function taskRowHtml(task) {
+  function taskRowHtml(task, options) {
     const subtasks = store.getSubtasks(task.id);
     return `
       <div class="task-row-wrap" data-task-wrap="${task.id}">
@@ -253,7 +253,7 @@
           <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
           <div class="task-info">
             <div class="task-title">${escapeHtml(task.title)}</div>
-            <div class="task-meta">${taskMetaHtml(task)}${subtaskProgressTagHtml(subtasks)}</div>
+            <div class="task-meta">${taskMetaHtml(task, options)}${subtaskProgressTagHtml(subtasks)}</div>
           </div>
           ${taskMenuHtml(task)}
         </div>
@@ -334,10 +334,10 @@
               .map(
                 (sg) => `
           <h4 class="list-session-title">${escapeHtml(sg.name)}</h4>
-          ${sg.tasks.map(taskRowHtml).join('')}`
+          ${sg.tasks.map((t) => taskRowHtml(t, { hideSessionTag: true })).join('')}`
               )
               .join('')
-          : g.tasks.map(taskRowHtml).join('');
+          : g.tasks.map((t) => taskRowHtml(t)).join('');
         return `
       <div class="list-section">
         <h3 class="list-section-title" style="color:${g.color}">${escapeHtml(g.name)}</h3>
@@ -357,7 +357,7 @@
           <div class="task-title">${escapeHtml(task.title)}</div>
           ${taskMenuHtml(task)}
         </div>
-        <div class="task-meta">${taskMetaHtml(task)}${subtaskProgressTagHtml(subtasks)}</div>
+        <div class="task-meta">${taskMetaHtml(task, { hideSessionTag: true })}${subtaskProgressTagHtml(subtasks)}</div>
         ${subtaskPanelHtml(task, subtasks)}
       </div>`;
   }
