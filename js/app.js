@@ -268,7 +268,7 @@
   // `forcedProjectId`: usado pelo botão "+ Adicionar tarefa" de cada coluna
   // do Painel, pra pré-selecionar o projeto daquela coluna em vez do filtro
   // atual da sidebar. Quando omitido, o comportamento de sempre continua.
-  function openTaskModal(task, forcedProjectId) {
+  function openTaskModal(task, forcedProjectId, forcedSessionId) {
     taskForm.reset();
     pendingNewSubtasks = [];
     pendingNewTagIds = [];
@@ -282,8 +282,9 @@
       : state.ui.projectFilter !== 'all'
       ? state.ui.projectFilter
       : '';
+    const defaultSession = task ? task.sessionId : forcedSessionId !== undefined ? forcedSessionId : null;
     render.renderTaskProjectOptions(defaultProject);
-    render.renderTaskSessionOptions(defaultProject || null, task ? task.sessionId : null);
+    render.renderTaskSessionOptions(defaultProject || null, defaultSession);
 
     if (task) {
       taskModalTitle.textContent = 'Editar tarefa';
@@ -971,7 +972,7 @@
     }
     const addTaskBtn = e.target.closest('[data-add-task-project]');
     if (addTaskBtn) {
-      openTaskModal(null, addTaskBtn.dataset.addTaskProject);
+      openTaskModal(null, addTaskBtn.dataset.addTaskProject, addTaskBtn.dataset.addTaskSession || null);
       return;
     }
     if (e.target.closest('.subtask-panel') || e.target.closest('.task-menu')) return;

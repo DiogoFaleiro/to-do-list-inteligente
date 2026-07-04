@@ -362,40 +362,55 @@
       </div>`;
   }
 
+  // Monta a lista "achatada" de colunas do Painel: um projeto sem sessão
+  // vira 1 coluna (como sempre foi); um projeto COM sessões vira várias
+  // colunas, uma por sessão (+ "Sem sessão" se tiver tarefa solta) — cada
+  // sessão passa a ter sua própria coluna e seu próprio botão de adicionar,
+  // em vez de ficar sub-agrupada dentro da coluna do projeto.
+  function buildBoardColumns(tasks) {
+    const projectGroups = groupTasksByProject(tasks).filter((g) => g.tasks.length > 0);
+    const columns = [];
+
+    projectGroups.forEach((g) => {
+      const sessionGroups = groupTasksBySession(g.tasks, g.id);
+      if (!sessionGroups) {
+        columns.push({ projectId: g.id, sessionId: null, name: g.name, color: g.color, tasks: g.tasks });
+        return;
+      }
+      sessionGroups.forEach((sg) => {
+        columns.push({ projectId: g.id, sessionId: sg.id, name: sg.name, color: g.color, tasks: sg.tasks });
+      });
+    });
+
+    return columns;
+  }
+
   function renderBoard() {
     const tasks = sortTasks(visibleTasks());
-    const groups = groupTasksByProject(tasks).filter((g) => g.tasks.length > 0);
+    const columns = buildBoardColumns(tasks);
 
-    if (groups.length === 0) {
+    if (columns.length === 0) {
       els.boardView.innerHTML = `<p class="empty-state">Nenhuma tarefa por aqui. Que tal adicionar uma? 🎉</p>`;
       els.boardDots.innerHTML = '';
       return;
     }
 
-    els.boardView.innerHTML = groups
-      .map((g) => {
-        const sessionGroups = groupTasksBySession(g.tasks, g.id);
-        const body = sessionGroups
-          ? sessionGroups
-              .map(
-                (sg) => `
-          <div class="board-session-group">
-            <h3 class="board-session-title">${escapeHtml(sg.name)}</h3>
-            <div class="board-cards">${sg.tasks.map(boardCardHtml).join('')}</div>
-          </div>`
-              )
-              .join('')
-          : `<div class="board-cards">${g.tasks.map(boardCardHtml).join('')}</div>`;
+    els.boardView.innerHTML = columns
+      .map((col) => {
+        // A bolinha colorida na coluna de sessão mantém o vínculo visual
+        // com a cor do projeto dono dela (o nome do projeto já não cabe
+        // repetido em cada coluna de sessão).
+        const dot = col.sessionId ? `<span class="dot" style="background:${col.color}"></span> ` : '';
         return `
       <div class="board-column">
-        <h2>${escapeHtml(g.name)} <span class="count">${g.tasks.length}</span></h2>
-        ${body}
-        <button type="button" class="board-add-task-btn" data-add-task-project="${g.id || ''}">+ Adicionar tarefa</button>
+        <h2>${dot}${escapeHtml(col.name)} <span class="count">${col.tasks.length}</span></h2>
+        <div class="board-cards">${col.tasks.map(boardCardHtml).join('')}</div>
+        <button type="button" class="board-add-task-btn" data-add-task-project="${col.projectId || ''}" data-add-task-session="${col.sessionId || ''}">+ Adicionar tarefa</button>
       </div>`;
       })
       .join('');
 
-    renderBoardDots(groups.length);
+    renderBoardDots(columns.length);
   }
 
   // Bolinhas indicadoras do carrossel do Painel (só ficam visíveis no
