@@ -347,7 +347,7 @@
       .join('');
   }
 
-  function boardCardHtml(task) {
+  function boardCardHtml(task, options) {
     const subtasks = store.getSubtasks(task.id);
     return `
       <div class="board-card ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
@@ -357,28 +357,32 @@
           <div class="task-title">${escapeHtml(task.title)}</div>
           ${taskMenuHtml(task)}
         </div>
-        <div class="task-meta">${taskMetaHtml(task, { hideSessionTag: true })}${subtaskProgressTagHtml(subtasks)}</div>
+        <div class="task-meta">${taskMetaHtml(task, options)}${subtaskProgressTagHtml(subtasks)}</div>
         ${subtaskPanelHtml(task, subtasks)}
       </div>`;
   }
 
   // Monta a lista "achatada" de colunas do Painel: um projeto sem sessão
-  // vira 1 coluna (como sempre foi); um projeto COM sessões vira várias
-  // colunas, uma por sessão (+ "Sem sessão" se tiver tarefa solta) — cada
-  // sessão passa a ter sua própria coluna e seu próprio botão de adicionar,
-  // em vez de ficar sub-agrupada dentro da coluna do projeto.
+  // vira 1 coluna (como sempre foi). Um projeto COM sessões só vira uma
+  // coluna por sessão quando um projeto específico está filtrado — em
+  // "Todas as tarefas" (ou filtrando por etiqueta), isso bagunçava a tela
+  // misturando colunas de sessão de vários projetos diferentes lado a
+  // lado; nesse caso o projeto continua como 1 coluna só, com todas as
+  // suas tarefas juntas (a tag de sessão volta a aparecer no card, já que
+  // a coluna deixa de indicar uma sessão específica).
   function buildBoardColumns(tasks) {
+    const splitBySession = store.getState().ui.projectFilter !== 'all';
     const projectGroups = groupTasksByProject(tasks).filter((g) => g.tasks.length > 0);
     const columns = [];
 
     projectGroups.forEach((g) => {
-      const sessionGroups = groupTasksBySession(g.tasks, g.id);
+      const sessionGroups = splitBySession ? groupTasksBySession(g.tasks, g.id) : null;
       if (!sessionGroups) {
-        columns.push({ projectId: g.id, sessionId: null, name: g.name, color: g.color, tasks: g.tasks });
+        columns.push({ projectId: g.id, sessionId: null, name: g.name, color: g.color, tasks: g.tasks, isSessionColumn: false });
         return;
       }
       sessionGroups.forEach((sg) => {
-        columns.push({ projectId: g.id, sessionId: sg.id, name: sg.name, color: g.color, tasks: sg.tasks });
+        columns.push({ projectId: g.id, sessionId: sg.id, name: sg.name, color: g.color, tasks: sg.tasks, isSessionColumn: true });
       });
     });
 
@@ -401,10 +405,11 @@
         // com a cor do projeto dono dela (o nome do projeto já não cabe
         // repetido em cada coluna de sessão).
         const dot = col.sessionId ? `<span class="dot" style="background:${col.color}"></span> ` : '';
+        const cardOptions = { hideSessionTag: col.isSessionColumn };
         return `
       <div class="board-column">
         <h2>${dot}${escapeHtml(col.name)} <span class="count">${col.tasks.length}</span></h2>
-        <div class="board-cards">${col.tasks.map(boardCardHtml).join('')}</div>
+        <div class="board-cards">${col.tasks.map((t) => boardCardHtml(t, cardOptions)).join('')}</div>
         <button type="button" class="board-add-task-btn" data-add-task-project="${col.projectId || ''}" data-add-task-session="${col.sessionId || ''}">+ Adicionar tarefa</button>
       </div>`;
       })
