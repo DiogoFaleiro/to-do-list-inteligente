@@ -10,6 +10,7 @@
     viewToggle: document.getElementById('viewToggle'),
     listView: document.getElementById('listView'),
     boardView: document.getElementById('boardView'),
+    boardDots: document.getElementById('boardDots'),
     taskProjectSelect: document.getElementById('taskProject'),
     accountThemeIcon: document.getElementById('accountThemeIcon'),
     mobileViewTitle: document.getElementById('mobileViewTitle'),
@@ -298,6 +299,7 @@
 
     if (groups.length === 0) {
       els.boardView.innerHTML = `<p class="empty-state">Nenhuma tarefa por aqui. Que tal adicionar uma? 🎉</p>`;
+      els.boardDots.innerHTML = '';
       return;
     }
 
@@ -324,9 +326,38 @@
             })
             .join('')}
         </div>
+        <button type="button" class="board-add-task-btn" data-add-task-project="${g.id || ''}">+ Adicionar tarefa</button>
       </div>`
       )
       .join('');
+
+    renderBoardDots(groups.length);
+  }
+
+  // Bolinhas indicadoras do carrossel do Painel (só ficam visíveis no
+  // mobile via CSS) — uma por coluna com tarefa, destacando a que está
+  // na tela no momento.
+  function boardActiveDotIndex() {
+    const width = els.boardView.clientWidth;
+    if (!width) return 0;
+    return Math.round(els.boardView.scrollLeft / width);
+  }
+
+  function renderBoardDots(count) {
+    const activeIndex = boardActiveDotIndex();
+    els.boardDots.innerHTML = Array.from(
+      { length: count },
+      (_, i) => `<span class="board-dot ${i === activeIndex ? 'active' : ''}"></span>`
+    ).join('');
+  }
+
+  // Chamado num listener de scroll leve (sem re-renderizar nada) pra
+  // manter a bolinha ativa em dia durante o arraste/scroll nativo.
+  function updateBoardDotsActive() {
+    const dots = els.boardDots.querySelectorAll('.board-dot');
+    if (!dots.length) return;
+    const activeIndex = Math.min(dots.length - 1, Math.max(0, boardActiveDotIndex()));
+    dots.forEach((dot, i) => dot.classList.toggle('active', i === activeIndex));
   }
 
   function renderTaskProjectOptions(selectedId) {
@@ -344,6 +375,7 @@
     els.viewToggle.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.view === state.ui.view));
     els.listView.hidden = state.ui.view !== 'list';
     els.boardView.hidden = state.ui.view !== 'board';
+    els.boardDots.hidden = state.ui.view !== 'board';
 
     // Cabeçalho e rodapé de navegação mobile
     if (els.mobileViewTitle) {
@@ -417,6 +449,7 @@
     applyTheme,
     toggleTaskExpanded,
     toggleTaskMenu,
-    closeTaskMenu
+    closeTaskMenu,
+    updateBoardDotsActive
   };
 })(window.App = window.App || {});

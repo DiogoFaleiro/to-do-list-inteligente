@@ -1028,6 +1028,42 @@ a.btn-danger {
   border-radius: var(--radius);
 }
 
+.board-add-task-btn {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 16px;
+  font-size: 0.9rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.board-add-task-btn:hover {
+  background: var(--border);
+}
+
+/* Bolinhas indicadoras do carrossel do Painel — só existem visualmente
+   no mobile (ver @media 600px); no desktop ficam escondidas. */
+.board-dots {
+  display: none;
+  justify-content: center;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.board-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.board-dot.active {
+  background: var(--primary);
+}
+
 .board-card {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -1422,8 +1458,20 @@ a.btn-danger {
     margin-left: auto;
   }
 
+  /* Painel em modo carrossel: uma coluna por vez, ocupando a tela toda,
+     com "encaixe" (scroll-snap) coluna a coluna. */
+  .board-view {
+    gap: 0;
+    scroll-snap-type: x mandatory;
+  }
+
   .board-column {
-    flex-basis: 220px;
+    flex: 0 0 100%;
+    scroll-snap-align: start;
+  }
+
+  .board-dots {
+    display: flex;
   }
 
   .modal-overlay {

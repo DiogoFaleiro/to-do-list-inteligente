@@ -250,7 +250,10 @@
     taskTitleInput.focus();
   }
 
-  function openTaskModal(task) {
+  // `forcedProjectId`: usado pelo botão "+ Adicionar tarefa" de cada coluna
+  // do Painel, pra pré-selecionar o projeto daquela coluna em vez do filtro
+  // atual da sidebar. Quando omitido, o comportamento de sempre continua.
+  function openTaskModal(task, forcedProjectId) {
     taskForm.reset();
     pendingNewSubtasks = [];
     pendingNewTagIds = [];
@@ -259,6 +262,8 @@
     const state = store.getState();
     const defaultProject = task
       ? task.projectId
+      : forcedProjectId !== undefined
+      ? forcedProjectId
       : state.ui.projectFilter !== 'all'
       ? state.ui.projectFilter
       : '';
@@ -885,6 +890,11 @@
       if (confirm('Excluir esta tarefa?')) store.deleteTask(delBtn.dataset.deleteTask);
       return;
     }
+    const addTaskBtn = e.target.closest('[data-add-task-project]');
+    if (addTaskBtn) {
+      openTaskModal(null, addTaskBtn.dataset.addTaskProject);
+      return;
+    }
     if (e.target.closest('.subtask-panel') || e.target.closest('.task-menu')) return;
     const card = e.target.closest('.board-card');
     if (card) {
@@ -908,7 +918,8 @@
 
   // Painel: arrastar (mouse ou toque) em qualquer ponto para rolar
   // horizontalmente, não só pela barra de rolagem física do navegador.
-  function enableDragScroll(el) {
+  // `onDragEnd` (opcional) roda só depois de um arraste de verdade.
+  function enableDragScroll(el, { onDragEnd } = {}) {
     let isPointerDown = false;
     let dragged = false;
     let startX = 0;
@@ -933,8 +944,10 @@
     });
 
     function endDrag() {
+      const wasDragging = isPointerDown && dragged;
       isPointerDown = false;
       el.classList.remove('dragging');
+      if (wasDragging && onDragEnd) onDragEnd();
     }
     el.addEventListener('pointerup', endDrag);
     el.addEventListener('pointerleave', endDrag);
@@ -956,7 +969,27 @@
     );
   }
 
-  enableDragScroll(boardView);
+  const mobileCarouselQuery = window.matchMedia('(max-width: 600px)');
+
+  enableDragScroll(boardView, {
+    // No carrossel mobile (uma coluna = a tela toda), garante que sempre
+    // pare encaixado numa coluna, mesmo se o scroll-snap do CSS não pegar
+    // uma mudança de scrollLeft feita via script. No desktop (várias
+    // colunas soltas) isso não roda, senão o arraste livre "grudaria" errado.
+    onDragEnd: () => {
+      if (!mobileCarouselQuery.matches) return;
+      const width = boardView.clientWidth;
+      if (!width) return;
+      const index = Math.round(boardView.scrollLeft / width);
+      boardView.scrollTo({ left: index * width, behavior: 'smooth' });
+    }
+  });
+
+  // Mantém a bolinha ativa em dia durante qualquer scroll (arraste ou
+  // nativo), sem precisar re-renderizar o Painel inteiro.
+  boardView.addEventListener('scroll', () => {
+    render.updateBoardDotsActive();
+  });
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
