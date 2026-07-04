@@ -115,7 +115,17 @@
   const tagDeleteBtn = document.getElementById('tagDeleteBtn');
 
   function toggleDueDateRow() {
-    taskDueDateRow.style.display = taskRecurringInput.checked ? 'none' : '';
+    const isRecurring = taskRecurringInput.checked;
+    taskDueDateRow.style.display = isRecurring ? 'none' : '';
+    // Sem isso, o campo fica "required" e vazio mesmo escondido — o
+    // navegador bloqueia o submit em silêncio (não dá pra focar um campo
+    // invisível pra mostrar o aviso), então salvar uma tarefa recorrente
+    // parecia não fazer nada.
+    if (isRecurring) {
+      taskDueDateInput.removeAttribute('required');
+    } else {
+      taskDueDateInput.setAttribute('required', '');
+    }
   }
 
   function escapeHtml(str) {

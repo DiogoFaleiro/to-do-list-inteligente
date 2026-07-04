@@ -3,9 +3,18 @@
     return String(n).padStart(2, '0');
   }
 
+  function dateToISO(date) {
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+
   function todayISO() {
-    const d = new Date();
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    return dateToISO(new Date());
+  }
+
+  function addDaysISO(dateStr, days) {
+    const d = parseISO(dateStr);
+    d.setDate(d.getDate() + days);
+    return dateToISO(d);
   }
 
   function parseISO(dateStr) {
@@ -50,6 +59,8 @@
 
   App.utils = {
     todayISO,
+    dateToISO,
+    addDaysISO,
     parseISO,
     startOfWeek,
     endOfWeek,

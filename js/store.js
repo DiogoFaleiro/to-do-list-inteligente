@@ -43,7 +43,13 @@
 
   function handleMutationError(context, error) {
     console.error(context, error);
-    if (isAuthError(error) && onAuthError) onAuthError();
+    if (isAuthError(error) && onAuthError) {
+      onAuthError();
+      return;
+    }
+    // Sem isso, uma mutação que falha (ex: rede, permissão) parecia
+    // simplesmente "não salvar" sem nenhum aviso pro usuário.
+    alert(`${context}. Tente novamente.`);
   }
 
   function mapProjectFromRow(row) {
@@ -87,6 +93,9 @@
       if (ui.period === 'all') return true;
       if (t.recurring) return true;
       if (!t.dueDate) return false;
+      // Atrasada (vencida e não concluída) sempre aparece, não importa o
+      // período — senão ela "some" de vista assim que passa o dia.
+      if (t.status !== 'done' && utils.isOverdue(t.dueDate, today)) return true;
       if (ui.period === 'today') return t.dueDate === today;
       if (ui.period === 'week') return utils.isDateInRange(t.dueDate, weekStart, weekEnd);
       if (ui.period === 'month') return t.dueDate.slice(0, 7) === today.slice(0, 7);
@@ -111,8 +120,10 @@
     state.tasks.forEach((t) => {
       if (t.recurring && t.status === 'done' && t.completedDate !== today) {
         t.status = 'todo';
-        t.completedDate = null;
-        api.updateTaskStatusRow(t.id, 'todo', null).then(({ error }) => {
+        // completedDate NÃO é zerado aqui — ele passa a guardar a data da
+        // última conclusão de verdade, usada em taskMetaHtml pra saber
+        // desde quando a recorrente está atrasada (ver setTaskStatus).
+        api.updateTaskStatusRow(t.id, 'todo', t.completedDate).then(({ error }) => {
           if (error) handleMutationError('Falha ao reabrir tarefa recorrente', error);
         });
       }
@@ -427,7 +438,14 @@
     if (!t) return;
     const previous = { status: t.status, completedDate: t.completedDate };
     t.status = status;
-    t.completedDate = status === 'done' ? utils.todayISO() : null;
+    if (status === 'done') {
+      t.completedDate = utils.todayISO();
+    } else if (!t.recurring) {
+      t.completedDate = null;
+    }
+    // Numa recorrente, desmarcar não apaga completedDate — ele continua
+    // valendo como "última vez que foi concluída de verdade" (usado pra
+    // mostrar desde quando ela está atrasada, ver taskMetaHtml).
     emit();
 
     api.updateTaskStatusRow(id, t.status, t.completedDate).then(({ error }) => {

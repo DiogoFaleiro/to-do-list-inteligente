@@ -205,6 +205,17 @@ button {
   display: inline;
 }
 
+/* Em touch (celular/tablet) não existe :hover de verdade — sem isso, o
+   lápis de editar e a estrela de favoritar ficavam praticamente
+   impossíveis de tocar (por isso editar projeto/etiqueta "não funcionava"
+   no celular). Em dispositivos com mouse/trackpad, continua só no hover. */
+@media (hover: none) {
+  .edit-project,
+  .fav-toggle {
+    display: inline;
+  }
+}
+
 /* Linha de conta (avatar + nome + engrenagem) e rótulo "Meus projetos":
    mesmo padrão em qualquer tamanho de tela. */
 .sidebar-account-row {
@@ -1458,16 +1469,17 @@ a.btn-danger {
     margin-left: auto;
   }
 
-  /* Painel em modo carrossel: uma coluna por vez, ocupando a tela toda,
-     com "encaixe" (scroll-snap) coluna a coluna. */
+  /* Painel em modo carrossel: uma coluna por vez, ocupando a tela toda.
+     O encaixe (snap) é feito só pelo JS (enableDragScroll/onDragEnd em
+     app.js) — usar também o scroll-snap do CSS aqui fazia os dois
+     mecanismos brigarem pelo controle do scrollLeft ao mesmo tempo,
+     deixando a rolagem travada/instável. */
   .board-view {
     gap: 0;
-    scroll-snap-type: x mandatory;
   }
 
   .board-column {
     flex: 0 0 100%;
-    scroll-snap-align: start;
   }
 
   .board-dots {
@@ -1486,13 +1498,16 @@ a.btn-danger {
   }
 
   /* Esconde os controles de desktop (period-tabs, view-toggle, botão de
-     recolher sidebar); #newTaskBtn (fixo, vira FAB) e o container do
-     toolbar continuam no DOM normalmente, só ficam vazios/invisíveis
-     visualmente. */
+     recolher sidebar, lupa de busca — a busca no mobile já tem seu
+     próprio caminho pela aba "Buscar" do rodapé); #newTaskBtn (fixo,
+     vira FAB) e o container do toolbar continuam no DOM normalmente,
+     só ficam vazios/invisíveis visualmente. */
   #periodTabs,
   #viewToggle,
   #groupByProjectToggleBtn,
   #showCompletedToggleBtn,
+  #searchToggleBtn,
+  #desktopSearchBar,
   .sidebar-toggle-btn {
     display: none;
   }

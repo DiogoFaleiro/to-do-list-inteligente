@@ -154,7 +154,21 @@
         `<span class="tag" style="background:${project.color}22;color:${project.color}">${escapeHtml(project.name)}</span>`
       );
     }
-    if (task.recurring) parts.push('<span class="tag tag-recurring">🔁 Diária</span>');
+    if (task.recurring) {
+      parts.push('<span class="tag tag-recurring">🔁 Diária</span>');
+      if (task.status !== 'done') {
+        // "Congelado" no primeiro dia que ficou sem fazer: completedDate
+        // guarda a última conclusão de verdade (não é mais zerado ao
+        // reabrir/desmarcar, ver store.js); sem nunca ter concluído, usa a
+        // data de criação como base. Só mostra depois que esse primeiro
+        // dia perdido já passou — no próprio dia ainda não é "atraso".
+        const baseDate = task.completedDate || utils.dateToISO(new Date(task.createdAt));
+        const firstMissedDate = utils.addDaysISO(baseDate, 1);
+        if (firstMissedDate < today) {
+          parts.push(`<span class="tag tag-overdue">📅 ${utils.formatDateBR(firstMissedDate)}</span>`);
+        }
+      }
+    }
     if (task.dueDate) {
       const overdue = utils.isOverdue(task.dueDate, today) && task.status !== 'done';
       parts.push(`<span class="tag ${overdue ? 'tag-overdue' : ''}">📅 ${utils.formatDateBR(task.dueDate)}</span>`);
