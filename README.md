@@ -1,77 +1,52 @@
-# 📝 To-Do List Inteligente
+# To-do List Inteligente
 
-Aplicação de lista de tarefas feita com **HTML, CSS e JavaScript puro** (sem frameworks, sem build), com backend em **Supabase** (Postgres + Auth) para contas multiusuário.
-
-## Funcionalidades (MVP)
-
-- ➕ Criar tarefas com título, projeto, data de vencimento ou repetição diária
-- ☑️ **Subtarefas**: quebrar uma tarefa em passos menores, adicionar/concluir/excluir direto na Lista ou no Painel (sem precisar abrir o modal)
-- 🏷️ **Etiquetas**: crie e vincule etiquetas às tarefas digitando `@` no título (com sugestão e criação na hora); filtre por etiqueta na sidebar
-- ⭐ **Favoritos**: fixe projetos e etiquetas numa seção de acesso rápido na sidebar
-- 🔍 **Busca**: encontre tarefas por título em tempo real (ícone de lupa no desktop, aba "Buscar" no mobile)
-- 📅 Filtrar tarefas por **Hoje**, **Semana**, **Mês** ou **Todas**
-- 📋 Alternar entre visualização em **Lista** e em **Painel** (colunas por projeto)
-- 📁 Agrupar tarefas por projeto (Lista em seções ou Painel em colunas) e mostrar/esconder tarefas concluídas
-- 📁 Criar, editar e excluir **projetos**, com cor e contador de tarefas
-- 🗂️ **Sessões**: crie sub-grupos nomeados dentro de um projeto (ex: "Fase 1", "Reunião") pra organizar as tarefas dele na Lista e no Painel
-- ✅ Marcar tarefas como concluídas
-- 🔁 Tarefas recorrentes (diárias) reabrem automaticamente todo dia
-- 🔐 **Login e cadastro** (e-mail/senha via Supabase Auth) — cada usuário só vê suas próprias tarefas e projetos
-- 👤 **Minha conta**: editar nome, foto de perfil e senha
-- 📊 **Painel Super Admin** (`/admin`) com métricas gerais, gráfico de tarefas concluídas por dia da semana e lista de todos os usuários cadastrados
-- 📱 Layout responsivo para tablets e celulares
-- 📲 Instalável como **PWA** (ícone próprio, funciona offline via service worker)
-
-## 🚀 Como usar
-
-1. Clone este repositório:
-   ```bash
-   git clone https://github.com/DiogoFaleiro/to-do-list-inteligente.git
-   ```
-2. Crie um projeto gratuito em [supabase.com](https://supabase.com) e rode, na ordem, os SQLs de `supabase/migrations/0001_init.sql` até `0007_sessions.sql` no **SQL Editor** do seu projeto (criam as tabelas, as regras de segurança, o super admin automático, as métricas do painel admin, o bucket de fotos de avatar, a coluna de subtarefas, as etiquetas/favoritos, a correção de isolamento de dados entre contas e as sessões dentro de projetos).
-3. Configure a URL e a chave pública (`anon`/`publishable`) do seu projeto em `js/supabaseClient.js`.
-4. Abra `index.html` diretamente no navegador, ou sirva a pasta com um servidor local (ex: extensão *Live Server* do VS Code, ou `npx serve`) — necessário para o service worker funcionar.
-
-## Estrutura do projeto
-
-```
-index.html
-manifest.json  -> manifesto do PWA (nome, ícones, cores)
-sw.js          -> service worker (cache do app shell)
-admin/
-  index.html   -> painel super admin (rota /admin, acesso restrito a is_admin)
-css/
-  style.css
-  admin.css    -> layout específico do painel admin
-js/
-  utils.js           -> funções de data/id
-  localPrefs.js      -> preferências locais de UI (tema, view, filtro) no localStorage
-  supabaseClient.js  -> inicialização do client Supabase e funções de autenticação
-  api.js             -> CRUD assíncrono contra o Supabase (projetos, tarefas, métricas)
-  migrate.js         -> migração única dos dados antigos do localStorage para o Supabase
-  store.js           -> estado da aplicação e regras de negócio (mutações otimistas)
-  render.js          -> renderização da UI (sidebar, lista, painel)
-  app.js             -> eventos de interface, autenticação e inicialização
-  adminDashboard.js  -> guarda de acesso, gráfico (Chart.js) e tabela do painel admin
-supabase/
-  migrations/0001_init.sql            -> schema, RLS, triggers e super admin
-  migrations/0002_admin_dashboard.sql -> RPCs de métricas por dia da semana e lista de usuários
-  migrations/0003_profile_avatar.sql  -> nome de exibição, foto de avatar e bucket de storage
-  migrations/0004_subtasks.sql        -> coluna parent_task_id para subtarefas
-  migrations/0005_tags.sql            -> tabelas tags/task_tags e coluna is_favorite
-  migrations/0006_fix_admin_select_leak.sql -> remove leitura cross-user das policies de select
-  migrations/0007_sessions.sql        -> tabela sessions e coluna session_id em tasks
-logo/
-  1.png, 1.ico -> arte original da logo
-icons/
-  favicon.ico, icon-192.png, icon-512.png, icon-512-maskable.png, apple-touch-icon.png, social-preview.png
-```
+Gestor de tarefas multiusuário com autenticação, banco de dados na nuvem, painel administrativo e funcionamento offline.
 
 ## 🎯 Objetivo
 
-Este projeto foi criado para praticar:
+Este projeto nasceu de uma necessidade minha: um gestor de tarefas simples que funcionasse do meu jeito. A primeira versão usava apenas DOM e localStorage. Conforme o uso diário revelou limitações, evoluí para uma aplicação multiusuário completa: autenticação e banco Postgres via Supabase, isolamento de dados por usuário com Row Level Security, painel administrativo com métricas e funcionamento offline como PWA.
 
-- Organização e lógica em JavaScript
-- Manipulação do DOM
-- Uso de `localStorage`
-- Estruturação de um projeto simples com Git e GitHub
+É também um retrato do meu processo de trabalho: começar pelo problema real, lançar o mínimo funcional e evoluir a arquitetura quando o uso justifica.
+
+## ✨ Funcionalidades
+
+- **Multiusuário** — cada pessoa cria sua conta e vê apenas suas próprias tarefas
+- **Autenticação** — cadastro e login via Supabase Auth
+- **Dados na nuvem** — tarefas persistidas em Postgres, acessíveis de qualquer dispositivo
+- **Segurança por padrão** — isolamento de dados com Row Level Security (RLS) no banco
+- **Painel administrativo** — métricas de uso e gestão de usuários
+- **PWA** — instalável e funcional offline
+
+## 🛠️ Stack
+
+- HTML, CSS e JavaScript
+- [Supabase](https://supabase.com) — Postgres, Auth e Row Level Security
+- PWA (Service Worker para funcionamento offline)
+
+## 🚀 Como rodar seu próprio
+
+1. Clone o repositório:
+   ```bash
+   git clone https://github.com/DiogoFaleiro/to-do-list-inteligente.git
+   ```
+2. Crie um projeto gratuito no [Supabase](https://supabase.com)
+3. Execute as migrations da pasta `migrations/` no SQL Editor do Supabase, em ordem
+4. Configure sua URL e anon key do Supabase em `js/supabaseClient.js`:
+   ```javascript
+   const SUPABASE_URL = "SUA_URL_AQUI";
+   const SUPABASE_ANON_KEY = "SUA_ANON_KEY_AQUI";
+   ```
+5. Abra o `index.html` no navegador ou publique em qualquer hospedagem estática
+
+> 🔒 **Nota de segurança:** a anon key do Supabase é pública por design, mas a proteção real dos dados vem das políticas de RLS aplicadas nas migrations. Não remova nem afrouxe essas políticas.
+
+## 📄 Licença
+
+Distribuído sob a licença MIT. Veja o arquivo `LICENSE` para detalhes.
+
+## Autor
+
+**Diogo Faleiro** — Fundador da DFsystem Soluções Empresariais
+Automação e Agentes de IA para pequenas empresas
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/dfaleiro/)
