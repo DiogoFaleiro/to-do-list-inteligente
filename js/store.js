@@ -7,6 +7,7 @@
     sessions: [],
     tasks: [],
     tags: [],
+    apiTokens: [],
     // Mapa taskId -> [tagId, ...]. Não é persistido: reconstruído a cada
     // loadInitialData a partir das linhas de task_tags.
     taskTags: {},
@@ -65,6 +66,17 @@
     return { id: row.id, projectId: row.project_id, name: row.name };
   }
 
+  function mapApiTokenFromRow(row) {
+    return {
+      id: row.id,
+      name: row.name,
+      projectId: row.project_id,
+      sessionId: row.session_id,
+      createdAt: row.created_at,
+      lastUsedAt: row.last_used_at
+    };
+  }
+
   function mapTaskFromRow(row) {
     return {
       id: row.id,
@@ -120,6 +132,48 @@
 
   function getSessionsForProject(projectId) {
     return state.sessions.filter((s) => s.projectId === projectId);
+  }
+
+  function getApiTokens() {
+    return state.apiTokens;
+  }
+
+  // Carregado sob demanda (só quando a tela de Integrações abre), não no
+  // bootstrap geral — é uma lista de baixo tráfego que a maioria das
+  // sessões nunca chega a abrir.
+  async function loadApiTokens() {
+    const { data, error } = await api.fetchApiTokens(currentUserId);
+    if (error) {
+      handleMutationError('Falha ao carregar tokens de API', error);
+      return;
+    }
+    state.apiTokens = (data || []).map(mapApiTokenFromRow);
+    emit();
+  }
+
+  async function createApiToken({ name, projectId, sessionId }) {
+    try {
+      const token = await api.createApiTokenRpc({ name, projectId, sessionId });
+      await loadApiTokens();
+      return token;
+    } catch (error) {
+      handleMutationError('Falha ao criar token de API', error);
+      return null;
+    }
+  }
+
+  function deleteApiToken(id) {
+    const removed = state.apiTokens.find((t) => t.id === id);
+    state.apiTokens = state.apiTokens.filter((t) => t.id !== id);
+    emit();
+
+    api.deleteApiTokenRow(id).then(({ error }) => {
+      if (error) {
+        if (removed) state.apiTokens.push(removed);
+        emit();
+        handleMutationError('Falha ao excluir token de API', error);
+      }
+    });
   }
 
   // Tarefas diárias "reabrem" automaticamente quando viram o dia. Roda uma
@@ -607,6 +661,10 @@
     getSubtasks,
     getTaskTags,
     getSessionsForProject,
+    getApiTokens,
+    loadApiTokens,
+    createApiToken,
+    deleteApiToken,
     subscribe,
     setAuthErrorHandler,
     loadInitialData,

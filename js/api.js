@@ -168,6 +168,28 @@
     return supabaseClient.from('profiles').update(payload).eq('id', userId).select().single();
   }
 
+  function fetchApiTokens(userId) {
+    return supabaseClient
+      .from('api_tokens')
+      .select('id,name,project_id,session_id,created_at,last_used_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
+  }
+
+  async function createApiTokenRpc({ name, projectId, sessionId }) {
+    const { data, error } = await supabaseClient.rpc('create_api_token', {
+      p_name: name,
+      p_project_id: projectId || null,
+      p_session_id: sessionId || null
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  function deleteApiTokenRow(id) {
+    return supabaseClient.from('api_tokens').delete().eq('id', id);
+  }
+
   async function uploadAvatar(userId, file) {
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
     const path = `${userId}/avatar.${ext}`;
@@ -214,6 +236,9 @@
     fetchAdminTasksByWeekday,
     fetchAdminUserList,
     updateProfile,
-    uploadAvatar
+    uploadAvatar,
+    fetchApiTokens,
+    createApiTokenRpc,
+    deleteApiTokenRow
   };
 })(window.App = window.App || {});

@@ -67,6 +67,17 @@
   const accountCancelBtn = document.getElementById('accountCancelBtn');
   const accountSaveBtn = document.getElementById('accountSaveBtn');
 
+  // Integrações (tokens de API)
+  const apiTokenList = document.getElementById('apiTokenList');
+  const newTokenNameInput = document.getElementById('newTokenNameInput');
+  const newTokenProject = document.getElementById('newTokenProject');
+  const newTokenSession = document.getElementById('newTokenSession');
+  const addTokenBtn = document.getElementById('addTokenBtn');
+  const tokenRevealModal = document.getElementById('tokenRevealModal');
+  const tokenRevealInput = document.getElementById('tokenRevealInput');
+  const tokenCopyBtn = document.getElementById('tokenCopyBtn');
+  const tokenRevealCloseBtn = document.getElementById('tokenRevealCloseBtn');
+
   let currentUser = null;
   let currentProfile = null;
   let pendingAvatarFile = null;
@@ -335,6 +346,62 @@
     projectNewSessionInput.focus();
   }
 
+  function renderNewTokenProjectOptions() {
+    const { projects } = store.getState();
+    newTokenProject.innerHTML =
+      `<option value="">Sem projeto</option>` + projects.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+    renderNewTokenSessionOptions(newTokenProject.value || null);
+  }
+
+  function renderNewTokenSessionOptions(projectId) {
+    const sessions = projectId ? store.getSessionsForProject(projectId) : [];
+    newTokenSession.hidden = sessions.length === 0;
+    newTokenSession.innerHTML =
+      `<option value="">Sem sessão</option>` + sessions.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  }
+
+  function renderApiTokens() {
+    const tokens = store.getApiTokens();
+    const { projects } = store.getState();
+    apiTokenList.innerHTML =
+      tokens
+        .map((t) => {
+          const project = t.projectId ? projects.find((p) => p.id === t.projectId) : null;
+          const session = project && t.sessionId ? store.getSessionsForProject(project.id).find((s) => s.id === t.sessionId) : null;
+          const target = project ? escapeHtml(project.name) + (session ? ' / ' + escapeHtml(session.name) : '') : 'Sem projeto';
+          const lastUsed = t.lastUsedAt ? `usado em ${new Date(t.lastUsedAt).toLocaleDateString('pt-BR')}` : 'nunca usado';
+          return `
+      <div class="session-editor-row" data-token-id="${t.id}">
+        <span class="api-token-info">
+          <strong>${escapeHtml(t.name)}</strong>
+          <small>${target} · ${lastUsed}</small>
+        </span>
+        <button type="button" data-delete-token="${t.id}" title="Excluir">🗑️</button>
+      </div>`;
+        })
+        .join('') || `<p class="empty-state" style="padding:4px 0;">Nenhum token criado ainda.</p>`;
+  }
+
+  async function addTokenFromModal() {
+    const name = newTokenNameInput.value.trim();
+    if (!name) {
+      newTokenNameInput.focus();
+      return;
+    }
+    addTokenBtn.disabled = true;
+    const token = await store.createApiToken({
+      name,
+      projectId: newTokenProject.value || null,
+      sessionId: newTokenSession.value || null
+    });
+    addTokenBtn.disabled = false;
+    if (!token) return;
+    newTokenNameInput.value = '';
+    renderApiTokens();
+    tokenRevealInput.value = token;
+    tokenRevealModal.hidden = false;
+  }
+
   function openProjectModal(project) {
     projectForm.reset();
     projectColorInput.value = project ? project.color : '#6c5ce7';
@@ -559,6 +626,10 @@
     setAvatarBackground(accountAvatarPreviewBtn, avatarUrl);
     accountAvatarLetter.textContent = avatarUrl ? '' : displayName.charAt(0).toUpperCase();
 
+    renderNewTokenProjectOptions();
+    renderApiTokens();
+    store.loadApiTokens().then(renderApiTokens);
+
     accountModal.hidden = false;
   }
 
@@ -571,6 +642,39 @@
 
   accountModal.addEventListener('click', (e) => {
     if (e.target === accountModal) closeAccountModal();
+  });
+
+  newTokenProject.addEventListener('change', () => {
+    renderNewTokenSessionOptions(newTokenProject.value || null);
+  });
+
+  addTokenBtn.addEventListener('click', addTokenFromModal);
+
+  apiTokenList.addEventListener('click', (e) => {
+    const delBtn = e.target.closest('[data-delete-token]');
+    if (delBtn && confirm('Excluir este token? Qualquer integração usando ele vai parar de funcionar.')) {
+      store.deleteApiToken(delBtn.dataset.deleteToken);
+      renderApiTokens();
+    }
+  });
+
+  tokenCopyBtn.addEventListener('click', () => {
+    tokenRevealInput.select();
+    navigator.clipboard.writeText(tokenRevealInput.value).catch(() => {
+      document.execCommand('copy');
+    });
+  });
+
+  tokenRevealCloseBtn.addEventListener('click', () => {
+    tokenRevealModal.hidden = true;
+    tokenRevealInput.value = '';
+  });
+
+  tokenRevealModal.addEventListener('click', (e) => {
+    if (e.target === tokenRevealModal) {
+      tokenRevealModal.hidden = true;
+      tokenRevealInput.value = '';
+    }
   });
 
   accountAvatarPreviewBtn.addEventListener('click', () => accountAvatarInput.click());

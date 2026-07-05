@@ -323,11 +323,39 @@
         <input type="password" id="accountConfirmPasswordInput" minlength="6" autocomplete="new-password" placeholder="Repita a nova senha">
       </label>
 
+      <div class="session-editor" id="apiTokensEditor">
+        <span class="session-editor-label">Integrações (tokens de API)</span>
+        <div id="apiTokenList" class="session-editor-list"></div>
+        <div class="session-add-row">
+          <input type="text" id="newTokenNameInput" placeholder="Nome (ex: Claude Cowork)" maxlength="60">
+        </div>
+        <div class="session-add-row">
+          <select id="newTokenProject"></select>
+          <select id="newTokenSession" hidden></select>
+          <button type="button" id="addTokenBtn" class="btn-secondary">+ Gerar token</button>
+        </div>
+      </div>
+
       <div class="modal-actions">
         <button type="button" id="accountCancelBtn" class="btn-secondary">Cancelar</button>
         <button type="submit" id="accountSaveBtn" class="btn-primary">Salvar</button>
       </div>
     </form>
+  </div>
+
+  <!-- Modal que mostra o token recém-criado uma única vez (só o hash fica salvo) -->
+  <div id="tokenRevealModal" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>Token criado</h2>
+      <p>Copie agora — esse valor não aparece de novo depois de fechar esta tela.</p>
+      <div class="session-add-row">
+        <input type="text" id="tokenRevealInput" readonly>
+        <button type="button" id="tokenCopyBtn" class="btn-secondary">Copiar</button>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="tokenRevealCloseBtn" class="btn-primary">Fechar</button>
+      </div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

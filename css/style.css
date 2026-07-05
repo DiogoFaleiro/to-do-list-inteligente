@@ -1291,9 +1291,23 @@ a.btn-danger {
   gap: 8px;
 }
 
-.session-add-row input {
+.session-add-row input,
+.session-add-row select {
   flex: 1;
   min-width: 0;
+}
+
+.api-token-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.api-token-info small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
 }
 
 /* Sub-cabeçalho de sessão dentro de uma seção de projeto na Lista */
