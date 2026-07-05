@@ -2,13 +2,13 @@
 
 Gestor de tarefas multiusuário com autenticação, banco de dados na nuvem, painel administrativo e funcionamento offline.
 
-## 🎯 Objetivo
+##  Objetivo
 
 Este projeto nasceu de uma necessidade minha: um gestor de tarefas simples que funcionasse do meu jeito. A primeira versão usava apenas DOM e localStorage. Conforme o uso diário revelou limitações, evoluí para uma aplicação multiusuário completa: autenticação e banco Postgres via Supabase, isolamento de dados por usuário com Row Level Security, painel administrativo com métricas e funcionamento offline como PWA.
 
 É também um retrato do meu processo de trabalho: começar pelo problema real, lançar o mínimo funcional e evoluir a arquitetura quando o uso justifica.
 
-## ✨ Funcionalidades
+##  Funcionalidades
 
 - **Multiusuário** — cada pessoa cria sua conta e vê apenas suas próprias tarefas
 - **Autenticação** — cadastro e login via Supabase Auth
@@ -23,7 +23,7 @@ Este projeto nasceu de uma necessidade minha: um gestor de tarefas simples que f
 - [Supabase](https://supabase.com) — Postgres, Auth e Row Level Security
 - PWA (Service Worker para funcionamento offline)
 
-## 🚀 Como rodar seu próprio
+##  Como rodar seu próprio
 
 1. Clone o repositório:
    ```bash
