@@ -114,6 +114,13 @@
     return supabaseClient.from('sessions').delete().eq('id', id);
   }
 
+  // Insere várias sessões de uma vez (usado pelo import do Todoist) — o
+  // chamador monta as linhas prontas (snake_case), mesmo padrão de
+  // insertProjectsBatch/insertTasksBatch.
+  function insertSessionsBatch(rows) {
+    return supabaseClient.from('sessions').insert(rows).select();
+  }
+
   function insertTask(userId, { title, projectId, sessionId, dueDate, dueTime, recurrence, parentTaskId }) {
     return supabaseClient
       .from('tasks')
@@ -269,6 +276,7 @@
     deleteTasksByProject,
     fetchSessions,
     insertSessionRow,
+    insertSessionsBatch,
     updateSessionRow,
     deleteSessionRow,
     fetchTags,

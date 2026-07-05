@@ -3,6 +3,7 @@
   --primary-dark: #5a4bd1;
   --danger: #e17055;
   --success: #00b894;
+  --warning: #b7791f;
   --bg: #f5f6fa;
   --card-bg: #ffffff;
   --text: #2d3436;
@@ -11,6 +12,7 @@
   --primary-tint: #6c5ce71a;
   --danger-tint: #e1705522;
   --success-tint: #00b89422;
+  --warning-tint: #f1c40f26;
   --overlay-bg: rgba(0, 0, 0, 0.4);
   --modal-shadow: none;
   --radius: 10px;
@@ -23,6 +25,7 @@ html[data-theme='dark'] {
   --primary-dark: #a599f8;
   --danger: #ff8a75;
   --success: #35d0a4;
+  --warning: #f0c95c;
   --bg: #15161d;
   --card-bg: #1e2029;
   --text: #eae8f2;
@@ -31,6 +34,7 @@ html[data-theme='dark'] {
   --primary-tint: #8b7cf62e;
   --danger-tint: #ff8a752e;
   --success-tint: #35d0a42e;
+  --warning-tint: #f0c95c2e;
   --overlay-bg: rgba(0, 0, 0, 0.6);
   --modal-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
@@ -1310,6 +1314,65 @@ a.btn-danger {
   align-items: center;
   gap: 4px;
   font-size: 0.85rem;
+}
+
+/* Modal de preview do import do Todoist — mais largo que o padrão (380px)
+   pra caber a árvore de seções/tarefas/subtarefas sem quebrar demais. */
+.modal-wide {
+  max-width: 640px;
+}
+
+.import-warnings {
+  background: var(--warning-tint);
+  color: var(--warning);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.import-warnings[hidden] {
+  display: none;
+}
+
+.import-warnings ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.import-tree {
+  max-height: 45vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.import-tree-section {
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.import-tree-section:first-child {
+  margin-top: 0;
+}
+
+.import-tree-task {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.import-tree-task.import-tree-subtask {
+  padding-left: 20px;
+  color: var(--text-muted);
+}
+
+.import-tree-task-meta {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
 }
 
 .api-token-info {

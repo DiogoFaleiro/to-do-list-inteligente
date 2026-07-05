@@ -23,6 +23,12 @@
   const viewToggle = document.getElementById('viewToggle');
   const newTaskBtn = document.getElementById('newTaskBtn');
   const newProjectBtn = document.getElementById('newProjectBtn');
+  const importTodoistBtn = document.getElementById('importTodoistBtn');
+  const importTodoistFileInput = document.getElementById('importTodoistFileInput');
+  const importTodoistModal = document.getElementById('importTodoistModal');
+  const importProjectNameInput = document.getElementById('importProjectName');
+  const importTodoistCancelBtn = document.getElementById('importTodoistCancelBtn');
+  const importTodoistConfirmBtn = document.getElementById('importTodoistConfirmBtn');
   const listView = document.getElementById('listView');
   const boardView = document.getElementById('boardView');
   const groupByProjectToggleBtn = document.getElementById('groupByProjectToggleBtn');
@@ -82,6 +88,9 @@
   let currentUser = null;
   let currentProfile = null;
   let pendingAvatarFile = null;
+  // Estrutura parseada do .csv escolhido, em espera até o usuário confirmar
+  // o import no modal de preview (ou cancelar, o que descarta ela).
+  let pendingImportParsed = null;
 
   // Modal de tarefa
   const taskModal = document.getElementById('taskModal');
@@ -638,6 +647,48 @@
   newTaskBtn.addEventListener('click', () => openTaskModal(null));
   newProjectBtn.addEventListener('click', () => openProjectModal(null));
   newTagBtn.addEventListener('click', () => openTagModal(null));
+
+  // Import do Todoist: botão abre o seletor de arquivo escondido; escolher
+  // um .csv faz o parsing (puro, js/importTodoist.js) e mostra o preview.
+  importTodoistBtn.addEventListener('click', () => importTodoistFileInput.click());
+
+  importTodoistFileInput.addEventListener('change', async () => {
+    const file = importTodoistFileInput.files[0];
+    importTodoistFileInput.value = '';
+    if (!file) return;
+    const text = await file.text();
+    pendingImportParsed = App.importTodoist.parseTodoistExport(App.importTodoist.parseCsv(text));
+    importProjectNameInput.value = file.name.replace(/\.csv$/i, '').replace(/_/g, ' ');
+    render.renderImportPreview(pendingImportParsed);
+    importTodoistModal.hidden = false;
+  });
+
+  importTodoistCancelBtn.addEventListener('click', () => {
+    importTodoistModal.hidden = true;
+    pendingImportParsed = null;
+  });
+
+  importTodoistModal.addEventListener('click', (e) => {
+    if (e.target === importTodoistModal) importTodoistCancelBtn.click();
+  });
+
+  importTodoistConfirmBtn.addEventListener('click', async () => {
+    if (!pendingImportParsed) return;
+    importTodoistConfirmBtn.disabled = true;
+    importTodoistConfirmBtn.textContent = 'Importando...';
+    const result = await store.importTodoistProject(
+      pendingImportParsed,
+      importProjectNameInput.value.trim() || 'Importado do Todoist'
+    );
+    importTodoistConfirmBtn.disabled = false;
+    importTodoistConfirmBtn.textContent = 'Importar';
+    if (result.ok) {
+      importTodoistModal.hidden = true;
+      pendingImportParsed = null;
+    }
+    // Erro: handleMutationError (store.js) já alertou; modal fica aberto
+    // pra o usuário tentar de novo sem perder o preview/nome digitado.
+  });
 
   // Navegação mobile: sidebar vira painel "Navegar", rodapé fixo, menu ⋮ de período
   function closeMobileSidebar() {

@@ -42,6 +42,15 @@
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
 
+  // Mesmo corpo das cópias locais já existentes em render.js/app.js/
+  // adminDashboard.js — essa aqui é só pra código novo que precisa de
+  // escapeHtml sem já ter uma cópia própria no módulo.
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : str;
+    return div.innerHTML;
+  }
+
   App.utils = {
     todayISO,
     dateToISO,
@@ -50,6 +59,7 @@
     isDateInRange,
     formatDateBR,
     isOverdue,
-    uid
+    uid,
+    escapeHtml
   };
 })(window.App = window.App || {});

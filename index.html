@@ -116,6 +116,8 @@
       </div>
 
       <button id="newProjectBtn" class="btn-secondary btn-block">+ Novo projeto</button>
+      <button id="importTodoistBtn" class="btn-secondary btn-block">📥 Importar do Todoist</button>
+      <input type="file" id="importTodoistFileInput" accept=".csv,text/csv" hidden>
       <p class="sidebar-section-label">Meus projetos</p>
       <nav id="projectList" class="project-list"></nav>
 
@@ -412,6 +414,22 @@
       </div>
       <div class="modal-actions">
         <button type="button" id="tokenRevealCloseBtn" class="btn-primary">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de pré-visualização do import do Todoist -->
+  <div id="importTodoistModal" class="modal-overlay" hidden>
+    <div class="modal modal-wide">
+      <h2>Importar do Todoist</h2>
+      <label>Nome do projeto
+        <input type="text" id="importProjectName" maxlength="40">
+      </label>
+      <div id="importTodoistWarnings" class="import-warnings" hidden></div>
+      <div id="importTodoistTree" class="import-tree"></div>
+      <div class="modal-actions">
+        <button type="button" id="importTodoistCancelBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="importTodoistConfirmBtn" class="btn-primary">Importar</button>
       </div>
     </div>
   </div>

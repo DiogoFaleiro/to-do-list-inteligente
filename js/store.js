@@ -13,6 +13,8 @@
     taskTags: {},
     // Texto de busca digitado no momento — não persiste entre recarregamentos.
     search: '',
+    // Estado do import do Todoist (sem otimismo — a UI só mostra loading).
+    importStatus: { loading: false, error: null },
     ui: localPrefs.load()
   };
 
@@ -222,6 +224,7 @@
     state.tags = [];
     state.taskTags = {};
     state.search = '';
+    state.importStatus = { loading: false, error: null };
     emit();
   }
 
@@ -632,6 +635,95 @@
     setTaskStatus(id, t.status === 'done' ? 'todo' : 'done');
   }
 
+  // Import do Todoist: sem update otimista (é uma inserção em lote de
+  // projeto+sessões+tarefas+subtarefas, não uma mutação isolada) — usa um
+  // estado de loading e recarrega tudo do banco no final. Se qualquer etapa
+  // falhar, o que já foi inserido fica inserido (sem rollback parcial).
+  async function importTodoistProject(parsed, projectName) {
+    state.importStatus = { loading: true, error: null };
+    emit();
+    try {
+      const { data: projectRow, error: pErr } = await api.insertProject(currentUserId, {
+        name: projectName.trim(),
+        color: '#6c5ce7'
+      });
+      if (pErr) throw pErr;
+
+      // parsed.sections[0] é sempre a seção sintética "Sem seção" (nunca vira
+      // sessão de verdade) — só as demais são sessões reais do projeto.
+      const realSections = parsed.sections.slice(1);
+      let sessionRows = [];
+      if (realSections.length > 0) {
+        const { data, error } = await api.insertSessionsBatch(
+          realSections.map((s) => ({ user_id: currentUserId, project_id: projectRow.id, name: s.name }))
+        );
+        if (error) throw error;
+        sessionRows = data;
+      }
+
+      const groups = [
+        { sessionId: null, tasks: parsed.sections[0].tasks },
+        ...realSections.map((s, i) => ({ sessionId: sessionRows[i].id, tasks: s.tasks }))
+      ];
+      const plan = [];
+      groups.forEach((g) => g.tasks.forEach((task) => plan.push({ task, sessionId: g.sessionId })));
+
+      const toRow = (title, dateRaw, sessionId, parentTaskId) => {
+        const d = App.importTodoist.parseTodoistDate(dateRaw);
+        return {
+          user_id: currentUserId,
+          project_id: parentTaskId ? null : projectRow.id,
+          session_id: parentTaskId ? null : sessionId,
+          title,
+          due_date: d.dueDate,
+          due_time: d.dueTime,
+          recurrence: d.recurrence,
+          recurring: !!d.recurrence,
+          status: 'todo',
+          completed_date: null,
+          parent_task_id: parentTaskId || null
+        };
+      };
+
+      let topLevelRows = [];
+      if (plan.length > 0) {
+        const { data, error } = await api.insertTasksBatch(
+          plan.map((p) => toRow(p.task.title, p.task.dateRaw, p.sessionId, null))
+        );
+        if (error) throw error;
+        topLevelRows = data;
+      }
+
+      // Qualquer nível de indentação abaixo do nível 1 (o Todoist permite
+      // indent 3+) vira subtarefa direta da tarefa de nível 1 mais próxima —
+      // nosso modelo só tem 1 nível de subtarefa.
+      const subtaskRows = [];
+      plan.forEach((p, i) => {
+        const parentId = topLevelRows[i].id;
+        const flatten = (nodes) =>
+          nodes.forEach((n) => {
+            subtaskRows.push(toRow(n.title, n.dateRaw, null, parentId));
+            if (n.children && n.children.length) flatten(n.children);
+          });
+        flatten(p.task.children);
+      });
+      if (subtaskRows.length > 0) {
+        const { error } = await api.insertTasksBatch(subtaskRows);
+        if (error) throw error;
+      }
+
+      await loadInitialData(currentUserId);
+      state.importStatus = { loading: false, error: null };
+      emit();
+      return { ok: true };
+    } catch (err) {
+      state.importStatus = { loading: false, error: err };
+      emit();
+      handleMutationError('Falha ao importar do Todoist (import ficou incompleto)', err);
+      return { ok: false, error: err };
+    }
+  }
+
   // Preferências de UI (view/period/filtro/tema): locais por dispositivo,
   // nunca sincronizadas com o Supabase.
   function setView(view) {
@@ -733,6 +825,7 @@
     deleteTask,
     setTaskStatus,
     toggleComplete,
+    importTodoistProject,
     setView,
     setPeriod,
     setProjectFilter,

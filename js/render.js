@@ -27,7 +27,9 @@
     showCompletedToggleBtn: document.getElementById('showCompletedToggleBtn'),
     groupByProjectToggleBtn: document.getElementById('groupByProjectToggleBtn'),
     showCompletedMenuBtn: document.getElementById('showCompletedMenuBtn'),
-    groupByProjectMenuBtn: document.getElementById('groupByProjectMenuBtn')
+    groupByProjectMenuBtn: document.getElementById('groupByProjectMenuBtn'),
+    importTodoistTree: document.getElementById('importTodoistTree'),
+    importTodoistWarnings: document.getElementById('importTodoistWarnings')
   };
 
   const PERIOD_TITLES = { today: 'Hoje', week: 'Em breve', month: 'Mês', all: 'Todas as tarefas' };
@@ -610,6 +612,63 @@
     }
   }
 
+  // Texto que descreve a data/recorrência interpretada de uma linha do CSV,
+  // no mesmo estilo do taskMetaHtml (📅 data simples, 🔁 regra recorrente).
+  // Quando a data não é reconhecida, empilha um aviso em `warnings` e marca
+  // a linha com ⚠️ em vez de inventar uma data.
+  function importDateMetaHtml(dateRaw, warnings) {
+    if (!dateRaw) return '';
+    const d = App.importTodoist.parseTodoistDate(dateRaw);
+    if (!d.ok) {
+      warnings.push(`Data não reconhecida: "${utils.escapeHtml(dateRaw)}"`);
+      return ` <span class="import-tree-task-meta">⚠️ data não reconhecida</span>`;
+    }
+    const timeSuffix = d.dueTime ? ` · ${d.dueTime}` : '';
+    if (d.recurrence) {
+      return ` <span class="import-tree-task-meta">🔁 ${utils.escapeHtml(App.recurrence.describeRule(d.recurrence))}${timeSuffix}</span>`;
+    }
+    if (d.dueDate) {
+      return ` <span class="import-tree-task-meta">📅 ${utils.formatDateBR(d.dueDate)}${timeSuffix}</span>`;
+    }
+    return '';
+  }
+
+  function importTaskHtml(task, warnings, isSubtask) {
+    const meta = importDateMetaHtml(task.dateRaw, warnings);
+    const cls = isSubtask ? 'import-tree-task import-tree-subtask' : 'import-tree-task';
+    const childrenHtml = (task.children || []).map((child) => importTaskHtml(child, warnings, true)).join('');
+    return `<div class="${cls}"><span>${utils.escapeHtml(task.title)}</span>${meta}</div>${childrenHtml}`;
+  }
+
+  // Pré-visualização do import do Todoist: monta a árvore de seções/tarefas/
+  // subtarefas e a lista de avisos (datas não reconhecidas + notas
+  // ignoradas) numa só passada recursiva pela estrutura de parseTodoistExport.
+  function renderImportPreview(parsed) {
+    const warnings = [];
+    const sectionsHtml = parsed.sections
+      .filter((section) => section.tasks.length > 0)
+      .map((section, i) => {
+        // sections[0] é sempre a seção sintética "Sem seção" — não tem
+        // cabeçalho próprio (é a lista de tarefas soltas do projeto).
+        const heading = i === 0 ? '' : `<div class="import-tree-section">${utils.escapeHtml(section.name)}</div>`;
+        return heading + section.tasks.map((task) => importTaskHtml(task, warnings, false)).join('');
+      })
+      .join('');
+
+    els.importTodoistTree.innerHTML =
+      sectionsHtml || `<p class="empty-state">Nenhuma tarefa encontrada no arquivo.</p>`;
+
+    if (parsed.ignoredNotes > 0) {
+      warnings.push(
+        `${parsed.ignoredNotes} nota${parsed.ignoredNotes === 1 ? '' : 's'} ignorada${parsed.ignoredNotes === 1 ? '' : 's'} (notas do Todoist não são importadas).`
+      );
+    }
+
+    els.importTodoistWarnings.hidden = warnings.length === 0;
+    els.importTodoistWarnings.innerHTML =
+      warnings.length === 0 ? '' : `<ul>${warnings.map((w) => `<li>${w}</li>`).join('')}</ul>`;
+  }
+
   function renderAll() {
     renderSidebar();
     renderToolbarState();
@@ -631,6 +690,7 @@
     toggleTaskExpanded,
     toggleTaskMenu,
     closeTaskMenu,
-    updateBoardDotsActive
+    updateBoardDotsActive,
+    renderImportPreview
   };
 })(window.App = window.App || {});
