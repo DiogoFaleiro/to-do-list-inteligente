@@ -184,10 +184,23 @@
     return { rest: normalized, dueTime: null };
   }
 
+  // App.recurrence.nextOccurrence sempre devolve uma data ESTRITAMENTE
+  // maior que a data-base passada — é assim que uma recorrente atrasada
+  // pula direto pro futuro ao ser concluída, e nunca "reconclui" o mesmo
+  // dia duas vezes. Mas a PRIMEIRA ocorrência de uma tarefa importada é
+  // diferente: se hoje já é o dia da regra (ex: importar "toda segunda"
+  // numa segunda-feira), o Todoist considera hoje uma data válida, não
+  // pula pra semana que vem. Por isso aqui a data-base é ontem, não hoje —
+  // hoje passa a ser um candidato válido (estritamente maior que ontem).
+  function firstOccurrence(rule, todayISO) {
+    const yesterday = utils.addDaysISO(todayISO, -1);
+    return recurrence.nextOccurrence(rule, yesterday, yesterday);
+  }
+
   // Converte a string de data em pt-BR do Todoist em {dueDate, dueTime,
   // recurrence, ok, original}. dueDate de uma regra reconhecida vem de
-  // App.recurrence.nextOccurrence a partir de hoje (sempre estritamente
-  // futuro, mesmo padrão usado ao concluir uma recorrente).
+  // firstOccurrence a partir de hoje (inclusive de hoje, diferente do
+  // avanço usado ao concluir uma recorrente já existente).
   function parseTodoistDate(raw) {
     const original = raw;
     if (!raw || !raw.trim()) {
@@ -210,7 +223,7 @@
 
     if (rest === 'todo dia' || rest === 'todos os dias') {
       const rule = { freq: 'daily', interval: 1, anchor: 'due' };
-      return { dueDate: recurrence.nextOccurrence(rule, today, today), dueTime, recurrence: rule, ok: true, original };
+      return { dueDate: firstOccurrence(rule, today), dueTime, recurrence: rule, ok: true, original };
     }
 
     const weeklyMatch = rest.match(/^(?:toda|todo)\s+(\S+)$/);
@@ -218,7 +231,7 @@
       const found = WEEKDAY_PATTERNS.find((w) => w.names.includes(weeklyMatch[1]));
       if (found) {
         const rule = { freq: 'weekly', interval: 1, byWeekday: [found.day], anchor: 'due' };
-        return { dueDate: recurrence.nextOccurrence(rule, today, today), dueTime, recurrence: rule, ok: true, original };
+        return { dueDate: firstOccurrence(rule, today), dueTime, recurrence: rule, ok: true, original };
       }
     }
 
