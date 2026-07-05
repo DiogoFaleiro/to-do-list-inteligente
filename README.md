@@ -17,7 +17,7 @@ Este projeto nasceu de uma necessidade minha: um gestor de tarefas simples que f
 - **Painel administrativo** — métricas de uso e gestão de usuários
 - **PWA** — instalável e funcional offline
 
-## 🛠️ Stack
+##  Stack
 
 - HTML, CSS e JavaScript
 - [Supabase](https://supabase.com) — Postgres, Auth e Row Level Security
