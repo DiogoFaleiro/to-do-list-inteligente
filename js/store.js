@@ -95,8 +95,10 @@
   function getFilteredTasks() {
     const { tasks, ui, search } = state;
     const today = utils.todayISO();
-    const weekStart = utils.startOfWeek(utils.parseISO(today));
-    const weekEnd = utils.endOfWeek(utils.parseISO(today));
+    // "Em breve" é uma janela corrida (hoje + 7 dias seguintes), não a
+    // semana de calendário — bate com o mesmo período usado no Painel
+    // agrupado por data (ver buildDateColumns em render.js).
+    const upcomingEnd = utils.addDaysISO(today, 7);
     const query = search.trim().toLowerCase();
 
     return tasks.filter((t) => {
@@ -115,7 +117,7 @@
       // período — senão ela "some" de vista assim que passa o dia.
       if (t.status !== 'done' && utils.isOverdue(t.dueDate, today)) return true;
       if (ui.period === 'today') return t.dueDate === today;
-      if (ui.period === 'week') return utils.isDateInRange(t.dueDate, weekStart, weekEnd);
+      if (ui.period === 'week') return utils.isDateInRange(t.dueDate, today, upcomingEnd);
       if (ui.period === 'month') return t.dueDate.slice(0, 7) === today.slice(0, 7);
       return true;
     });

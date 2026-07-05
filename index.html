@@ -104,6 +104,11 @@
         </div>
       </div>
 
+      <nav id="quickFilters" class="project-list">
+        <button type="button" class="project-item" id="quickFilterToday" data-quick-period="today">🗓️ Hoje</button>
+        <button type="button" class="project-item" id="quickFilterUpcoming" data-quick-period="week">📅 Em breve</button>
+      </nav>
+
       <div id="favoritesSection" hidden>
         <p class="sidebar-section-label">Favoritos</p>
         <nav id="favoritesList" class="project-list"></nav>
@@ -147,7 +152,7 @@
         <button id="sidebarToggleBtn" class="mobile-icon-btn sidebar-toggle-btn" type="button" aria-label="Mostrar/ocultar barra lateral" title="Mostrar/ocultar barra lateral">«</button>
         <div class="period-tabs" id="periodTabs">
           <button data-period="today" class="active">Hoje</button>
-          <button data-period="week">Semana</button>
+          <button data-period="week">Em breve</button>
           <button data-period="month">Mês</button>
           <button data-period="all">Todas</button>
         </div>

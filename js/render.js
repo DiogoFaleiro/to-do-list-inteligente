@@ -21,6 +21,8 @@
     mobileBoardToggleBtn: document.getElementById('mobileBoardToggleBtn'),
     mobileNavToday: document.querySelector('.mobile-nav-btn[data-mobile-tab="today"]'),
     mobileNavUpcoming: document.querySelector('.mobile-nav-btn[data-mobile-tab="upcoming"]'),
+    quickFilterToday: document.getElementById('quickFilterToday'),
+    quickFilterUpcoming: document.getElementById('quickFilterUpcoming'),
     showCompletedToggleBtn: document.getElementById('showCompletedToggleBtn'),
     groupByProjectToggleBtn: document.getElementById('groupByProjectToggleBtn'),
     showCompletedMenuBtn: document.getElementById('showCompletedMenuBtn'),
@@ -389,6 +391,35 @@
       </div>`;
   }
 
+  const WEEKDAY_NAMES = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+
+  // Colunas do Painel de "Em breve": uma por dia (hoje + próximos 7), com
+  // "Atrasada" na frente quando existe alguma tarefa vencida. Os dias
+  // sempre aparecem mesmo vazios (dá pra adicionar tarefa direto neles);
+  // "Atrasada" só existe quando tem conteúdo.
+  function buildDateColumns(tasks) {
+    const today = utils.todayISO();
+    const columns = [];
+
+    const overdueTasks = tasks.filter((t) => t.status !== 'done' && utils.isOverdue(t.dueDate, today));
+    if (overdueTasks.length > 0) {
+      columns.push({ isDateColumn: true, dateISO: null, name: 'Atrasada', tasks: overdueTasks });
+    }
+
+    for (let n = 0; n <= 7; n += 1) {
+      const dateISO = utils.addDaysISO(today, n);
+      const name =
+        n === 0
+          ? 'Hoje'
+          : n === 1
+          ? 'Amanhã'
+          : `${WEEKDAY_NAMES[utils.parseISO(dateISO).getDay()]} · ${utils.formatDateBR(dateISO)}`;
+      columns.push({ isDateColumn: true, dateISO, name, tasks: tasks.filter((t) => t.dueDate === dateISO) });
+    }
+
+    return columns;
+  }
+
   // Monta a lista "achatada" de colunas do Painel: um projeto sem sessão
   // vira 1 coluna (como sempre foi). Um projeto COM sessões só vira uma
   // coluna por sessão quando um projeto específico está filtrado — em
@@ -398,7 +429,14 @@
   // suas tarefas juntas (a tag de sessão volta a aparecer no card, já que
   // a coluna deixa de indicar uma sessão específica).
   function buildBoardColumns(tasks) {
-    const projectFilter = store.getState().ui.projectFilter;
+    const ui = store.getState().ui;
+    const projectFilter = ui.projectFilter;
+    // "Em breve" sem projeto/etiqueta filtrado vira colunas de data em vez
+    // de colunas de projeto — se um projeto/etiqueta específico estiver
+    // filtrado mesmo dentro de "Em breve", continua o agrupamento normal.
+    if (ui.period === 'week' && projectFilter === 'all' && !ui.tagFilter) {
+      return buildDateColumns(tasks);
+    }
     const splitBySession = projectFilter !== 'all';
     // Só considera os grupos de projeto relevantes pro filtro atual: com um
     // projeto específico filtrado, mantém só ele (mesmo com 0 tarefas, pra
@@ -445,11 +483,14 @@
         // repetido em cada coluna de sessão).
         const dot = col.sessionId ? `<span class="dot" style="background:${col.color}"></span> ` : '';
         const cardOptions = { hideSessionTag: col.isSessionColumn };
+        const addTaskAttrs = col.isDateColumn
+          ? `data-add-task-date="${col.dateISO || ''}"`
+          : `data-add-task-project="${col.projectId || ''}" data-add-task-session="${col.sessionId || ''}"`;
         return `
       <div class="board-column">
         <h2>${dot}${escapeHtml(col.name)} <span class="count">${col.tasks.length}</span></h2>
         <div class="board-cards">${col.tasks.map((t) => boardCardHtml(t, cardOptions)).join('')}</div>
-        <button type="button" class="board-add-task-btn" data-add-task-project="${col.projectId || ''}" data-add-task-session="${col.sessionId || ''}">+ Adicionar tarefa</button>
+        <button type="button" class="board-add-task-btn" ${addTaskAttrs}>+ Adicionar tarefa</button>
       </div>`;
       })
       .join('');
@@ -530,18 +571,13 @@
     if (els.mobileBoardToggleBtn) {
       els.mobileBoardToggleBtn.textContent = state.ui.view === 'board' ? '☰' : '▤';
     }
-    if (els.mobileNavToday) {
-      els.mobileNavToday.classList.toggle(
-        'active',
-        state.ui.period === 'today' && state.ui.projectFilter === 'all' && !state.ui.tagFilter
-      );
-    }
-    if (els.mobileNavUpcoming) {
-      els.mobileNavUpcoming.classList.toggle(
-        'active',
-        state.ui.period === 'week' && state.ui.projectFilter === 'all' && !state.ui.tagFilter
-      );
-    }
+    const isGlobalFilter = state.ui.projectFilter === 'all' && !state.ui.tagFilter;
+    const isTodayActive = isGlobalFilter && state.ui.period === 'today';
+    const isUpcomingActive = isGlobalFilter && state.ui.period === 'week';
+    if (els.mobileNavToday) els.mobileNavToday.classList.toggle('active', isTodayActive);
+    if (els.mobileNavUpcoming) els.mobileNavUpcoming.classList.toggle('active', isUpcomingActive);
+    if (els.quickFilterToday) els.quickFilterToday.classList.toggle('active', isTodayActive);
+    if (els.quickFilterUpcoming) els.quickFilterUpcoming.classList.toggle('active', isUpcomingActive);
 
     // Toggles de "Agrupar por projeto" (só faz sentido na Lista, no Painel
     // já é sempre agrupado) e "Mostrar concluídas" (desktop + menu mobile)

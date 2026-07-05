@@ -19,6 +19,7 @@
   const favoritesListEl = document.getElementById('favoritesList');
   const newTagBtn = document.getElementById('newTagBtn');
   const periodTabs = document.getElementById('periodTabs');
+  const quickFilters = document.getElementById('quickFilters');
   const viewToggle = document.getElementById('viewToggle');
   const newTaskBtn = document.getElementById('newTaskBtn');
   const newProjectBtn = document.getElementById('newProjectBtn');
@@ -279,7 +280,7 @@
   // `forcedProjectId`: usado pelo botão "+ Adicionar tarefa" de cada coluna
   // do Painel, pra pré-selecionar o projeto daquela coluna em vez do filtro
   // atual da sidebar. Quando omitido, o comportamento de sempre continua.
-  function openTaskModal(task, forcedProjectId, forcedSessionId) {
+  function openTaskModal(task, forcedProjectId, forcedSessionId, forcedDueDate) {
     taskForm.reset();
     pendingNewSubtasks = [];
     pendingNewTagIds = [];
@@ -309,7 +310,7 @@
       taskModalTitle.textContent = 'Nova tarefa';
       taskIdInput.value = '';
       taskRecurringInput.checked = false;
-      taskDueDateInput.value = utils.todayISO();
+      taskDueDateInput.value = forcedDueDate || utils.todayISO();
     }
     toggleDueDateRow();
     renderModalSubtasks();
@@ -522,6 +523,16 @@
   periodTabs.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-period]');
     if (btn) store.setPeriod(btn.dataset.period);
+  });
+
+  // Atalhos "Hoje"/"Em breve" na lateral: mesma visão global de "Todas as
+  // tarefas" + um período específico, saindo de qualquer projeto/etiqueta
+  // filtrado no momento.
+  quickFilters.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-quick-period]');
+    if (!btn) return;
+    store.setProjectFilter('all');
+    store.setPeriod(btn.dataset.quickPeriod);
   });
 
   viewToggle.addEventListener('click', (e) => {
@@ -1074,9 +1085,14 @@
       if (confirm('Excluir esta tarefa?')) store.deleteTask(delBtn.dataset.deleteTask);
       return;
     }
-    const addTaskBtn = e.target.closest('[data-add-task-project]');
+    const addTaskBtn = e.target.closest('[data-add-task-project], [data-add-task-date]');
     if (addTaskBtn) {
-      openTaskModal(null, addTaskBtn.dataset.addTaskProject, addTaskBtn.dataset.addTaskSession || null);
+      openTaskModal(
+        null,
+        addTaskBtn.dataset.addTaskProject || null,
+        addTaskBtn.dataset.addTaskSession || null,
+        addTaskBtn.dataset.addTaskDate || null
+      );
       return;
     }
     if (e.target.closest('.subtask-panel') || e.target.closest('.task-menu')) return;
