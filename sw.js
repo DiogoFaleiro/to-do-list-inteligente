@@ -1,4 +1,4 @@
-const CACHE_NAME = 'todolist-cache-v30';
+const CACHE_NAME = 'todolist-cache-v31';
 const APP_SHELL = [
   './',
   './index.html',
@@ -12,6 +12,7 @@ const APP_SHELL = [
   './js/recurrence.js',
   './js/store.js',
   './js/render.js',
+  './js/importTodoist.js',
   './js/app.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
