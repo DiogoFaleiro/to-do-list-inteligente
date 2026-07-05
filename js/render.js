@@ -164,7 +164,7 @@
         `<span class="tag" style="background:${project.color}22;color:${project.color}">${escapeHtml(project.name)}</span>`
       );
     }
-    if (task.recurring) {
+    if (task.recurrence) {
       parts.push(`<span class="tag tag-recurring">🔁 ${escapeHtml(App.recurrence.describeRule(task.recurrence))}</span>`);
     }
     if (task.dueDate) {
@@ -200,7 +200,7 @@
   // editar/excluir, reaproveitado tanto na Lista quanto no Painel.
   function taskMenuHtml(task) {
     const isOpen = openMenuTaskId === task.id;
-    const dateRow = task.recurring
+    const dateRow = task.recurrence
       ? ''
       : `
       <label class="task-menu-date-row">

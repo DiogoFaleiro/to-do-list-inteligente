@@ -111,14 +111,17 @@
       if (t.parentTaskId) return false;
       // Visão "Recorrentes": ignora projeto/etiqueta/período, mostra só as
       // recorrentes de qualquer lugar (mas ainda respeita uma busca).
-      if (ui.recurringOnly) return t.recurring && (!query || t.title.toLowerCase().includes(query));
+      if (ui.recurringOnly) return t.recurrence && (!query || t.title.toLowerCase().includes(query));
       if (ui.projectFilter !== 'all' && t.projectId !== ui.projectFilter) return false;
       if (ui.tagFilter && !(state.taskTags[t.id] || []).includes(ui.tagFilter)) return false;
       // Buscando por texto, o filtro de período não se aplica — a busca
       // precisa achar a tarefa não importa quando ela vence.
       if (query) return t.title.toLowerCase().includes(query);
       if (ui.period === 'all') return true;
-      if (t.recurring) return true;
+      // No modelo Todoist a recorrente tem due_date real (avança pra próxima
+      // ocorrência só ao concluir, ver setTaskStatus) — por isso ela não
+      // precisa de bypass aqui, o filtro por data abaixo já a posiciona no
+      // período certo como qualquer outra tarefa.
       if (!t.dueDate) return false;
       // Atrasada (vencida e não concluída) sempre aparece, não importa o
       // período — senão ela "some" de vista assim que passa o dia.
