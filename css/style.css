@@ -933,6 +933,15 @@ a.btn-danger {
   border-radius: var(--radius);
 }
 
+/* Descrição completa da tarefa, revelada dentro do mesmo painel expansível
+   das subtarefas (ver subtaskPanelHtml) — pre-wrap preserva as quebras de
+   linha digitadas no textarea do modal. */
+.task-description-view {
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
 .subtask-row {
   display: flex;
   align-items: center;
@@ -1161,12 +1170,18 @@ a.btn-danger {
 
 .modal input[type='text'],
 .modal input[type='date'],
-.modal select {
+.modal select,
+.modal textarea {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
+}
+
+.modal textarea {
+  resize: vertical;
+  min-height: 60px;
 }
 
 .checkbox-row {

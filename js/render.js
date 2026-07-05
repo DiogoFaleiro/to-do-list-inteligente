@@ -167,6 +167,11 @@
     if (task.recurrence) {
       parts.push(`<span class="tag tag-recurring">🔁 ${escapeHtml(App.recurrence.describeRule(task.recurrence))}</span>`);
     }
+    if (task.description) {
+      // Só o indicador aqui — o texto completo só aparece ao expandir a
+      // tarefa (ver subtaskPanelHtml), não repetido/truncado no card/linha.
+      parts.push(`<span class="tag" title="Tem descrição">📄</span>`);
+    }
     if (task.dueDate) {
       const overdue = utils.isOverdue(task.dueDate, today) && task.status !== 'done';
       const timeSuffix = task.dueTime ? ` · ${task.dueTime.slice(0, 5).replace(':', 'h')}` : '';
@@ -182,11 +187,12 @@
     return parts.join('');
   }
 
-  // Setinha de expandir/recolher (só existe quando a tarefa tem subtarefas)
+  // Setinha de expandir/recolher (existe quando a tarefa tem subtarefas e/ou
+  // descrição — as duas coisas compartilham o mesmo painel, ver subtaskPanelHtml)
   function subtaskToggleHtml(task, subtasks) {
-    if (!subtasks.length) return '';
+    if (!subtasks.length && !task.description) return '';
     const isExpanded = expandedTaskIds.has(task.id);
-    return `<button type="button" class="subtask-toggle-btn" data-toggle-subtasks="${task.id}" title="${isExpanded ? 'Recolher' : 'Expandir'} subtarefas">${isExpanded ? '▾' : '▸'}</button>`;
+    return `<button type="button" class="subtask-toggle-btn" data-toggle-subtasks="${task.id}" title="${isExpanded ? 'Recolher' : 'Expandir'} detalhes">${isExpanded ? '▾' : '▸'}</button>`;
   }
 
   // Tag "☑ 2/5" com o progresso das subtarefas (só existe quando há alguma)
@@ -218,12 +224,14 @@
       </div>`;
   }
 
-  // Painel expansível com o checklist de subtarefas + miniformulário de
-  // adicionar. Reaproveitado tanto na Lista quanto no Painel (Kanban).
+  // Painel expansível com a descrição completa (se houver) + o checklist de
+  // subtarefas + miniformulário de adicionar (se houver alguma subtarefa).
+  // Reaproveitado tanto na Lista quanto no Painel (Kanban).
   function subtaskPanelHtml(task, subtasks) {
-    if (!subtasks.length || !expandedTaskIds.has(task.id)) return '';
-    return `
-      <div class="subtask-panel">
+    if ((!subtasks.length && !task.description) || !expandedTaskIds.has(task.id)) return '';
+    const descriptionHtml = task.description ? `<div class="task-description-view">${escapeHtml(task.description)}</div>` : '';
+    const subtasksHtml = subtasks.length
+      ? `
         ${subtasks
           .map(
             (s) => `
@@ -237,7 +245,12 @@
         <form class="subtask-add-form" data-add-subtask="${task.id}">
           <input type="text" placeholder="Adicionar subtarefa" maxlength="120">
           <button type="submit" class="btn-link">+ Adicionar</button>
-        </form>
+        </form>`
+      : '';
+    return `
+      <div class="subtask-panel">
+        ${descriptionHtml}
+        ${subtasksHtml}
       </div>`;
   }
 

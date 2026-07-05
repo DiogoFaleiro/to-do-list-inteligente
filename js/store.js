@@ -89,6 +89,7 @@
       dueTime: row.due_time,
       recurring: row.recurring,
       recurrence: row.recurrence,
+      description: row.description,
       status: row.status,
       completedDate: row.completed_date,
       parentTaskId: row.parent_task_id,
@@ -477,7 +478,7 @@
   // verdade do Supabase) ou null se a criação falhar — usado pelo modal
   // de criação para só criar as subtarefas depois que a tarefa mãe tiver
   // sido salva de verdade.
-  function addTask({ title, projectId, sessionId, dueDate, dueTime, recurrence, parentTaskId }) {
+  function addTask({ title, projectId, sessionId, dueDate, dueTime, recurrence, description, parentTaskId }) {
     const tempId = `tmp-${utils.uid()}`;
     const optimistic = {
       id: tempId,
@@ -488,6 +489,7 @@
       dueTime: dueTime || null,
       recurring: !!recurrence,
       recurrence: recurrence || null,
+      description: description || null,
       status: 'todo',
       completedDate: null,
       parentTaskId: parentTaskId || null,
@@ -516,7 +518,7 @@
     return addTask({ title, projectId: null, sessionId: null, dueDate: null, recurring: false, parentTaskId });
   }
 
-  function updateTask(id, { title, projectId, sessionId, dueDate, dueTime, recurrence }) {
+  function updateTask(id, { title, projectId, sessionId, dueDate, dueTime, recurrence, description }) {
     const t = state.tasks.find((t) => t.id === id);
     if (!t) return;
     const previous = { ...t };
@@ -527,6 +529,7 @@
     t.dueTime = dueTime || null;
     t.recurrence = recurrence || null;
     t.recurring = !!recurrence;
+    t.description = description || null;
     emit();
 
     api
@@ -536,7 +539,8 @@
         sessionId: t.sessionId,
         dueDate: t.dueDate,
         dueTime: t.dueTime,
-        recurrence: t.recurrence
+        recurrence: t.recurrence,
+        description: t.description
       })
       .then(({ error }) => {
         if (error) {

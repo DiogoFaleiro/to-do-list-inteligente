@@ -121,7 +121,7 @@
     return supabaseClient.from('sessions').insert(rows).select();
   }
 
-  function insertTask(userId, { title, projectId, sessionId, dueDate, dueTime, recurrence, parentTaskId }) {
+  function insertTask(userId, { title, projectId, sessionId, dueDate, dueTime, recurrence, description, parentTaskId }) {
     return supabaseClient
       .from('tasks')
       .insert({
@@ -132,6 +132,7 @@
         due_date: dueDate || null,
         due_time: dueTime || null,
         recurrence: recurrence || null,
+        description: description || null,
         // Coluna antiga (boolean), ainda existe (0011 não a removeu de
         // propósito) — mantida derivada, coerente com quem ainda ler ela
         // direto até a migration que a remove de vez.
@@ -144,7 +145,7 @@
       .single();
   }
 
-  function updateTaskRow(id, { title, projectId, sessionId, dueDate, dueTime, recurrence }) {
+  function updateTaskRow(id, { title, projectId, sessionId, dueDate, dueTime, recurrence, description }) {
     return supabaseClient
       .from('tasks')
       .update({
@@ -154,7 +155,8 @@
         due_date: dueDate || null,
         due_time: dueTime || null,
         recurrence: recurrence || null,
-        recurring: !!recurrence
+        recurring: !!recurrence,
+        description: description || null
       })
       .eq('id', id)
       .select()

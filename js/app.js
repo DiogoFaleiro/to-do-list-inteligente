@@ -98,6 +98,7 @@
   const taskModalTitle = document.getElementById('taskModalTitle');
   const taskIdInput = document.getElementById('taskId');
   const taskTitleInput = document.getElementById('taskTitle');
+  const taskDescriptionInput = document.getElementById('taskDescription');
   const taskProjectSelect = document.getElementById('taskProject');
   const taskSessionSelect = document.getElementById('taskSession');
   const taskDueDateInput = document.getElementById('taskDueDate');
@@ -400,6 +401,7 @@
       taskModalTitle.textContent = 'Editar tarefa';
       taskIdInput.value = task.id;
       taskTitleInput.value = task.title;
+      taskDescriptionInput.value = task.description || '';
       taskDueDateInput.value = task.dueDate || utils.todayISO();
       taskDueTimeInput.value = task.dueTime || '';
       populateRepeatFields(task.recurrence);
@@ -1038,7 +1040,8 @@
       sessionId: taskSessionSelect.value || null,
       dueDate: taskDueDateInput.value || null,
       dueTime: taskDueTimeInput.value || null,
-      recurrence: buildRecurrenceFromForm()
+      recurrence: buildRecurrenceFromForm(),
+      description: taskDescriptionInput.value.trim() || null
     };
     if (!payload.title.trim()) return;
     if (taskIdInput.value) {
@@ -1178,6 +1181,7 @@
       title: task.title,
       projectId: task.projectId,
       recurring: task.recurring,
+      description: task.description,
       dueDate: dateInput.value || null
     });
     render.closeTaskMenu();
