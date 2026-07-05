@@ -84,7 +84,9 @@
       projectId: row.project_id,
       sessionId: row.session_id,
       dueDate: row.due_date,
+      dueTime: row.due_time,
       recurring: row.recurring,
+      recurrence: row.recurrence,
       status: row.status,
       completedDate: row.completed_date,
       parentTaskId: row.parent_task_id,
@@ -181,28 +183,6 @@
     });
   }
 
-  // Tarefas diárias "reabrem" automaticamente quando viram o dia. Roda uma
-  // vez por carregamento de dados (não a cada render, para não gerar
-  // updates de rede redundantes).
-  function normalizeRecurringTasksOnce() {
-    const today = utils.todayISO();
-    const idsToReopen = [];
-    state.tasks.forEach((t) => {
-      if (t.recurring && t.status === 'done' && t.completedDate !== today) {
-        t.status = 'todo';
-        // completedDate NÃO é zerado aqui — ele passa a guardar a data da
-        // última conclusão de verdade, usada em taskMetaHtml pra saber
-        // desde quando a recorrente está atrasada (ver setTaskStatus).
-        idsToReopen.push(t.id);
-      }
-    });
-    if (idsToReopen.length > 0) {
-      api.reopenTasksBatch(idsToReopen).then(({ error }) => {
-        if (error) handleMutationError('Falha ao reabrir tarefa recorrente', error);
-      });
-    }
-  }
-
   async function loadInitialData(userId) {
     currentUserId = userId;
     const [projectsRes, sessionsRes, tasksRes, tagsRes, taskTagsRes] = await Promise.all([
@@ -227,7 +207,10 @@
       if (!state.taskTags[row.task_id]) state.taskTags[row.task_id] = [];
       state.taskTags[row.task_id].push(row.tag_id);
     });
-    normalizeRecurringTasksOnce();
+    // O modelo antigo de recorrência (normalizeRecurringTasksOnce, reabria
+    // a tarefa "diária" toda vez que os dados carregavam) foi substituído:
+    // agora o avanço pra próxima ocorrência acontece no momento de
+    // concluir (ver setTaskStatus), não mais varrendo o estado no load.
     emit();
   }
 
@@ -488,15 +471,17 @@
   // verdade do Supabase) ou null se a criação falhar — usado pelo modal
   // de criação para só criar as subtarefas depois que a tarefa mãe tiver
   // sido salva de verdade.
-  function addTask({ title, projectId, sessionId, dueDate, recurring, parentTaskId }) {
+  function addTask({ title, projectId, sessionId, dueDate, dueTime, recurrence, parentTaskId }) {
     const tempId = `tmp-${utils.uid()}`;
     const optimistic = {
       id: tempId,
       title: title.trim(),
       projectId: projectId || null,
       sessionId: sessionId || null,
-      dueDate: recurring ? null : dueDate || null,
-      recurring: !!recurring,
+      dueDate: dueDate || null,
+      dueTime: dueTime || null,
+      recurring: !!recurrence,
+      recurrence: recurrence || null,
       status: 'todo',
       completedDate: null,
       parentTaskId: parentTaskId || null,
@@ -525,15 +510,17 @@
     return addTask({ title, projectId: null, sessionId: null, dueDate: null, recurring: false, parentTaskId });
   }
 
-  function updateTask(id, { title, projectId, sessionId, dueDate, recurring }) {
+  function updateTask(id, { title, projectId, sessionId, dueDate, dueTime, recurrence }) {
     const t = state.tasks.find((t) => t.id === id);
     if (!t) return;
     const previous = { ...t };
     t.title = title.trim();
     t.projectId = projectId || null;
     t.sessionId = sessionId || null;
-    t.recurring = !!recurring;
-    t.dueDate = t.recurring ? null : dueDate || null;
+    t.dueDate = dueDate || null;
+    t.dueTime = dueTime || null;
+    t.recurrence = recurrence || null;
+    t.recurring = !!recurrence;
     emit();
 
     api
@@ -542,7 +529,8 @@
         projectId: t.projectId,
         sessionId: t.sessionId,
         dueDate: t.dueDate,
-        recurring: t.recurring
+        dueTime: t.dueTime,
+        recurrence: t.recurrence
       })
       .then(({ error }) => {
         if (error) {
@@ -575,6 +563,48 @@
   function setTaskStatus(id, status) {
     const t = state.tasks.find((t) => t.id === id);
     if (!t) return;
+
+    // Tarefa com regra de recorrência: concluir nunca marca 'done' de
+    // verdade — grava a conclusão no histórico (task_completions) e avança
+    // due_date pra próxima ocorrência (App.recurrence.nextOccurrence). Só
+    // vira 'done' de fato quando a regra já esgotou (`until` alcançado,
+    // nextOccurrence devolve null). Substitui o modelo antigo de reabertura
+    // diária (normalizeRecurringTasksOnce, removida — ver loadInitialData).
+    if (t.recurrence && status === 'done') {
+      const today = utils.todayISO();
+      const next = App.recurrence.nextOccurrence(t.recurrence, t.dueDate, today);
+
+      if (next) {
+        const previousDueDate = t.dueDate;
+        t.dueDate = next;
+        emit();
+        api.updateTaskDueDate(id, next).then(({ error }) => {
+          if (error) {
+            t.dueDate = previousDueDate;
+            emit();
+            handleMutationError('Falha ao avançar tarefa recorrente', error);
+          }
+        });
+      } else {
+        const previous = { status: t.status, completedDate: t.completedDate };
+        t.status = 'done';
+        t.completedDate = today;
+        emit();
+        api.updateTaskStatusRow(id, 'done', today).then(({ error }) => {
+          if (error) {
+            Object.assign(t, previous);
+            emit();
+            handleMutationError('Falha ao atualizar status da tarefa', error);
+          }
+        });
+      }
+
+      api.insertTaskCompletion(currentUserId, id, today).then(({ error }) => {
+        if (error) handleMutationError('Falha ao registrar conclusão da tarefa recorrente', error);
+      });
+      return;
+    }
+
     const previous = { status: t.status, completedDate: t.completedDate };
     t.status = status;
     if (status === 'done') {

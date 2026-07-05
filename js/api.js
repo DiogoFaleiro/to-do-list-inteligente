@@ -10,9 +10,11 @@
   // lógica local que depende de enxergar a linha inteira:
   // - status.neq.done            → toda tarefa em aberto, sempre.
   // - and(status.eq.done,...)    → concluídas, só dos últimos 60 dias.
-  // - recurring.eq.true          → recorrentes concluídas há mais tempo
-  //   continuam vindo, senão normalizeRecurringTasksOnce (store.js) nunca
-  //   mais veria a linha pra reabrir e ela ficaria 'done' pra sempre.
+  // - recurrence.not.is.null     → tarefa com regra de recorrência: no
+  //   modelo novo ela quase nunca fica 'done' de verdade (concluir só
+  //   avança due_date, ver setTaskStatus em store.js) — essa condição é
+  //   principalmente uma rede de segurança pro caso de a regra já ter
+  //   esgotado (`until` alcançado) há mais de 60 dias.
   // - parent_task_id.not.is.null → subtarefas sempre vêm, mesmo concluídas
   //   há muito tempo, senão o contador "concluídas/total" da tarefa-mãe
   //   (render.js) fica errado quando a mãe continua em aberto.
@@ -21,7 +23,7 @@
     return supabaseClient
       .from('tasks')
       .select('*')
-      .or(`status.neq.done,and(status.eq.done,completed_date.gte.${cutoffDate}),recurring.eq.true,parent_task_id.not.is.null`)
+      .or(`status.neq.done,and(status.eq.done,completed_date.gte.${cutoffDate}),recurrence.not.is.null,parent_task_id.not.is.null`)
       .order('created_at', { ascending: true });
   }
 
@@ -112,7 +114,7 @@
     return supabaseClient.from('sessions').delete().eq('id', id);
   }
 
-  function insertTask(userId, { title, projectId, sessionId, dueDate, recurring, parentTaskId }) {
+  function insertTask(userId, { title, projectId, sessionId, dueDate, dueTime, recurrence, parentTaskId }) {
     return supabaseClient
       .from('tasks')
       .insert({
@@ -121,7 +123,12 @@
         session_id: sessionId || null,
         title,
         due_date: dueDate || null,
-        recurring: !!recurring,
+        due_time: dueTime || null,
+        recurrence: recurrence || null,
+        // Coluna antiga (boolean), ainda existe (0011 não a removeu de
+        // propósito) — mantida derivada, coerente com quem ainda ler ela
+        // direto até a migration que a remove de vez.
+        recurring: !!recurrence,
         status: 'todo',
         completed_date: null,
         parent_task_id: parentTaskId || null
@@ -130,7 +137,7 @@
       .single();
   }
 
-  function updateTaskRow(id, { title, projectId, sessionId, dueDate, recurring }) {
+  function updateTaskRow(id, { title, projectId, sessionId, dueDate, dueTime, recurrence }) {
     return supabaseClient
       .from('tasks')
       .update({
@@ -138,7 +145,9 @@
         project_id: projectId || null,
         session_id: sessionId || null,
         due_date: dueDate || null,
-        recurring: !!recurring
+        due_time: dueTime || null,
+        recurrence: recurrence || null,
+        recurring: !!recurrence
       })
       .eq('id', id)
       .select()
@@ -156,6 +165,19 @@
       .eq('id', id)
       .select()
       .single();
+  }
+
+  // Registra uma conclusão de tarefa recorrente no histórico (tabela nova,
+  // 0011_recurrence_todoist.sql) — cada vez que uma recorrente é concluída
+  // vira uma linha aqui, além de tasks.completed_date guardar só a última.
+  function insertTaskCompletion(userId, taskId, dateISO) {
+    return supabaseClient.from('task_completions').insert({ user_id: userId, task_id: taskId, completed_on: dateISO });
+  }
+
+  // Update mínimo só de due_date — usado quando setTaskStatus avança uma
+  // tarefa recorrente pra próxima ocorrência (sem mexer em status/completed_date).
+  function updateTaskDueDate(id, dueDateISO) {
+    return supabaseClient.from('tasks').update({ due_date: dueDateISO }).eq('id', id).select().single();
   }
 
   // Reabre em lote (1 chamada só) — usado por normalizeRecurringTasksOnce
@@ -262,6 +284,8 @@
     deleteTaskRow,
     updateTaskStatusRow,
     reopenTasksBatch,
+    insertTaskCompletion,
+    updateTaskDueDate,
     insertProjectsBatch,
     insertTasksBatch,
     fetchAdminStats,
