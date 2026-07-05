@@ -1,4 +1,4 @@
-const CACHE_NAME = 'todolist-cache-v27';
+const CACHE_NAME = 'todolist-cache-v28';
 const APP_SHELL = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const APP_SHELL = [
   './js/supabaseClient.js',
   './js/api.js',
   './js/migrate.js',
+  './js/recurrence.js',
   './js/store.js',
   './js/render.js',
   './js/app.js',
