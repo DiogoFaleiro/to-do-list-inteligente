@@ -1,12 +1,28 @@
 (function (App) {
-  const { supabaseClient } = App;
+  const { supabaseClient, utils } = App;
 
   function fetchProjects() {
     return supabaseClient.from('projects').select('*').order('created_at', { ascending: true });
   }
 
+  // Não traz tarefas concluídas há mais de 60 dias (reduz o payload pra
+  // contas antigas com muito histórico), exceto quando isso quebraria
+  // lógica local que depende de enxergar a linha inteira:
+  // - status.neq.done            → toda tarefa em aberto, sempre.
+  // - and(status.eq.done,...)    → concluídas, só dos últimos 60 dias.
+  // - recurring.eq.true          → recorrentes concluídas há mais tempo
+  //   continuam vindo, senão normalizeRecurringTasksOnce (store.js) nunca
+  //   mais veria a linha pra reabrir e ela ficaria 'done' pra sempre.
+  // - parent_task_id.not.is.null → subtarefas sempre vêm, mesmo concluídas
+  //   há muito tempo, senão o contador "concluídas/total" da tarefa-mãe
+  //   (render.js) fica errado quando a mãe continua em aberto.
   function fetchTasks() {
-    return supabaseClient.from('tasks').select('*').order('created_at', { ascending: true });
+    const cutoffDate = utils.addDaysISO(utils.todayISO(), -60);
+    return supabaseClient
+      .from('tasks')
+      .select('*')
+      .or(`status.neq.done,and(status.eq.done,completed_date.gte.${cutoffDate}),recurring.eq.true,parent_task_id.not.is.null`)
+      .order('created_at', { ascending: true });
   }
 
   function insertProject(userId, { name, color }) {
@@ -27,6 +43,13 @@
 
   function deleteProjectRow(id) {
     return supabaseClient.from('projects').delete().eq('id', id);
+  }
+
+  // Apaga as tarefas do projeto e o projeto numa única transação no banco
+  // (RPC security definer, 0010_delete_project_rpc.sql) — substitui o par
+  // deleteTasksByProject + deleteProjectRow, que não era atômico.
+  function deleteProjectCascade(id) {
+    return supabaseClient.rpc('delete_project_cascade', { p_project_id: id });
   }
 
   function fetchTags() {
@@ -135,6 +158,13 @@
       .single();
   }
 
+  // Reabre em lote (1 chamada só) — usado por normalizeRecurringTasksOnce
+  // pra reabrir várias recorrentes de uma vez. Só muda status; completed_date
+  // de cada linha fica intocado (continua guardando a última conclusão real).
+  function reopenTasksBatch(ids) {
+    return supabaseClient.from('tasks').update({ status: 'todo' }).in('id', ids);
+  }
+
   function insertProjectsBatch(rows) {
     return supabaseClient.from('projects').insert(rows).select();
   }
@@ -213,6 +243,7 @@
     updateProjectRow,
     updateProjectFavorite,
     deleteProjectRow,
+    deleteProjectCascade,
     deleteTasksByProject,
     fetchSessions,
     insertSessionRow,
@@ -230,6 +261,7 @@
     updateTaskRow,
     deleteTaskRow,
     updateTaskStatusRow,
+    reopenTasksBatch,
     insertProjectsBatch,
     insertTasksBatch,
     fetchAdminStats,

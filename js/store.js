@@ -186,17 +186,21 @@
   // updates de rede redundantes).
   function normalizeRecurringTasksOnce() {
     const today = utils.todayISO();
+    const idsToReopen = [];
     state.tasks.forEach((t) => {
       if (t.recurring && t.status === 'done' && t.completedDate !== today) {
         t.status = 'todo';
         // completedDate NÃO é zerado aqui — ele passa a guardar a data da
         // última conclusão de verdade, usada em taskMetaHtml pra saber
         // desde quando a recorrente está atrasada (ver setTaskStatus).
-        api.updateTaskStatusRow(t.id, 'todo', t.completedDate).then(({ error }) => {
-          if (error) handleMutationError('Falha ao reabrir tarefa recorrente', error);
-        });
+        idsToReopen.push(t.id);
       }
     });
+    if (idsToReopen.length > 0) {
+      api.reopenTasksBatch(idsToReopen).then(({ error }) => {
+        if (error) handleMutationError('Falha ao reabrir tarefa recorrente', error);
+      });
+    }
   }
 
   async function loadInitialData(userId) {
@@ -287,22 +291,15 @@
     persistUi();
     emit();
 
-    api
-      .deleteTasksByProject(id)
-      .then(({ error }) => {
-        if (error) throw error;
-        return api.deleteProjectRow(id);
-      })
-      .then((res) => {
-        if (res && res.error) throw res.error;
-      })
-      .catch((err) => {
+    api.deleteProjectCascade(id).then(({ error }) => {
+      if (error) {
         if (removedProject) state.projects.push(removedProject);
         state.sessions = state.sessions.concat(removedSessions);
         state.tasks = state.tasks.concat(removedTasks);
         emit();
-        handleMutationError('Falha ao excluir projeto', err);
-      });
+        handleMutationError('Falha ao excluir projeto', error);
+      }
+    });
   }
 
   function toggleProjectFavorite(id) {
