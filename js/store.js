@@ -105,6 +105,9 @@
       // Subtarefas nunca aparecem como linha/card independente — só
       // aninhadas dentro da tarefa mãe (ver getSubtasks).
       if (t.parentTaskId) return false;
+      // Visão "Recorrentes": ignora projeto/etiqueta/período, mostra só as
+      // recorrentes de qualquer lugar (mas ainda respeita uma busca).
+      if (ui.recurringOnly) return t.recurring && (!query || t.title.toLowerCase().includes(query));
       if (ui.projectFilter !== 'all' && t.projectId !== ui.projectFilter) return false;
       if (ui.tagFilter && !(state.taskTags[t.id] || []).includes(ui.tagFilter)) return false;
       // Buscando por texto, o filtro de período não se aplica — a busca
@@ -612,6 +615,7 @@
 
   function setPeriod(period) {
     state.ui.period = period;
+    state.ui.recurringOnly = false;
     persistUi();
     emit();
   }
@@ -619,6 +623,7 @@
   function setProjectFilter(projectId) {
     state.ui.projectFilter = projectId;
     state.ui.tagFilter = null;
+    state.ui.recurringOnly = false;
     persistUi();
     emit();
   }
@@ -630,6 +635,17 @@
   function setTagFilter(tagId) {
     state.ui.tagFilter = tagId;
     state.ui.projectFilter = 'all';
+    state.ui.recurringOnly = false;
+    persistUi();
+    emit();
+  }
+
+  // Visão global "Recorrentes" (atalho da lateral) — mesmo padrão de
+  // mútua exclusão: ligar ela não mexe em projeto/etiqueta/período aqui
+  // (quem chama já reseta o filtro de projeto antes, ver app.js), mas
+  // qualquer um dos outros filtros acima desliga ela de volta.
+  function setRecurringOnly(value) {
+    state.ui.recurringOnly = !!value;
     persistUi();
     emit();
   }
@@ -694,6 +710,7 @@
     setPeriod,
     setProjectFilter,
     setTagFilter,
+    setRecurringOnly,
     setSearchQuery,
     setTheme,
     setGroupByProject,

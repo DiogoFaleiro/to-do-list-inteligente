@@ -23,6 +23,7 @@
     mobileNavUpcoming: document.querySelector('.mobile-nav-btn[data-mobile-tab="upcoming"]'),
     quickFilterToday: document.getElementById('quickFilterToday'),
     quickFilterUpcoming: document.getElementById('quickFilterUpcoming'),
+    quickFilterRecurring: document.getElementById('quickFilterRecurring'),
     showCompletedToggleBtn: document.getElementById('showCompletedToggleBtn'),
     groupByProjectToggleBtn: document.getElementById('groupByProjectToggleBtn'),
     showCompletedMenuBtn: document.getElementById('showCompletedMenuBtn'),
@@ -150,6 +151,18 @@
       favTags.map((tag) => tagItemHtml(tag, tagCounts, { compact: true })).join('');
   }
 
+  // "Congelado" no primeiro dia que uma recorrente ficou sem fazer:
+  // completedDate guarda a última conclusão de verdade (não é mais zerado
+  // ao reabrir/desmarcar, ver store.js); sem nunca ter concluído, usa a
+  // data de criação como base. Só conta como atrasada depois que esse
+  // primeiro dia perdido já passou — no próprio dia ainda não é "atraso".
+  function isRecurringOverdue(task, today) {
+    if (task.status === 'done') return false;
+    const baseDate = task.completedDate || utils.dateToISO(new Date(task.createdAt));
+    const firstMissedDate = utils.addDaysISO(baseDate, 1);
+    return firstMissedDate < today;
+  }
+
   function taskMetaHtml(task, { hideSessionTag = false } = {}) {
     const project = projectById(task.projectId);
     const today = utils.todayISO();
@@ -161,17 +174,9 @@
     }
     if (task.recurring) {
       parts.push('<span class="tag tag-recurring">🔁 Diária</span>');
-      if (task.status !== 'done') {
-        // "Congelado" no primeiro dia que ficou sem fazer: completedDate
-        // guarda a última conclusão de verdade (não é mais zerado ao
-        // reabrir/desmarcar, ver store.js); sem nunca ter concluído, usa a
-        // data de criação como base. Só mostra depois que esse primeiro
-        // dia perdido já passou — no próprio dia ainda não é "atraso".
+      if (isRecurringOverdue(task, today)) {
         const baseDate = task.completedDate || utils.dateToISO(new Date(task.createdAt));
-        const firstMissedDate = utils.addDaysISO(baseDate, 1);
-        if (firstMissedDate < today) {
-          parts.push(`<span class="tag tag-overdue">📅 ${utils.formatDateBR(firstMissedDate)}</span>`);
-        }
+        parts.push(`<span class="tag tag-overdue">📅 ${utils.formatDateBR(utils.addDaysISO(baseDate, 1))}</span>`);
       }
     }
     if (task.dueDate) {
@@ -401,10 +406,23 @@
     const today = utils.todayISO();
     const columns = [];
 
-    const overdueTasks = tasks.filter((t) => t.status !== 'done' && utils.isOverdue(t.dueDate, today));
+    // Recorrentes não têm dueDate (são perpétuas, reabrindo todo dia — ver
+    // store.js addTask/updateTask) e por isso nunca bateriam com nenhum dos
+    // buckets abaixo. Tratadas à parte: entram em "Atrasada" se perderam o
+    // dia (mesma regra de isRecurringOverdue usada no card), senão em
+    // "Hoje" — nunca projetadas nos dias seguintes (não existe o conceito
+    // de "instância futura" de uma recorrente em nenhum outro lugar do app).
+    const recurringTasks = tasks.filter((t) => t.recurring);
+    const dateTasks = tasks.filter((t) => !t.recurring);
+
+    const overdueTasks = dateTasks
+      .filter((t) => t.status !== 'done' && utils.isOverdue(t.dueDate, today))
+      .concat(recurringTasks.filter((t) => isRecurringOverdue(t, today)));
     if (overdueTasks.length > 0) {
       columns.push({ isDateColumn: true, dateISO: null, name: 'Atrasada', tasks: overdueTasks });
     }
+
+    const recurringForToday = recurringTasks.filter((t) => !isRecurringOverdue(t, today));
 
     for (let n = 0; n <= 7; n += 1) {
       const dateISO = utils.addDaysISO(today, n);
@@ -414,7 +432,8 @@
           : n === 1
           ? 'Amanhã'
           : `${WEEKDAY_NAMES[utils.parseISO(dateISO).getDay()]} · ${utils.formatDateBR(dateISO)}`;
-      columns.push({ isDateColumn: true, dateISO, name, tasks: tasks.filter((t) => t.dueDate === dateISO) });
+      const bucketTasks = dateTasks.filter((t) => t.dueDate === dateISO).concat(n === 0 ? recurringForToday : []);
+      columns.push({ isDateColumn: true, dateISO, name, tasks: bucketTasks });
     }
 
     return columns;
@@ -434,7 +453,9 @@
     // "Em breve" sem projeto/etiqueta filtrado vira colunas de data em vez
     // de colunas de projeto — se um projeto/etiqueta específico estiver
     // filtrado mesmo dentro de "Em breve", continua o agrupamento normal.
-    if (ui.period === 'week' && projectFilter === 'all' && !ui.tagFilter) {
+    // A visão "Recorrentes" nunca usa colunas de data, mesmo que period
+    // ainda esteja em 'week' de uma navegação anterior.
+    if (ui.period === 'week' && projectFilter === 'all' && !ui.tagFilter && !ui.recurringOnly) {
       return buildDateColumns(tasks);
     }
     const splitBySession = projectFilter !== 'all';
@@ -557,7 +578,11 @@
     // Título da página/projeto atual — mostrado tanto no cabeçalho mobile
     // quanto no canto superior esquerdo do conteúdo (desktop/tablet).
     const currentProject = state.ui.projectFilter !== 'all' ? projectById(state.ui.projectFilter) : null;
-    const currentTitle = currentProject ? currentProject.name : PERIOD_TITLES[state.ui.period] || 'Tarefas';
+    const currentTitle = state.ui.recurringOnly
+      ? 'Recorrentes'
+      : currentProject
+      ? currentProject.name
+      : PERIOD_TITLES[state.ui.period] || 'Tarefas';
     if (els.pageTitle) {
       els.pageTitle.textContent = currentTitle;
     }
@@ -578,6 +603,7 @@
     if (els.mobileNavUpcoming) els.mobileNavUpcoming.classList.toggle('active', isUpcomingActive);
     if (els.quickFilterToday) els.quickFilterToday.classList.toggle('active', isTodayActive);
     if (els.quickFilterUpcoming) els.quickFilterUpcoming.classList.toggle('active', isUpcomingActive);
+    if (els.quickFilterRecurring) els.quickFilterRecurring.classList.toggle('active', !!state.ui.recurringOnly);
 
     // Toggles de "Agrupar por projeto" (só faz sentido na Lista, no Painel
     // já é sempre agrupado) e "Mostrar concluídas" (desktop + menu mobile)

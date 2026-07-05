@@ -5,6 +5,7 @@
     period: 'today',
     projectFilter: 'all',
     tagFilter: null,
+    recurringOnly: false,
     theme: 'system',
     groupByProject: false,
     showCompleted: true

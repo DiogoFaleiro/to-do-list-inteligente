@@ -527,12 +527,19 @@
 
   // Atalhos "Hoje"/"Em breve" na lateral: mesma visão global de "Todas as
   // tarefas" + um período específico, saindo de qualquer projeto/etiqueta
-  // filtrado no momento.
+  // filtrado no momento. "Recorrentes" é parecido, mas ignora período —
+  // mostra toda tarefa recorrente de qualquer projeto (ver getFilteredTasks).
   quickFilters.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-quick-period]');
-    if (!btn) return;
-    store.setProjectFilter('all');
-    store.setPeriod(btn.dataset.quickPeriod);
+    const periodBtn = e.target.closest('[data-quick-period]');
+    if (periodBtn) {
+      store.setProjectFilter('all');
+      store.setPeriod(periodBtn.dataset.quickPeriod);
+      return;
+    }
+    if (e.target.closest('[data-quick-recurring]')) {
+      store.setProjectFilter('all');
+      store.setRecurringOnly(true);
+    }
   });
 
   viewToggle.addEventListener('click', (e) => {
