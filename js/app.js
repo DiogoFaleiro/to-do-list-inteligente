@@ -91,9 +91,18 @@
   const taskTitleInput = document.getElementById('taskTitle');
   const taskProjectSelect = document.getElementById('taskProject');
   const taskSessionSelect = document.getElementById('taskSession');
-  const taskRecurringInput = document.getElementById('taskRecurring');
   const taskDueDateInput = document.getElementById('taskDueDate');
   const taskDueDateRow = document.getElementById('taskDueDateRow');
+  const taskDueTimeInput = document.getElementById('taskDueTime');
+  const taskRepeatSelect = document.getElementById('taskRepeat');
+  const taskRepeatCustom = document.getElementById('taskRepeatCustom');
+  const taskRepeatInterval = document.getElementById('taskRepeatInterval');
+  const taskRepeatUnit = document.getElementById('taskRepeatUnit');
+  const taskRepeatWeekdays = document.getElementById('taskRepeatWeekdays');
+  const taskRepeatAnchor = document.getElementById('taskRepeatAnchor');
+  const taskRepeatUntilToggle = document.getElementById('taskRepeatUntilToggle');
+  const taskRepeatUntilRow = document.getElementById('taskRepeatUntilRow');
+  const taskRepeatUntil = document.getElementById('taskRepeatUntil');
   const taskCancelBtn = document.getElementById('taskCancelBtn');
   const taskSubtaskList = document.getElementById('taskSubtaskList');
   const taskNewSubtaskInput = document.getElementById('taskNewSubtaskInput');
@@ -131,18 +140,98 @@
   const tagCancelBtn = document.getElementById('tagCancelBtn');
   const tagDeleteBtn = document.getElementById('tagDeleteBtn');
 
-  function toggleDueDateRow() {
-    const isRecurring = taskRecurringInput.checked;
-    taskDueDateRow.style.display = isRecurring ? 'none' : '';
-    // Sem isso, o campo fica "required" e vazio mesmo escondido — o
-    // navegador bloqueia o submit em silêncio (não dá pra focar um campo
-    // invisível pra mostrar o aviso), então salvar uma tarefa recorrente
-    // parecia não fazer nada.
-    if (isRecurring) {
-      taskDueDateInput.removeAttribute('required');
-    } else {
-      taskDueDateInput.setAttribute('required', '');
+  // Presets fixos do seletor "Repetir" — "Personalizar" só revela os
+  // mesmos campos abaixo pra edição fina, não é um estado separado.
+  // anchor sempre 'completed' nos presets (mesma convenção que a
+  // recorrente "diária" antiga já usava, ver backfill da migration 0011).
+  const REPEAT_PRESETS = {
+    daily: { unit: 'daily', interval: 1 },
+    weekly: { unit: 'weekly', interval: 1 },
+    monthly: { unit: 'monthly', interval: 1 },
+    yearly: { unit: 'monthly', interval: 12 }
+  };
+
+  function applyRepeatPreset(key) {
+    const preset = REPEAT_PRESETS[key];
+    taskRepeatUnit.value = preset.unit;
+    taskRepeatInterval.value = preset.interval;
+    taskRepeatWeekdays.querySelectorAll('input').forEach((cb) => {
+      cb.checked = false;
+    });
+    taskRepeatAnchor.value = 'completed';
+    taskRepeatUntilToggle.checked = false;
+    taskRepeatUntil.value = '';
+  }
+
+  function toggleRepeatWeekdaysVisibility() {
+    taskRepeatWeekdays.hidden = taskRepeatUnit.value !== 'weekly';
+  }
+
+  function toggleRepeatUntilRow() {
+    taskRepeatUntilRow.hidden = !taskRepeatUntilToggle.checked;
+  }
+
+  function toggleRepeatCustom() {
+    const value = taskRepeatSelect.value;
+    taskRepeatCustom.hidden = value !== 'custom';
+    if (value !== 'never' && value !== 'custom') {
+      applyRepeatPreset(value);
     }
+    toggleRepeatWeekdaysVisibility();
+    toggleRepeatUntilRow();
+  }
+
+  // Monta o objeto recurrence (js/recurrence.js) a partir dos campos atuais
+  // do modal — usado tanto pros presets quanto por "Personalizar", já que
+  // os dois escrevem nos mesmos campos por baixo.
+  function buildRecurrenceFromForm() {
+    if (taskRepeatSelect.value === 'never') return null;
+    const freq = taskRepeatUnit.value;
+    const interval = Math.max(1, parseInt(taskRepeatInterval.value, 10) || 1);
+    const rule = { freq, interval, anchor: taskRepeatAnchor.value };
+    if (freq === 'weekly') {
+      const days = Array.from(taskRepeatWeekdays.querySelectorAll('input:checked')).map((cb) => Number(cb.value));
+      if (days.length > 0) rule.byWeekday = days;
+    }
+    if (taskRepeatUntilToggle.checked && taskRepeatUntil.value) rule.until = taskRepeatUntil.value;
+    return rule;
+  }
+
+  // Caminho inverso de buildRecurrenceFromForm — usado ao abrir o modal
+  // pra editar. Se a regra salva bate exatamente com um preset nomeado
+  // (sem dias específicos, sem término, âncora padrão), mostra o preset;
+  // senão cai em "Personalizar".
+  function populateRepeatFields(recurrence) {
+    if (!recurrence) {
+      taskRepeatSelect.value = 'never';
+      applyRepeatPreset('daily');
+      toggleRepeatCustom();
+      return;
+    }
+
+    taskRepeatUnit.value = recurrence.freq;
+    taskRepeatInterval.value = recurrence.interval || 1;
+    taskRepeatAnchor.value = recurrence.anchor || 'completed';
+    taskRepeatWeekdays.querySelectorAll('input').forEach((cb) => {
+      cb.checked = !!(recurrence.byWeekday && recurrence.byWeekday.includes(Number(cb.value)));
+    });
+    taskRepeatUntilToggle.checked = !!recurrence.until;
+    taskRepeatUntil.value = recurrence.until || '';
+
+    const isPlainPreset =
+      !recurrence.byWeekday &&
+      !recurrence.until &&
+      recurrence.anchor === 'completed' &&
+      ((recurrence.freq === 'daily' && recurrence.interval === 1) ||
+        (recurrence.freq === 'weekly' && recurrence.interval === 1) ||
+        (recurrence.freq === 'monthly' && (recurrence.interval === 1 || recurrence.interval === 12)));
+
+    if (isPlainPreset) {
+      taskRepeatSelect.value = recurrence.freq === 'monthly' && recurrence.interval === 12 ? 'yearly' : recurrence.freq;
+    } else {
+      taskRepeatSelect.value = 'custom';
+    }
+    toggleRepeatCustom();
   }
 
   function escapeHtml(str) {
@@ -302,17 +391,16 @@
       taskModalTitle.textContent = 'Editar tarefa';
       taskIdInput.value = task.id;
       taskTitleInput.value = task.title;
-      taskRecurringInput.checked = task.recurring;
-      // Tarefas antigas sem data (não deveria mais acontecer daqui pra
-      // frente) também ganham "hoje" como padrão ao serem editadas.
-      taskDueDateInput.value = task.dueDate || (task.recurring ? '' : utils.todayISO());
+      taskDueDateInput.value = task.dueDate || utils.todayISO();
+      taskDueTimeInput.value = task.dueTime || '';
+      populateRepeatFields(task.recurrence);
     } else {
       taskModalTitle.textContent = 'Nova tarefa';
       taskIdInput.value = '';
-      taskRecurringInput.checked = false;
       taskDueDateInput.value = forcedDueDate || utils.todayISO();
+      taskDueTimeInput.value = '';
+      populateRepeatFields(null);
     }
-    toggleDueDateRow();
     renderModalSubtasks();
     renderModalTags();
     taskModal.hidden = false;
@@ -802,7 +890,9 @@
   taskCancelBtn.addEventListener('click', closeTaskModal);
   projectCancelBtn.addEventListener('click', closeProjectModal);
   tagCancelBtn.addEventListener('click', closeTagModal);
-  taskRecurringInput.addEventListener('change', toggleDueDateRow);
+  taskRepeatSelect.addEventListener('change', toggleRepeatCustom);
+  taskRepeatUnit.addEventListener('change', toggleRepeatWeekdaysVisibility);
+  taskRepeatUntilToggle.addEventListener('change', toggleRepeatUntilRow);
 
   // Trocar de projeto dentro do modal atualiza as sessões disponíveis
   // (cada sessão pertence a um projeto só).
@@ -896,7 +986,8 @@
       projectId: taskProjectSelect.value || null,
       sessionId: taskSessionSelect.value || null,
       dueDate: taskDueDateInput.value || null,
-      recurring: taskRecurringInput.checked
+      dueTime: taskDueTimeInput.value || null,
+      recurrence: buildRecurrenceFromForm()
     };
     if (!payload.title.trim()) return;
     if (taskIdInput.value) {

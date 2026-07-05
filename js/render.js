@@ -71,10 +71,12 @@
       const aDone = a.status === 'done';
       const bDone = b.status === 'done';
       if (aDone !== bDone) return aDone ? 1 : -1;
-      if (a.recurring !== b.recurring) return a.recurring ? -1 : 1;
       const aKey = a.dueDate || '9999-99-99';
       const bKey = b.dueDate || '9999-99-99';
       if (aKey !== bKey) return aKey > bKey ? 1 : -1;
+      const aTime = a.dueTime || '99:99:99';
+      const bTime = b.dueTime || '99:99:99';
+      if (aTime !== bTime) return aTime > bTime ? 1 : -1;
       return a.createdAt - b.createdAt;
     });
   }
@@ -151,18 +153,6 @@
       favTags.map((tag) => tagItemHtml(tag, tagCounts, { compact: true })).join('');
   }
 
-  // "Congelado" no primeiro dia que uma recorrente ficou sem fazer:
-  // completedDate guarda a última conclusão de verdade (não é mais zerado
-  // ao reabrir/desmarcar, ver store.js); sem nunca ter concluído, usa a
-  // data de criação como base. Só conta como atrasada depois que esse
-  // primeiro dia perdido já passou — no próprio dia ainda não é "atraso".
-  function isRecurringOverdue(task, today) {
-    if (task.status === 'done') return false;
-    const baseDate = task.completedDate || utils.dateToISO(new Date(task.createdAt));
-    const firstMissedDate = utils.addDaysISO(baseDate, 1);
-    return firstMissedDate < today;
-  }
-
   function taskMetaHtml(task, { hideSessionTag = false } = {}) {
     const project = projectById(task.projectId);
     const today = utils.todayISO();
@@ -173,15 +163,12 @@
       );
     }
     if (task.recurring) {
-      parts.push('<span class="tag tag-recurring">🔁 Diária</span>');
-      if (isRecurringOverdue(task, today)) {
-        const baseDate = task.completedDate || utils.dateToISO(new Date(task.createdAt));
-        parts.push(`<span class="tag tag-overdue">📅 ${utils.formatDateBR(utils.addDaysISO(baseDate, 1))}</span>`);
-      }
+      parts.push(`<span class="tag tag-recurring">🔁 ${escapeHtml(App.recurrence.describeRule(task.recurrence))}</span>`);
     }
     if (task.dueDate) {
       const overdue = utils.isOverdue(task.dueDate, today) && task.status !== 'done';
-      parts.push(`<span class="tag ${overdue ? 'tag-overdue' : ''}">📅 ${utils.formatDateBR(task.dueDate)}</span>`);
+      const timeSuffix = task.dueTime ? ` · ${task.dueTime.slice(0, 5).replace(':', 'h')}` : '';
+      parts.push(`<span class="tag ${overdue ? 'tag-overdue' : ''}">📅 ${utils.formatDateBR(task.dueDate)}${timeSuffix}</span>`);
     }
     if (task.sessionId && !hideSessionTag) {
       const session = store.getState().sessions.find((s) => s.id === task.sessionId);
@@ -406,23 +393,14 @@
     const today = utils.todayISO();
     const columns = [];
 
-    // Recorrentes não têm dueDate (são perpétuas, reabrindo todo dia — ver
-    // store.js addTask/updateTask) e por isso nunca bateriam com nenhum dos
-    // buckets abaixo. Tratadas à parte: entram em "Atrasada" se perderam o
-    // dia (mesma regra de isRecurringOverdue usada no card), senão em
-    // "Hoje" — nunca projetadas nos dias seguintes (não existe o conceito
-    // de "instância futura" de uma recorrente em nenhum outro lugar do app).
-    const recurringTasks = tasks.filter((t) => t.recurring);
-    const dateTasks = tasks.filter((t) => !t.recurring);
-
-    const overdueTasks = dateTasks
-      .filter((t) => t.status !== 'done' && utils.isOverdue(t.dueDate, today))
-      .concat(recurringTasks.filter((t) => isRecurringOverdue(t, today)));
+    // Toda tarefa (recorrente ou não) tem due_date real agora — recorrente
+    // avança pra próxima ocorrência só na conclusão (ver setTaskStatus em
+    // store.js), então cai na coluna certa pelo mesmo filtro simples de
+    // qualquer outra tarefa, sem tratamento especial.
+    const overdueTasks = tasks.filter((t) => t.status !== 'done' && utils.isOverdue(t.dueDate, today));
     if (overdueTasks.length > 0) {
       columns.push({ isDateColumn: true, dateISO: null, name: 'Atrasada', tasks: overdueTasks });
     }
-
-    const recurringForToday = recurringTasks.filter((t) => !isRecurringOverdue(t, today));
 
     for (let n = 0; n <= 7; n += 1) {
       const dateISO = utils.addDaysISO(today, n);
@@ -432,8 +410,7 @@
           : n === 1
           ? 'Amanhã'
           : `${WEEKDAY_NAMES[utils.parseISO(dateISO).getDay()]} · ${utils.formatDateBR(dateISO)}`;
-      const bucketTasks = dateTasks.filter((t) => t.dueDate === dateISO).concat(n === 0 ? recurringForToday : []);
-      columns.push({ isDateColumn: true, dateISO, name, tasks: bucketTasks });
+      columns.push({ isDateColumn: true, dateISO, name, tasks: tasks.filter((t) => t.dueDate === dateISO) });
     }
 
     return columns;

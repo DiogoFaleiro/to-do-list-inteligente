@@ -46,6 +46,11 @@
     } else if (rule.freq === 'monthly') {
       if (rule.byMonthDay) {
         base = interval === 1 ? `Todo dia ${rule.byMonthDay}` : `A cada ${interval} meses no dia ${rule.byMonthDay}`;
+      } else if (interval % 12 === 0) {
+        // "Todo ano" da UI vira monthly/interval=12 por baixo (addMonthsClamped
+        // já lida certo com qualquer múltiplo de 12) — mostra em anos aqui.
+        const years = interval / 12;
+        base = years === 1 ? 'Todo ano' : `A cada ${years} anos`;
       } else {
         base = interval === 1 ? 'Todo mês' : `A cada ${interval} meses`;
       }

@@ -229,14 +229,62 @@
         <select id="taskSession"></select>
       </label>
 
-      <label class="checkbox-row">
-        <input type="checkbox" id="taskRecurring">
-        🔁 Repetir diariamente
+      <div class="session-add-row">
+        <label id="taskDueDateRow">Data de vencimento
+          <input type="date" id="taskDueDate" required>
+        </label>
+        <label>Horário
+          <input type="time" id="taskDueTime">
+        </label>
+      </div>
+
+      <label>Repetir
+        <select id="taskRepeat">
+          <option value="never">Nunca</option>
+          <option value="daily">Todo dia</option>
+          <option value="weekly">Toda semana</option>
+          <option value="monthly">Todo mês</option>
+          <option value="yearly">Todo ano</option>
+          <option value="custom">Personalizar…</option>
+        </select>
       </label>
 
-      <label id="taskDueDateRow">Data de vencimento
-        <input type="date" id="taskDueDate" required>
-      </label>
+      <div id="taskRepeatCustom" class="session-editor" hidden>
+        <div class="session-add-row">
+          <span class="session-editor-label">Repetir a cada</span>
+          <input type="number" id="taskRepeatInterval" min="1" max="365" value="1">
+          <select id="taskRepeatUnit">
+            <option value="daily">dia(s)</option>
+            <option value="weekly">semana(s)</option>
+            <option value="monthly">mês(es)</option>
+          </select>
+        </div>
+
+        <div id="taskRepeatWeekdays" class="weekday-picker" hidden>
+          <label><input type="checkbox" value="1"> Seg</label>
+          <label><input type="checkbox" value="2"> Ter</label>
+          <label><input type="checkbox" value="3"> Qua</label>
+          <label><input type="checkbox" value="4"> Qui</label>
+          <label><input type="checkbox" value="5"> Sex</label>
+          <label><input type="checkbox" value="6"> Sáb</label>
+          <label><input type="checkbox" value="0"> Dom</label>
+        </div>
+
+        <label>Contar a partir de
+          <select id="taskRepeatAnchor">
+            <option value="completed">Data de conclusão</option>
+            <option value="due">Data agendada</option>
+          </select>
+        </label>
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="taskRepeatUntilToggle">
+          Terminar em uma data
+        </label>
+        <label id="taskRepeatUntilRow" hidden>Até
+          <input type="date" id="taskRepeatUntil">
+        </label>
+      </div>
 
       <div class="subtask-editor">
         <span class="subtask-editor-label">Subtarefas</span>
