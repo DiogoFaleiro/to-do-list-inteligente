@@ -1255,6 +1255,45 @@ a.btn-danger {
   min-width: 0;
 }
 
+/* Comentários no modal de tarefa — mesmo contêiner de .subtask-editor, mas
+   cada item tem duas linhas (data+excluir, depois o texto). */
+.comment-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.comment-row:last-child {
+  border-bottom: none;
+}
+
+.comment-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.comment-row-date {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.comment-row-header button {
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  padding: 2px 4px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.comment-row-header button:hover {
+  background: var(--bg);
+}
+
 /* Editor de sessões dentro do modal "Editar projeto" — mesmo molde do
    editor de subtarefas, com o nome já editável direto no campo. */
 .session-editor {

@@ -196,6 +196,26 @@
     return supabaseClient.from('tasks').update({ status: 'todo' }).in('id', ids);
   }
 
+  // Comentários de uma tarefa (0012_description_comments.sql) — carregados
+  // sob demanda (ver store.loadComments), não fazem parte de fetchTasks.
+  function fetchComments(taskId) {
+    return supabaseClient
+      .from('task_comments')
+      .select('id,task_id,user_id,content,created_at')
+      .eq('task_id', taskId)
+      .order('created_at', { ascending: true });
+  }
+
+  // O chamador monta a linha pronta (mesmo padrão de insertSessionsBatch/
+  // insertTasksBatch, só que sem lote e com .single() no retorno).
+  function insertComment(row) {
+    return supabaseClient.from('task_comments').insert(row).select().single();
+  }
+
+  function deleteCommentRow(id) {
+    return supabaseClient.from('task_comments').delete().eq('id', id);
+  }
+
   function insertProjectsBatch(rows) {
     return supabaseClient.from('projects').insert(rows).select();
   }
@@ -296,6 +316,9 @@
     reopenTasksBatch,
     insertTaskCompletion,
     updateTaskDueDate,
+    fetchComments,
+    insertComment,
+    deleteCommentRow,
     insertProjectsBatch,
     insertTasksBatch,
     fetchAdminStats,

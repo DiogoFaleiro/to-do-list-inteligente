@@ -11,6 +11,10 @@
     // Mapa taskId -> [tagId, ...]. Não é persistido: reconstruído a cada
     // loadInitialData a partir das linhas de task_tags.
     taskTags: {},
+    // Mapa taskId -> [{id, taskId, userId, content, createdAt}, ...],
+    // carregado sob demanda (loadComments) ao abrir o modal de edição de
+    // uma tarefa — não faz parte de loadInitialData.
+    commentsByTask: {},
     // Texto de busca digitado no momento — não persiste entre recarregamentos.
     search: '',
     // Estado do import do Todoist (sem otimismo — a UI só mostra loading).
@@ -79,6 +83,10 @@
     };
   }
 
+  function mapCommentFromRow(row) {
+    return { id: row.id, taskId: row.task_id, userId: row.user_id, content: row.content, createdAt: row.created_at };
+  }
+
   function mapTaskFromRow(row) {
     return {
       id: row.id,
@@ -141,6 +149,10 @@
   function getTaskTags(taskId) {
     const ids = state.taskTags[taskId] || [];
     return ids.map((id) => state.tags.find((tag) => tag.id === id)).filter(Boolean);
+  }
+
+  function getComments(taskId) {
+    return state.commentsByTask[taskId] || [];
   }
 
   function getSessionsForProject(projectId) {
@@ -227,6 +239,7 @@
     state.tasks = [];
     state.tags = [];
     state.taskTags = {};
+    state.commentsByTask = {};
     state.search = '';
     state.importStatus = { loading: false, error: null };
     emit();
@@ -470,6 +483,62 @@
         state.taskTags[taskId].push(tagId);
         emit();
         handleMutationError('Falha ao remover etiqueta', error);
+      }
+    });
+  }
+
+  // Carregado sob demanda, ao abrir o modal de edição de uma tarefa já
+  // salva — não faz parte de loadInitialData (a maioria das tarefas nunca
+  // tem comentário, não vale a pena trazer isso tudo no boot geral).
+  async function loadComments(taskId) {
+    const { data, error } = await api.fetchComments(taskId);
+    if (error) {
+      handleMutationError('Falha ao carregar comentários', error);
+      return;
+    }
+    state.commentsByTask[taskId] = (data || []).map(mapCommentFromRow);
+    emit();
+  }
+
+  function addComment(taskId, content) {
+    const trimmed = content.trim();
+    if (!trimmed) return;
+    const tempId = `tmp-${utils.uid()}`;
+    if (!state.commentsByTask[taskId]) state.commentsByTask[taskId] = [];
+    const optimistic = { id: tempId, taskId, userId: currentUserId, content: trimmed, createdAt: new Date().toISOString() };
+    state.commentsByTask[taskId].push(optimistic);
+    emit();
+
+    api.insertComment({ user_id: currentUserId, task_id: taskId, content: trimmed }).then(({ data, error }) => {
+      if (error) {
+        state.commentsByTask[taskId] = state.commentsByTask[taskId].filter((c) => c.id !== tempId);
+        emit();
+        handleMutationError('Falha ao adicionar comentário', error);
+        return;
+      }
+      const idx = state.commentsByTask[taskId].findIndex((c) => c.id === tempId);
+      if (idx !== -1) state.commentsByTask[taskId][idx] = mapCommentFromRow(data);
+      emit();
+    });
+  }
+
+  // Assinatura de 1 argumento só — commentsByTask é um mapa por-tarefa (não
+  // uma lista única como apiTokens), então varremos as chaves pra achar em
+  // qual tarefa o comentário está antes de remover/reverter.
+  function deleteComment(id) {
+    const taskId = Object.keys(state.commentsByTask).find((key) => state.commentsByTask[key].some((c) => c.id === id));
+    if (!taskId) return;
+    const list = state.commentsByTask[taskId];
+    const removedIndex = list.findIndex((c) => c.id === id);
+    const removed = list[removedIndex];
+    state.commentsByTask[taskId] = list.filter((c) => c.id !== id);
+    emit();
+
+    api.deleteCommentRow(id).then(({ error }) => {
+      if (error) {
+        state.commentsByTask[taskId].splice(removedIndex, 0, removed);
+        emit();
+        handleMutationError('Falha ao excluir comentário', error);
       }
     });
   }
@@ -804,6 +873,7 @@
     getFilteredTasks,
     getSubtasks,
     getTaskTags,
+    getComments,
     getSessionsForProject,
     getApiTokens,
     loadApiTokens,
@@ -826,6 +896,9 @@
     toggleTagFavorite,
     addTagToTask,
     removeTagFromTask,
+    loadComments,
+    addComment,
+    deleteComment,
     addTask,
     addSubtask,
     updateTask,

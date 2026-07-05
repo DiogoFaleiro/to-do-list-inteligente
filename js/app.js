@@ -117,6 +117,10 @@
   const taskSubtaskList = document.getElementById('taskSubtaskList');
   const taskNewSubtaskInput = document.getElementById('taskNewSubtaskInput');
   const taskAddSubtaskBtn = document.getElementById('taskAddSubtaskBtn');
+  const taskCommentSection = document.getElementById('taskCommentSection');
+  const taskCommentList = document.getElementById('taskCommentList');
+  const taskNewCommentInput = document.getElementById('taskNewCommentInput');
+  const taskAddCommentBtn = document.getElementById('taskAddCommentBtn');
   const taskTagList = document.getElementById('taskTagList');
   const taskTagSuggest = document.getElementById('taskTagSuggest');
 
@@ -291,6 +295,52 @@
     taskNewSubtaskInput.focus();
   }
 
+  // Comentário tem created_at como timestamptz completo (não YYYY-MM-DD
+  // como due_date) — utils.formatDateBR assume só data, não serve aqui.
+  function formatCommentDate(iso) {
+    return new Date(iso).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  // Comentários só existem depois que a tarefa mãe tem um id de verdade
+  // (ver decisão de modo-criação em openTaskModal) — diferente de
+  // subtarefas/etiquetas, não há lista "pendente" pré-salvar aqui. RLS
+  // (task_comments_select_own) garante que todo comentário que chega até
+  // aqui já é do próprio usuário, por isso o botão de excluir aparece em
+  // todos, sem comparar user_id.
+  function renderModalComments() {
+    if (!taskIdInput.value) return;
+    const comments = store.getComments(taskIdInput.value);
+    taskCommentList.innerHTML = comments.length
+      ? comments
+          .map(
+            (c) => `
+        <div class="comment-row" data-comment-id="${c.id}">
+          <div class="comment-row-header">
+            <span class="comment-row-date">${escapeHtml(formatCommentDate(c.createdAt))}</span>
+            <button type="button" data-delete-comment="${c.id}" title="Excluir">🗑️</button>
+          </div>
+          <div class="task-description-view">${escapeHtml(c.content)}</div>
+        </div>`
+          )
+          .join('')
+      : `<p class="empty-state" style="padding:4px 0;">Nenhum comentário ainda.</p>`;
+  }
+
+  function addCommentFromModal() {
+    const content = taskNewCommentInput.value.trim();
+    if (!content || !taskIdInput.value) return;
+    store.addComment(taskIdInput.value, content);
+    taskNewCommentInput.value = '';
+    renderModalComments();
+    taskNewCommentInput.focus();
+  }
+
   // Mostra os chips de etiqueta já vinculados à tarefa em edição (vindos do
   // store, ao vivo) ou, no modo "criar", as escolhidas via "@" antes de
   // salvar (pendingNewTagIds) — mesmo papel do renderModalSubtasks acima.
@@ -405,12 +455,16 @@
       taskDueDateInput.value = task.dueDate || utils.todayISO();
       taskDueTimeInput.value = task.dueTime || '';
       populateRepeatFields(task.recurrence);
+      taskCommentSection.hidden = false;
+      taskCommentList.innerHTML = '';
+      store.loadComments(task.id).then(renderModalComments);
     } else {
       taskModalTitle.textContent = 'Nova tarefa';
       taskIdInput.value = '';
       taskDueDateInput.value = forcedDueDate || utils.todayISO();
       taskDueTimeInput.value = '';
       populateRepeatFields(null);
+      taskCommentSection.hidden = true;
     }
     renderModalSubtasks();
     renderModalTags();
@@ -980,6 +1034,20 @@
     }
   });
 
+  // Comentários dentro do modal de tarefa
+  taskAddCommentBtn.addEventListener('click', addCommentFromModal);
+  taskNewCommentInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addCommentFromModal();
+    }
+  });
+
+  taskCommentList.addEventListener('click', (e) => {
+    const delBtn = e.target.closest('[data-delete-comment]');
+    if (delBtn) store.deleteComment(delBtn.dataset.deleteComment);
+  });
+
   // Etiquetas dentro do modal de tarefa: menção "@" no título + chips
   taskTitleInput.addEventListener('input', renderTagSuggestions);
   taskTitleInput.addEventListener('keydown', (e) => {
@@ -1364,12 +1432,13 @@
     if (hasSubscribed) return;
     hasSubscribed = true;
     store.subscribe(render.renderAll);
-    // Mantém a lista de subtarefas/etiquetas do modal em dia com mudanças
-    // assíncronas (ex.: rollback de uma mutação que falhou ao salvar).
+    // Mantém a lista de subtarefas/etiquetas/comentários do modal em dia com
+    // mudanças assíncronas (ex.: rollback de uma mutação que falhou ao salvar).
     store.subscribe(() => {
       if (!taskModal.hidden && taskIdInput.value) {
         renderModalSubtasks();
         renderModalTags();
+        renderModalComments();
       }
       if (!projectModal.hidden && projectIdInput.value) {
         renderProjectSessions();
