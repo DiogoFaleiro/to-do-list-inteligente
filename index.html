@@ -119,7 +119,11 @@
     </aside>
 
     <main class="main">
-      <!-- Cabeçalho compacto, só visível no mobile (≤600px) -->
+      <!-- Título da página/projeto atual, só visível fora do modo celular
+           (≤480px usa o .mobile-title-bar abaixo em vez deste) -->
+      <h2 id="pageTitle" class="page-title"></h2>
+
+      <!-- Cabeçalho compacto, só visível no mobile (≤480px) -->
       <header class="mobile-title-bar">
         <div class="mobile-title-text">
           <h2 id="mobileViewTitle">Hoje</h2>
@@ -174,7 +178,7 @@
       <div id="boardDots" class="board-dots" hidden></div>
     </main>
 
-    <!-- Rodapé de navegação, só visível no mobile (≤600px) -->
+    <!-- Rodapé de navegação, só visível no mobile (≤480px) -->
     <nav class="mobile-bottom-nav">
       <button type="button" class="mobile-nav-btn" data-mobile-tab="today">
         <span aria-hidden="true">✅</span>

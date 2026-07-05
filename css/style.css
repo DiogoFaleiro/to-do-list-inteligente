@@ -1007,7 +1007,7 @@ a.btn-danger {
 }
 
 .board-column {
-  flex: 0 0 260px;
+  flex: 0 0 320px;
   min-width: 0;
   background: var(--card-bg);
   border: 1px solid var(--border);
@@ -1437,6 +1437,14 @@ a.btn-danger {
   font-size: 1.3rem;
 }
 
+/* Título do projeto/período atual no canto superior esquerdo do conteúdo
+   (desktop/tablet) — some no modo celular, onde o .mobile-title-bar
+   assume esse mesmo papel. */
+.page-title {
+  margin: 0 0 4px;
+  font-size: 1.4rem;
+}
+
 .mobile-task-count {
   font-size: 0.85rem;
   color: var(--text-muted);
@@ -1539,23 +1547,21 @@ a.btn-danger {
   }
 }
 
-/* Responsivo: sidebar empilha acima do conteúdo principal */
-@media (max-width: 760px) {
-  .app {
-    grid-template-columns: 1fr;
-  }
-  .sidebar {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-    max-height: 40vh;
-    overflow-y: auto;
-  }
-}
-
-/* Responsivo: celulares */
-@media (max-width: 600px) {
+/* Responsivo: celulares. Só essa faixa (bem estreita, cobre até os
+   maiores celulares em pé) vira layout "de celular" — barra lateral em
+   tela cheia, menu inferior, carrossel do Painel. Qualquer coisa acima
+   disso (incluindo tablets em pé) usa sempre o grid de desktop (barra
+   lateral fixa ao lado do conteúdo, nunca empilhada). Antes disso aqui
+   existiam dois breakpoints (760px e 600px) que deixavam a faixa
+   581-760px num meio-termo estranho (sidebar empilhada por cima do
+   conteúdo) — unificado num só valor mais baixo. */
+@media (max-width: 480px) {
   .main {
     padding: 14px 16px calc(132px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .page-title {
+    display: none;
   }
 
   .task-row {

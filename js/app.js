@@ -1153,7 +1153,7 @@
     );
   }
 
-  const mobileCarouselQuery = window.matchMedia('(max-width: 600px)');
+  const mobileCarouselQuery = window.matchMedia('(max-width: 480px)');
 
   enableDragScroll(boardView, {
     // No carrossel mobile (uma coluna = a tela toda), garante que sempre

@@ -15,6 +15,7 @@
     taskSessionRow: document.getElementById('taskSessionRow'),
     taskSessionSelect: document.getElementById('taskSession'),
     accountThemeIcon: document.getElementById('accountThemeIcon'),
+    pageTitle: document.getElementById('pageTitle'),
     mobileViewTitle: document.getElementById('mobileViewTitle'),
     mobileTaskCount: document.getElementById('mobileTaskCount'),
     mobileBoardToggleBtn: document.getElementById('mobileBoardToggleBtn'),
@@ -512,10 +513,15 @@
     els.boardView.hidden = state.ui.view !== 'board';
     els.boardDots.hidden = state.ui.view !== 'board';
 
-    // Cabeçalho e rodapé de navegação mobile
+    // Título da página/projeto atual — mostrado tanto no cabeçalho mobile
+    // quanto no canto superior esquerdo do conteúdo (desktop/tablet).
+    const currentProject = state.ui.projectFilter !== 'all' ? projectById(state.ui.projectFilter) : null;
+    const currentTitle = currentProject ? currentProject.name : PERIOD_TITLES[state.ui.period] || 'Tarefas';
+    if (els.pageTitle) {
+      els.pageTitle.textContent = currentTitle;
+    }
     if (els.mobileViewTitle) {
-      const project = state.ui.projectFilter !== 'all' ? projectById(state.ui.projectFilter) : null;
-      els.mobileViewTitle.textContent = project ? project.name : PERIOD_TITLES[state.ui.period] || 'Tarefas';
+      els.mobileViewTitle.textContent = currentTitle;
     }
     if (els.mobileTaskCount) {
       const openCount = store.getFilteredTasks().filter((t) => t.status !== 'done').length;
