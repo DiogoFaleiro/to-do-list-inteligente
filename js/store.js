@@ -744,17 +744,18 @@
       const plan = [];
       groups.forEach((g) => g.tasks.forEach((task) => plan.push({ task, sessionId: g.sessionId })));
 
-      const toRow = (title, dateRaw, sessionId, parentTaskId) => {
-        const d = App.importTodoist.parseTodoistDate(dateRaw);
+      const toRow = (task, sessionId, parentTaskId) => {
+        const d = App.importTodoist.parseTodoistDate(task.dateRaw);
         return {
           user_id: currentUserId,
           project_id: parentTaskId ? null : projectRow.id,
           session_id: parentTaskId ? null : sessionId,
-          title,
+          title: task.title,
           due_date: d.dueDate,
           due_time: d.dueTime,
           recurrence: d.recurrence,
           recurring: !!d.recurrence,
+          description: task.description || null,
           status: 'todo',
           completed_date: null,
           parent_task_id: parentTaskId || null
@@ -763,28 +764,52 @@
 
       let topLevelRows = [];
       if (plan.length > 0) {
-        const { data, error } = await api.insertTasksBatch(
-          plan.map((p) => toRow(p.task.title, p.task.dateRaw, p.sessionId, null))
-        );
+        const { data, error } = await api.insertTasksBatch(plan.map((p) => toRow(p.task, p.sessionId, null)));
         if (error) throw error;
         topLevelRows = data;
       }
 
       // Qualquer nível de indentação abaixo do nível 1 (o Todoist permite
       // indent 3+) vira subtarefa direta da tarefa de nível 1 mais próxima —
-      // nosso modelo só tem 1 nível de subtarefa.
+      // nosso modelo só tem 1 nível de subtarefa. subtaskNodes fica em
+      // paralelo a subtaskRows (mesma ordem) pra depois casar cada linha
+      // inserida com o nó original, que carrega os comentários dela.
+      const subtaskNodes = [];
       const subtaskRows = [];
       plan.forEach((p, i) => {
         const parentId = topLevelRows[i].id;
         const flatten = (nodes) =>
           nodes.forEach((n) => {
-            subtaskRows.push(toRow(n.title, n.dateRaw, null, parentId));
+            subtaskRows.push(toRow(n, null, parentId));
+            subtaskNodes.push(n);
             if (n.children && n.children.length) flatten(n.children);
           });
         flatten(p.task.children);
       });
+      let subtaskInsertedRows = [];
       if (subtaskRows.length > 0) {
-        const { error } = await api.insertTasksBatch(subtaskRows);
+        const { data, error } = await api.insertTasksBatch(subtaskRows);
+        if (error) throw error;
+        subtaskInsertedRows = data;
+      }
+
+      // Comentários das tarefas (notas do Todoist) — casados pelos ids reais
+      // recém-recebidos, na mesma ordem posicional de plan/topLevelRows e
+      // subtaskNodes/subtaskInsertedRows. created_at explícito preserva a
+      // data original da nota (sobrescreve o default now() da coluna).
+      const commentRows = [];
+      plan.forEach((p, i) => {
+        (p.task.comments || []).forEach((c) => {
+          commentRows.push({ user_id: currentUserId, task_id: topLevelRows[i].id, content: c.content, created_at: c.createdAt });
+        });
+      });
+      subtaskNodes.forEach((n, i) => {
+        (n.comments || []).forEach((c) => {
+          commentRows.push({ user_id: currentUserId, task_id: subtaskInsertedRows[i].id, content: c.content, created_at: c.createdAt });
+        });
+      });
+      if (commentRows.length > 0) {
+        const { error } = await api.insertCommentsBatch(commentRows);
         if (error) throw error;
       }
 

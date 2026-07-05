@@ -1,4 +1,4 @@
-const CACHE_NAME = 'todolist-cache-v36';
+const CACHE_NAME = 'todolist-cache-v37';
 const APP_SHELL = [
   './',
   './index.html',

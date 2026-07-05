@@ -79,24 +79,44 @@
     return title.replace(/^\*+/, '').replace(/\*+$/, '').trim();
   }
 
+  // Notas com anexo (imagem, arquivo etc.) do Todoist trazem um marcador
+  // [[file {json}]] no meio do texto — o anexo em si nunca é baixado/
+  // importado (não há como, sem a API do Todoist), só um aviso textual no
+  // lugar, preservando qualquer outro texto que a nota tiver. Se o JSON não
+  // parsear (formato inesperado), mantém o trecho original intocado.
+  function interpretNoteContent(raw) {
+    return raw.replace(/\[\[file\s+(\{[\s\S]*?\})\]\]/g, (match, jsonStr) => {
+      try {
+        const parsed = JSON.parse(jsonStr);
+        return `📎 ${parsed.file_name || 'arquivo'} (anexo do Todoist não importado)`;
+      } catch (e) {
+        return match;
+      }
+    });
+  }
+
   // Interpreta o formato de template do Todoist (header TYPE,CONTENT,...).
   // Não interpreta a data (dateRaw fica cru) — isso é trabalho separado de
   // parseTodoistDate, função independente e composta por quem for usar.
   function parseTodoistExport(rows) {
-    if (!rows || rows.length === 0) return { sections: [], ignoredNotes: 0 };
+    if (!rows || rows.length === 0) return { sections: [] };
 
     const header = rows[0];
     const typeIdx = header.indexOf('TYPE');
     const contentIdx = header.indexOf('CONTENT');
+    const descriptionIdx = header.indexOf('DESCRIPTION');
     const indentIdx = header.indexOf('INDENT');
     const dateIdx = header.indexOf('DATE');
 
     const sections = [{ name: 'Sem seção', tasks: [] }];
     let currentSection = sections[0];
-    let ignoredNotes = 0;
     // Última tarefa vista em cada nível de indentação — reseta a cada
     // nova seção (indentação não atravessa seções).
     let parentByIndent = {};
+    // Última tarefa processada, de qualquer nível — é nela que uma nota
+    // (type=note) logo em seguida vira comentário. Também reseta a cada
+    // nova seção (uma nota não deveria "vazar" pra tarefa de outra seção).
+    let lastTask = null;
 
     for (let r = 1; r < rows.length; r += 1) {
       const row = rows[r];
@@ -108,7 +128,13 @@
       if (type === '' || type === 'meta') continue;
 
       if (type === 'note') {
-        ignoredNotes += 1;
+        if (lastTask) {
+          // A coluna DATE de uma nota já é um timestamp ISO de verdade
+          // (gerado pelo Todoist), diferente da data em texto livre de uma
+          // tarefa — por isso não passa por parseTodoistDate aqui.
+          const createdAt = (row[dateIdx] || '').trim() || new Date().toISOString();
+          lastTask.comments.push({ content: interpretNoteContent(content), createdAt });
+        }
         continue;
       }
 
@@ -116,13 +142,15 @@
         currentSection = { name: content || 'Sem nome', tasks: [] };
         sections.push(currentSection);
         parentByIndent = {};
+        lastTask = null;
         continue;
       }
 
       if (type === 'task') {
         const indent = parseInt(row[indentIdx], 10) || 1;
         const dateRaw = (row[dateIdx] || '').trim();
-        const task = { title: stripMarkdown(content), dateRaw, indent, children: [] };
+        const description = (row[descriptionIdx] || '').trim() || null;
+        const task = { title: stripMarkdown(content), dateRaw, description, indent, children: [], comments: [] };
 
         const parent = indent > 1 ? parentByIndent[indent - 1] : null;
         if (parent) {
@@ -135,10 +163,11 @@
         Object.keys(parentByIndent).forEach((key) => {
           if (Number(key) > indent) delete parentByIndent[key];
         });
+        lastTask = task;
       }
     }
 
-    return { sections, ignoredNotes };
+    return { sections };
   }
 
   // 0=domingo...6=sábado (Date.getDay()), nomes já sem acento (comparados

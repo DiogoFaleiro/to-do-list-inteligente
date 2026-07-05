@@ -216,6 +216,12 @@
     return supabaseClient.from('task_comments').delete().eq('id', id);
   }
 
+  // Insere vários comentários de uma vez (usado pelo import do Todoist) —
+  // mesmo padrão de insertSessionsBatch/insertTasksBatch.
+  function insertCommentsBatch(rows) {
+    return supabaseClient.from('task_comments').insert(rows).select();
+  }
+
   function insertProjectsBatch(rows) {
     return supabaseClient.from('projects').insert(rows).select();
   }
@@ -319,6 +325,7 @@
     fetchComments,
     insertComment,
     deleteCommentRow,
+    insertCommentsBatch,
     insertProjectsBatch,
     insertTasksBatch,
     fetchAdminStats,

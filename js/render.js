@@ -648,14 +648,21 @@
 
   function importTaskHtml(task, warnings, isSubtask) {
     const meta = importDateMetaHtml(task.dateRaw, warnings);
+    const descIcon = task.description ? ` <span class="import-tree-task-meta" title="Tem descrição">📄</span>` : '';
     const cls = isSubtask ? 'import-tree-task import-tree-subtask' : 'import-tree-task';
     const childrenHtml = (task.children || []).map((child) => importTaskHtml(child, warnings, true)).join('');
-    return `<div class="${cls}"><span>${utils.escapeHtml(task.title)}</span>${meta}</div>${childrenHtml}`;
+    return `<div class="${cls}"><span>${utils.escapeHtml(task.title)}</span>${descIcon}${meta}</div>${childrenHtml}`;
+  }
+
+  // Soma os comentários (notas do Todoist) de uma tarefa e de toda a
+  // descendência dela (subtarefas em qualquer nível de indentação).
+  function countImportComments(tasks) {
+    return tasks.reduce((sum, task) => sum + (task.comments || []).length + countImportComments(task.children || []), 0);
   }
 
   // Pré-visualização do import do Todoist: monta a árvore de seções/tarefas/
-  // subtarefas e a lista de avisos (datas não reconhecidas + notas
-  // ignoradas) numa só passada recursiva pela estrutura de parseTodoistExport.
+  // subtarefas e a lista de avisos (datas não reconhecidas + comentários a
+  // importar) numa só passada recursiva pela estrutura de parseTodoistExport.
   function renderImportPreview(parsed) {
     const warnings = [];
     const sectionsHtml = parsed.sections
@@ -671,9 +678,10 @@
     els.importTodoistTree.innerHTML =
       sectionsHtml || `<p class="empty-state">Nenhuma tarefa encontrada no arquivo.</p>`;
 
-    if (parsed.ignoredNotes > 0) {
+    const totalComments = parsed.sections.reduce((sum, section) => sum + countImportComments(section.tasks), 0);
+    if (totalComments > 0) {
       warnings.push(
-        `${parsed.ignoredNotes} nota${parsed.ignoredNotes === 1 ? '' : 's'} ignorada${parsed.ignoredNotes === 1 ? '' : 's'} (notas do Todoist não são importadas).`
+        `${totalComments} comentário${totalComments === 1 ? '' : 's'} ${totalComments === 1 ? 'será' : 'serão'} importado${totalComments === 1 ? '' : 's'}.`
       );
     }
 
