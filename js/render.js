@@ -328,12 +328,19 @@
       return;
     }
 
-    // Não filtra por "tem tarefa" ainda — um projeto com sessões precisa
-    // continuar aqui mesmo com 0 tarefas no total, pra suas sessões
-    // (sempre visíveis, ver groupTasksBySession) aparecerem como sub-seção.
-    const sections = groupTasksByProject(tasks)
+    // Só considera os grupos de projeto relevantes pro filtro atual: com um
+    // projeto específico filtrado, mantém só ele (mesmo com 0 tarefas, pra
+    // suas sessões aparecerem como sub-seção mesmo vazias); sem filtro de
+    // projeto, só quem tem tarefa de verdade — senão sessões de OUTROS
+    // projetos (sem nenhuma tarefa nesta visão) vazam como cabeçalhos vazios.
+    const splitBySession = state.ui.projectFilter !== 'all';
+    const relevantGroups = splitBySession
+      ? groupTasksByProject(tasks).filter((g) => g.id === state.ui.projectFilter)
+      : groupTasksByProject(tasks).filter((g) => g.tasks.length > 0);
+
+    const sections = relevantGroups
       .map((g) => {
-        const sessionGroups = groupTasksBySession(g.tasks, g.id);
+        const sessionGroups = splitBySession ? groupTasksBySession(g.tasks, g.id) : null;
         if (sessionGroups) {
           const body = sessionGroups
             .map(
@@ -390,14 +397,19 @@
   // suas tarefas juntas (a tag de sessão volta a aparecer no card, já que
   // a coluna deixa de indicar uma sessão específica).
   function buildBoardColumns(tasks) {
-    const splitBySession = store.getState().ui.projectFilter !== 'all';
-    // Não filtra por "tem tarefa" ainda — um projeto com sessões precisa
-    // continuar na lista mesmo com 0 tarefas no total, pra suas sessões
-    // (sempre visíveis, ver groupTasksBySession) aparecerem como coluna.
-    const projectGroups = groupTasksByProject(tasks);
+    const projectFilter = store.getState().ui.projectFilter;
+    const splitBySession = projectFilter !== 'all';
+    // Só considera os grupos de projeto relevantes pro filtro atual: com um
+    // projeto específico filtrado, mantém só ele (mesmo com 0 tarefas, pra
+    // suas sessões aparecerem como coluna mesmo vazias); sem filtro de
+    // projeto, só quem tem tarefa de verdade — senão sessões de OUTROS
+    // projetos (sem nenhuma tarefa nesta visão) vazam como colunas fantasmas.
+    const relevantGroups = splitBySession
+      ? groupTasksByProject(tasks).filter((g) => g.id === projectFilter)
+      : groupTasksByProject(tasks).filter((g) => g.tasks.length > 0);
     const columns = [];
 
-    projectGroups.forEach((g) => {
+    relevantGroups.forEach((g) => {
       const sessionGroups = splitBySession ? groupTasksBySession(g.tasks, g.id) : null;
       if (sessionGroups) {
         sessionGroups.forEach((sg) => {

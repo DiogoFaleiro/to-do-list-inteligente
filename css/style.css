@@ -1008,6 +1008,7 @@ a.btn-danger {
 
 .board-column {
   flex: 0 0 260px;
+  min-width: 0;
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1045,6 +1046,7 @@ a.btn-danger {
   flex-direction: column;
   gap: 10px;
   min-height: 60px;
+  min-width: 0;
   border-radius: var(--radius);
 }
 
@@ -1092,6 +1094,7 @@ a.btn-danger {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .board-card.done .task-title {
@@ -1103,10 +1106,13 @@ a.btn-danger {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .board-card-header .task-title {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 /* Modal */
