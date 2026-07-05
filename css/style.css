@@ -1556,6 +1556,10 @@ a.btn-danger {
    581-760px num meio-termo estranho (sidebar empilhada por cima do
    conteúdo) — unificado num só valor mais baixo. */
 @media (max-width: 480px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
   .main {
     padding: 14px 16px calc(132px + env(safe-area-inset-bottom, 0px));
   }
