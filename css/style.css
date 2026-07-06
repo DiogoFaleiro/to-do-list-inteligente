@@ -1959,6 +1959,7 @@ a.btn-danger {
     inset: 0;
     z-index: 130;
     max-height: none;
+    overflow-y: auto;
     border: none;
     padding: 16px 16px calc(96px + env(safe-area-inset-bottom, 0px));
   }
