@@ -123,12 +123,22 @@
   const taskAddCommentBtn = document.getElementById('taskAddCommentBtn');
   const taskTagList = document.getElementById('taskTagList');
   const taskTagSuggest = document.getElementById('taskTagSuggest');
+  const taskNlDateChip = document.getElementById('taskNlDateChip');
+  const taskRepeatNlNote = document.getElementById('taskRepeatNlNote');
 
   // Subtarefas digitadas antes de a tarefa mãe existir de verdade (modo
   // "criar"); só viram tarefas reais depois que a tarefa mãe for salva.
   let pendingNewSubtasks = [];
   // Mesma ideia para etiquetas escolhidas/criadas via "@" antes de salvar.
   let pendingNewTagIds = [];
+
+  // Estado do chip de sugestão de data/recorrência (App.nlDate) sobre o título.
+  let pendingNlMatch = null; // resultado atual do App.nlDate.parse (null = sem match ou descartado)
+  let dismissedNlText = null; // título no momento do ✕ — não sugere de novo até mudar
+  let nlDateManualOverride = false; // true assim que qualquer campo de data/repetição é editado a mão
+  let nlDateTouchedFields = new Set(); // subconjunto de {'dueDate','dueTime','repeat'} editado a mão nesta sessão
+  let nlDateSnapshot = null; // valores dos campos ANTES da primeira aplicação automática (pro ✕ restaurar)
+  let nlDateDebounceTimer = null;
 
   // Modal de projeto
   const projectModal = document.getElementById('projectModal');
@@ -252,6 +262,125 @@
     const div = document.createElement('div');
     div.textContent = str == null ? '' : str;
     return div.innerHTML;
+  }
+
+  // App.recurrence.byMonthDay (numérico ou 'last') e byNthWeekday não têm
+  // nenhum campo correspondente no formulário (populateRepeatFields/
+  // buildRecurrenceFromForm só conhecem freq/interval/anchor/byWeekday/
+  // until) — pra essas regras, os campos granulares não são preenchidos,
+  // uma nota mostra a descrição em texto, e a regra do chip é salva como
+  // está (ver runNlDateParse/applyNlDateToFields e o submit do form).
+  function isRecurrenceFormRepresentable(rule) {
+    return !rule || (!rule.byMonthDay && !rule.byNthWeekday);
+  }
+
+  function snapshotRepeatFields() {
+    return {
+      dueDate: taskDueDateInput.value,
+      dueTime: taskDueTimeInput.value,
+      repeatSelect: taskRepeatSelect.value,
+      repeatInterval: taskRepeatInterval.value,
+      repeatUnit: taskRepeatUnit.value,
+      repeatWeekdays: Array.from(taskRepeatWeekdays.querySelectorAll('input')).map((cb) => cb.checked),
+      repeatAnchor: taskRepeatAnchor.value,
+      repeatUntilToggle: taskRepeatUntilToggle.checked,
+      repeatUntil: taskRepeatUntil.value
+    };
+  }
+
+  // Preenche due_date/due_time e, quando a regra cabe no formulário, os
+  // campos granulares de repetição também — senão só mostra uma nota
+  // (a regra em si continua sendo salva certa, ver o submit do form).
+  // Tira um snapshot dos campos na primeira vez que aplica, pro ✕ poder
+  // restaurar depois (ver restoreNlDateSnapshot).
+  function applyNlDateToFields(parsed) {
+    if (nlDateSnapshot === null) nlDateSnapshot = snapshotRepeatFields();
+    if (parsed.dueDate) taskDueDateInput.value = parsed.dueDate;
+    taskDueTimeInput.value = parsed.dueTime || '';
+    if (isRecurrenceFormRepresentable(parsed.recurrence)) {
+      populateRepeatFields(parsed.recurrence);
+      taskRepeatNlNote.hidden = true;
+      taskRepeatNlNote.textContent = '';
+    } else {
+      taskRepeatNlNote.hidden = false;
+      taskRepeatNlNote.textContent = `Sugestão: ${parsed.description} — será aplicada ao salvar (os campos abaixo não representam esse tipo de regra).`;
+    }
+  }
+
+  // Descartar o chip (✕) restaura os campos ao estado de antes da primeira
+  // aplicação automática — exceto os que o usuário já tinha editado à mão,
+  // esses ficam como o usuário deixou.
+  function restoreNlDateSnapshot() {
+    if (!nlDateSnapshot) return;
+    if (!nlDateTouchedFields.has('dueDate')) taskDueDateInput.value = nlDateSnapshot.dueDate;
+    if (!nlDateTouchedFields.has('dueTime')) taskDueTimeInput.value = nlDateSnapshot.dueTime;
+    if (!nlDateTouchedFields.has('repeat')) {
+      taskRepeatSelect.value = nlDateSnapshot.repeatSelect;
+      taskRepeatInterval.value = nlDateSnapshot.repeatInterval;
+      taskRepeatUnit.value = nlDateSnapshot.repeatUnit;
+      Array.from(taskRepeatWeekdays.querySelectorAll('input')).forEach((cb, i) => {
+        cb.checked = nlDateSnapshot.repeatWeekdays[i];
+      });
+      taskRepeatAnchor.value = nlDateSnapshot.repeatAnchor;
+      taskRepeatUntilToggle.checked = nlDateSnapshot.repeatUntilToggle;
+      taskRepeatUntil.value = nlDateSnapshot.repeatUntil;
+      toggleRepeatCustom();
+      taskRepeatNlNote.hidden = true;
+      taskRepeatNlNote.textContent = '';
+    }
+  }
+
+  function renderNlDateChip() {
+    if (!pendingNlMatch) {
+      taskNlDateChip.hidden = true;
+      taskNlDateChip.innerHTML = '';
+      taskNlDateChip.classList.remove('nldate-chip-warning');
+      return;
+    }
+    const isWarning = pendingNlMatch.unsupported;
+    const text = isWarning
+      ? 'Recorrência por hora não suportada'
+      : pendingNlMatch.recurrence
+      ? `🔁 ${pendingNlMatch.description}`
+      : pendingNlMatch.description;
+    taskNlDateChip.classList.toggle('nldate-chip-warning', isWarning);
+    taskNlDateChip.innerHTML = `
+      <span class="nldate-chip-text">${escapeHtml(text)}</span>
+      <button type="button" class="nldate-chip-dismiss" aria-label="Descartar sugestão">✕</button>`;
+    taskNlDateChip.hidden = false;
+  }
+
+  function scheduleNlDateParse() {
+    clearTimeout(nlDateDebounceTimer);
+    nlDateDebounceTimer = setTimeout(runNlDateParse, 200);
+  }
+
+  function runNlDateParse() {
+    const title = taskTitleInput.value;
+    if (title === dismissedNlText) return;
+    const parsed = App.nlDate.parse(title);
+    pendingNlMatch = parsed.match ? parsed : null;
+    renderNlDateChip();
+    if (pendingNlMatch && !pendingNlMatch.unsupported && !nlDateManualOverride) {
+      applyNlDateToFields(pendingNlMatch);
+    }
+  }
+
+  // Reconfirma o match ativo no momento do submit — o debounce de 200ms
+  // pode não ter rodado ainda se o usuário apertou Enter logo depois de
+  // digitar a expressão; nesse caso reparsa na hora com o texto atual.
+  function resolveActiveMatchForSubmit() {
+    const title = taskTitleInput.value;
+    if (title === dismissedNlText) return null;
+    if (
+      pendingNlMatch &&
+      pendingNlMatch.match &&
+      title.slice(pendingNlMatch.match.start, pendingNlMatch.match.end) === pendingNlMatch.match.raw
+    ) {
+      return pendingNlMatch;
+    }
+    const fresh = App.nlDate.parse(title);
+    return fresh.match ? fresh : null;
   }
 
   // Mostra as subtarefas da tarefa em edição (vindas do store, ao vivo) ou,
@@ -435,6 +564,15 @@
     pendingNewTagIds = [];
     taskTagSuggest.hidden = true;
     taskTagSuggest.innerHTML = '';
+    pendingNlMatch = null;
+    dismissedNlText = null;
+    nlDateManualOverride = false;
+    nlDateTouchedFields = new Set();
+    nlDateSnapshot = null;
+    clearTimeout(nlDateDebounceTimer);
+    renderNlDateChip();
+    taskRepeatNlNote.hidden = true;
+    taskRepeatNlNote.textContent = '';
     const state = store.getState();
     const defaultProject = task
       ? task.projectId
@@ -455,6 +593,10 @@
       taskDueDateInput.value = task.dueDate || utils.todayISO();
       taskDueTimeInput.value = task.dueTime || '';
       populateRepeatFields(task.recurrence);
+      // Tarefa existente já tem data/recorrência própria — o chip pode
+      // aparecer (se o título for editado pra algo reconhecível), mas não
+      // sobrescreve sozinho o que já foi definido intencionalmente antes.
+      nlDateManualOverride = !!(task.dueDate || task.recurrence);
       taskCommentSection.hidden = false;
       taskCommentList.innerHTML = '';
       store.loadComments(task.id).then(renderModalComments);
@@ -474,6 +616,7 @@
 
   function closeTaskModal() {
     taskModal.hidden = true;
+    clearTimeout(nlDateDebounceTimer);
   }
 
   // Sessões só existem pra editar um projeto que já foi salvo (um projeto
@@ -1090,6 +1233,37 @@
     }
   });
 
+  // Chip de sugestão de data/recorrência (App.nlDate) sobre o título
+  taskTitleInput.addEventListener('input', scheduleNlDateParse);
+
+  taskNlDateChip.addEventListener('click', (e) => {
+    if (!e.target.closest('.nldate-chip-dismiss')) return;
+    dismissedNlText = taskTitleInput.value;
+    pendingNlMatch = null;
+    restoreNlDateSnapshot();
+    renderNlDateChip();
+  });
+
+  function markNlDateFieldTouched(group) {
+    nlDateManualOverride = true;
+    nlDateTouchedFields.add(group);
+    if (group === 'repeat') {
+      // A nota dizia que a regra do chip "será aplicada ao salvar" — deixa
+      // de ser verdade assim que o usuário assume o controle da repetição
+      // manualmente (ver submit: buildRecurrenceFromForm passa a vencer).
+      taskRepeatNlNote.hidden = true;
+      taskRepeatNlNote.textContent = '';
+    }
+  }
+  taskDueDateInput.addEventListener('input', () => markNlDateFieldTouched('dueDate'));
+  taskDueTimeInput.addEventListener('input', () => markNlDateFieldTouched('dueTime'));
+  [taskRepeatSelect, taskRepeatUnit, taskRepeatWeekdays, taskRepeatAnchor, taskRepeatUntilToggle].forEach((el) =>
+    el.addEventListener('change', () => markNlDateFieldTouched('repeat'))
+  );
+  [taskRepeatInterval, taskRepeatUntil].forEach((el) =>
+    el.addEventListener('input', () => markNlDateFieldTouched('repeat'))
+  );
+
   taskModal.addEventListener('click', (e) => {
     if (e.target === taskModal) closeTaskModal();
   });
@@ -1102,13 +1276,29 @@
 
   taskForm.addEventListener('submit', (e) => {
     e.preventDefault();
+
+    const activeMatch = resolveActiveMatchForSubmit();
+    const chipStillFresh = activeMatch && !activeMatch.unsupported;
+
+    if (chipStillFresh && !nlDateManualOverride) {
+      // Garante que os campos refletem o match mais recente mesmo que o
+      // debounce de 200ms não tenha rodado ainda (Enter logo após digitar).
+      applyNlDateToFields(activeMatch);
+    }
+
+    let title = taskTitleInput.value;
+    if (chipStillFresh) {
+      const { start, end } = activeMatch.match;
+      title = (title.slice(0, start) + title.slice(end)).replace(/\s+/g, ' ').trim();
+    }
+
     const payload = {
-      title: taskTitleInput.value,
+      title,
       projectId: taskProjectSelect.value || null,
       sessionId: taskSessionSelect.value || null,
       dueDate: taskDueDateInput.value || null,
       dueTime: taskDueTimeInput.value || null,
-      recurrence: buildRecurrenceFromForm(),
+      recurrence: chipStillFresh && !nlDateTouchedFields.has('repeat') ? activeMatch.recurrence : buildRecurrenceFromForm(),
       description: taskDescriptionInput.value.trim() || null
     };
     if (!payload.title.trim()) return;

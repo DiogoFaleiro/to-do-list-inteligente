@@ -1535,6 +1535,52 @@ a.btn-danger {
   flex-shrink: 0;
 }
 
+/* Chip de sugestão de data/recorrência (App.nlDate) abaixo do título, e a
+   nota que aparece na área de repetição quando a regra sugerida não cabe
+   nos campos granulares (byMonthDay/byNthWeekday). */
+.nldate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  font-size: 0.8rem;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  background: var(--primary-tint);
+  color: var(--primary);
+}
+
+.nldate-chip[hidden] {
+  display: none;
+}
+
+.nldate-chip.nldate-chip-warning {
+  background: var(--warning-tint);
+  color: var(--warning);
+}
+
+.nldate-chip-dismiss {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.nldate-repeat-note {
+  font-size: 0.8rem;
+  color: var(--primary);
+  background: var(--primary-tint);
+  padding: 6px 10px;
+  border-radius: 8px;
+  margin: -6px 0 0;
+}
+
+.nldate-repeat-note[hidden] {
+  display: none;
+}
+
 /* Busca: barra com campo de texto, tanto no ícone de lupa do desktop
    quanto na aba "Buscar" do rodapé mobile. */
 .search-bar {

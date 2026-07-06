@@ -216,6 +216,7 @@
       <label class="task-title-label">Título
         <input type="text" id="taskTitle" required maxlength="120" placeholder="O que precisa ser feito? (@ para etiquetar)">
         <div id="taskTagSuggest" class="tag-suggest-menu" hidden></div>
+        <div id="taskNlDateChip" class="nldate-chip" hidden></div>
       </label>
 
       <label>Descrição
@@ -254,6 +255,8 @@
           <option value="custom">Personalizar…</option>
         </select>
       </label>
+
+      <p id="taskRepeatNlNote" class="nldate-repeat-note" hidden></p>
 
       <div id="taskRepeatCustom" class="session-editor" hidden>
         <div class="session-add-row">
