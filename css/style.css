@@ -1313,6 +1313,26 @@ a.btn-danger {
   gap: 6px;
 }
 
+/* Modal de projeto: trava a altura total (mesmo problema do modal de
+   tarefa antes do redesenho — a lista de sessões existentes cresce sem
+   limite e corta os botões fora da viewport). Só a lista de sessões
+   (.project-session-list-scroll) rola, com uns 4-5 itens visíveis por
+   vez; nome, cor, o form de adicionar sessão nova e a barra de botões
+   ficam fixos, sem scroll. Seletor composto (.modal.project-modal) de
+   propósito, mesma razão do .modal.task-modal: especificidade real
+   sobre o bottom-sheet genérico de ≤480px, independente da ordem no
+   arquivo. */
+.modal.project-modal {
+  max-height: 85vh;
+  overflow: hidden;
+}
+
+.project-session-list-scroll {
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .session-editor-row {
   display: flex;
   align-items: center;

@@ -330,7 +330,7 @@
 
   <!-- Modal de projeto -->
   <div id="projectModal" class="modal-overlay" hidden>
-    <form id="projectForm" class="modal">
+    <form id="projectForm" class="modal project-modal">
       <h2 id="projectModalTitle">Novo projeto</h2>
       <input type="hidden" id="projectId">
 
@@ -344,7 +344,7 @@
 
       <div class="session-editor" id="projectSessionEditor" hidden>
         <span class="session-editor-label">Sessões</span>
-        <div id="projectSessionList" class="session-editor-list"></div>
+        <div id="projectSessionList" class="session-editor-list project-session-list-scroll"></div>
         <div class="session-add-row">
           <input type="text" id="projectNewSessionInput" placeholder="Adicionar sessão" maxlength="60">
           <button type="button" id="projectAddSessionBtn" class="btn-secondary">+ Adicionar</button>
