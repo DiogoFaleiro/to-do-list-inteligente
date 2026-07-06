@@ -745,7 +745,7 @@
       groups.forEach((g) => g.tasks.forEach((task) => plan.push({ task, sessionId: g.sessionId })));
 
       const toRow = (task, sessionId, parentTaskId) => {
-        const d = App.importTodoist.parseTodoistDate(task.dateRaw);
+        const d = App.importTodoist.parseTodoistDate(task.dateRaw, task.dateLang);
         return {
           user_id: currentUserId,
           project_id: parentTaskId ? null : projectRow.id,
