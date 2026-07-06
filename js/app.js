@@ -631,6 +631,7 @@
       .map(
         (s) => `
       <div class="session-editor-row" data-session-id="${s.id}">
+        <span class="drag-handle" data-drag-handle title="Arrastar para reordenar">⠿</span>
         <input type="text" class="session-editor-name-input" data-rename-session="${s.id}" value="${escapeHtml(s.name)}" maxlength="60">
         <button type="button" data-delete-session="${s.id}" title="Excluir">🗑️</button>
       </div>`
@@ -1597,6 +1598,86 @@
       const index = Math.round(boardView.scrollLeft / width);
       boardView.scrollTo({ left: index * width, behavior: 'smooth' });
     }
+  });
+
+  // Arrastar-para-reordenar (projetos na sidebar, sessões no modal de
+  // projeto): mesmo padrão de Pointer Events do enableDragScroll (unifica
+  // mouse/touch numa API só). O arraste só inicia com pointerdown na alça
+  // (.drag-handle) — tocar/arrastar em qualquer outro ponto da linha
+  // continua rolando a lista normalmente. touch-action:none fica só na
+  // alça (CSS), nunca no container: é isso que evita o toque de reordenar
+  // competir com o gesto de rolar a lista.
+  function enableReorderDrag(container, rowSelector, onReorder) {
+    let draggedEl = null;
+    let startY = 0;
+    let dragging = false;
+    let lastTarget = null;
+    let placeAfter = false;
+
+    container.addEventListener('pointerdown', (e) => {
+      const handle = e.target.closest('.drag-handle');
+      if (!handle) return;
+      draggedEl = handle.closest(rowSelector);
+      if (!draggedEl) return;
+      startY = e.clientY;
+      dragging = false;
+      container.setPointerCapture(e.pointerId);
+    });
+
+    container.addEventListener('pointermove', (e) => {
+      if (!draggedEl) return;
+      if (!dragging) {
+        if (Math.abs(e.clientY - startY) < 4) return; // limiar, evita "arraste" por tremor
+        dragging = true;
+        draggedEl.classList.add('dragging');
+      }
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      const target = under && under.closest(rowSelector);
+      if (lastTarget) lastTarget.classList.remove('drop-above', 'drop-below');
+      if (!target || target === draggedEl) {
+        lastTarget = null;
+        return;
+      }
+      const rect = target.getBoundingClientRect();
+      placeAfter = e.clientY > rect.top + rect.height / 2;
+      target.classList.add(placeAfter ? 'drop-below' : 'drop-above');
+      lastTarget = target;
+    });
+
+    function endDrag() {
+      if (draggedEl && dragging && lastTarget) {
+        onReorder(draggedEl, lastTarget, placeAfter);
+      }
+      if (lastTarget) lastTarget.classList.remove('drop-above', 'drop-below');
+      if (draggedEl) draggedEl.classList.remove('dragging');
+      draggedEl = null;
+      dragging = false;
+      lastTarget = null;
+    }
+    container.addEventListener('pointerup', endDrag);
+    container.addEventListener('pointercancel', endDrag);
+
+    // Suprime o clique logo depois de um arraste de verdade (mesma técnica
+    // de enableDragScroll) — sem isso, soltar em cima de outro item
+    // trocaria de filtro / focaria o campo de nome sem querer.
+    container.addEventListener(
+      'click',
+      (e) => {
+        if (e.target.closest('.drag-handle')) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      },
+      true
+    );
+  }
+
+  enableReorderDrag(projectListEl, '.project-item', (draggedEl, targetEl, placeAfter) => {
+    store.reorderProjects(draggedEl.dataset.project, targetEl.dataset.project, placeAfter);
+  });
+
+  enableReorderDrag(projectSessionList, '.session-editor-row', (draggedEl, targetEl, placeAfter) => {
+    store.reorderSessions(projectIdInput.value, draggedEl.dataset.sessionId, targetEl.dataset.sessionId, placeAfter);
   });
 
   // Mantém a bolinha ativa em dia durante qualquer scroll (arraste ou

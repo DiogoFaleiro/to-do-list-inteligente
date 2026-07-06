@@ -2,7 +2,11 @@
   const { supabaseClient, utils } = App;
 
   function fetchProjects() {
-    return supabaseClient.from('projects').select('*').order('created_at', { ascending: true });
+    return supabaseClient
+      .from('projects')
+      .select('*')
+      .order('position', { ascending: true })
+      .order('created_at', { ascending: true });
   }
 
   // Não traz tarefas concluídas há mais de 60 dias (reduz o payload pra
@@ -27,10 +31,10 @@
       .order('created_at', { ascending: true });
   }
 
-  function insertProject(userId, { name, color }) {
+  function insertProject(userId, { name, color, position }) {
     return supabaseClient
       .from('projects')
-      .insert({ user_id: userId, name, color })
+      .insert({ user_id: userId, name, color, position })
       .select()
       .single();
   }
@@ -41,6 +45,10 @@
 
   function updateProjectFavorite(id, isFavorite) {
     return supabaseClient.from('projects').update({ is_favorite: isFavorite }).eq('id', id).select().single();
+  }
+
+  function updateProjectPosition(id, position) {
+    return supabaseClient.from('projects').update({ position }).eq('id', id).select().single();
   }
 
   function deleteProjectRow(id) {
@@ -95,19 +103,27 @@
   }
 
   function fetchSessions() {
-    return supabaseClient.from('sessions').select('*').order('created_at', { ascending: true });
-  }
-
-  function insertSessionRow(userId, { projectId, name }) {
     return supabaseClient
       .from('sessions')
-      .insert({ user_id: userId, project_id: projectId, name })
+      .select('*')
+      .order('position', { ascending: true })
+      .order('created_at', { ascending: true });
+  }
+
+  function insertSessionRow(userId, { projectId, name, position }) {
+    return supabaseClient
+      .from('sessions')
+      .insert({ user_id: userId, project_id: projectId, name, position })
       .select()
       .single();
   }
 
   function updateSessionRow(id, { name }) {
     return supabaseClient.from('sessions').update({ name }).eq('id', id).select().single();
+  }
+
+  function updateSessionPosition(id, position) {
+    return supabaseClient.from('sessions').update({ position }).eq('id', id).select().single();
   }
 
   function deleteSessionRow(id) {
@@ -299,6 +315,7 @@
     insertProject,
     updateProjectRow,
     updateProjectFavorite,
+    updateProjectPosition,
     deleteProjectRow,
     deleteProjectCascade,
     deleteTasksByProject,
@@ -306,6 +323,7 @@
     insertSessionRow,
     insertSessionsBatch,
     updateSessionRow,
+    updateSessionPosition,
     deleteSessionRow,
     fetchTags,
     fetchTaskTags,

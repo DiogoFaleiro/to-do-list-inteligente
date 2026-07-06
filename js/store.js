@@ -61,7 +61,29 @@
   }
 
   function mapProjectFromRow(row) {
-    return { id: row.id, name: row.name, color: row.color, isFavorite: !!row.is_favorite };
+    return { id: row.id, name: row.name, color: row.color, isFavorite: !!row.is_favorite, position: row.position };
+  }
+
+  // Posição fracionária: a nova entra na média entre os vizinhos (ou
+  // ±1000 se for na ponta/lista vazia). Isso permite reordenar sem
+  // renumerar todo mundo. POSITION_GAP_EPSILON é o limite de segurança —
+  // abaixo dele, a precisão de double já não garante mais uma inserção no
+  // meio, e reindexamos em lote (ver reindexProjectPositions/
+  // reindexSessionPositions). Na prática, o espaçamento inicial de 1000
+  // permite dezenas de inserções no MESMO ponto antes de chegar perto do
+  // limite, então reindexação deve ser raríssima.
+  const POSITION_GAP_EPSILON = 1e-7;
+
+  function calculateNewPosition(prevPosition, nextPosition) {
+    if (prevPosition == null && nextPosition == null) return 1000;
+    if (prevPosition == null) return nextPosition - 1000;
+    if (nextPosition == null) return prevPosition + 1000;
+    return (prevPosition + nextPosition) / 2;
+  }
+
+  function needsReindex(prevPosition, nextPosition) {
+    if (prevPosition == null || nextPosition == null) return false;
+    return nextPosition - prevPosition < POSITION_GAP_EPSILON;
   }
 
   function mapTagFromRow(row) {
@@ -69,7 +91,7 @@
   }
 
   function mapSessionFromRow(row) {
-    return { id: row.id, projectId: row.project_id, name: row.name };
+    return { id: row.id, projectId: row.project_id, name: row.name, position: row.position };
   }
 
   function mapApiTokenFromRow(row) {
@@ -156,7 +178,7 @@
   }
 
   function getSessionsForProject(projectId) {
-    return state.sessions.filter((s) => s.projectId === projectId);
+    return state.sessions.filter((s) => s.projectId === projectId).sort((a, b) => a.position - b.position);
   }
 
   function getApiTokens() {
@@ -247,7 +269,13 @@
 
   function addProject({ name, color }) {
     const tempId = `tmp-${utils.uid()}`;
-    const optimistic = { id: tempId, name: name.trim(), color: color || '#6c5ce7' };
+    const lastPosition = state.projects.reduce((max, p) => (p.position > max ? p.position : max), null);
+    const optimistic = {
+      id: tempId,
+      name: name.trim(),
+      color: color || '#6c5ce7',
+      position: calculateNewPosition(lastPosition, null)
+    };
     state.projects.push(optimistic);
     emit();
 
@@ -321,13 +349,78 @@
     });
   }
 
+  // Arrastar-e-soltar: recalcula a position do projeto arrastado como a
+  // média entre os vizinhos na nova posição (ver calculateNewPosition) —
+  // não reordena o array em si, só o campo position; renderSidebar
+  // (render.js) já ordena por position antes de desenhar a lista.
+  function reorderProjects(draggedId, targetId, placeAfter) {
+    const list = state.projects.slice().sort((a, b) => a.position - b.position);
+    const draggedIdx = list.findIndex((p) => p.id === draggedId);
+    const targetIdx = list.findIndex((p) => p.id === targetId);
+    if (draggedIdx === -1 || targetIdx === -1 || draggedId === targetId) return;
+
+    const dragged = state.projects.find((p) => p.id === draggedId);
+    const previousPosition = dragged.position;
+
+    const [removed] = list.splice(draggedIdx, 1);
+    const insertAt = list.findIndex((p) => p.id === targetId) + (placeAfter ? 1 : 0);
+    list.splice(insertAt, 0, removed);
+
+    const prevNeighbor = list[insertAt - 1];
+    const nextNeighbor = list[insertAt + 1];
+    const newPosition = calculateNewPosition(
+      prevNeighbor && prevNeighbor.id !== draggedId ? prevNeighbor.position : null,
+      nextNeighbor && nextNeighbor.id !== draggedId ? nextNeighbor.position : null
+    );
+    dragged.position = newPosition;
+    emit();
+
+    api.updateProjectPosition(draggedId, newPosition).then(({ error }) => {
+      if (error) {
+        dragged.position = previousPosition;
+        emit();
+        handleMutationError('Falha ao reordenar projeto', error);
+        return;
+      }
+      if (needsReindex(prevNeighbor && prevNeighbor.position, nextNeighbor && nextNeighbor.position)) {
+        reindexProjectPositions();
+      }
+    });
+  }
+
+  // Fallback defensivo: só dispara quando o espaço entre dois vizinhos
+  // ficou pequeno demais pra calcular uma média útil (ver
+  // POSITION_GAP_EPSILON). Renumera tudo em múltiplos de 1000 na MESMA
+  // ordem já visível — não muda o que o usuário vê, só limpa os números.
+  function reindexProjectPositions() {
+    const sorted = state.projects.slice().sort((a, b) => a.position - b.position);
+    const updates = [];
+    sorted.forEach((p, i) => {
+      const newPos = (i + 1) * 1000;
+      if (p.position !== newPos) {
+        updates.push({ id: p.id, position: newPos });
+        p.position = newPos;
+      }
+    });
+    if (!updates.length) return;
+    emit();
+    // Sem rollback aqui de propósito: reindex só normaliza números que já
+    // representam a MESMA ordem visível já otimista; uma falha parcial de
+    // rede deixa o estado local correto pro usuário, só os números remotos
+    // ficam temporariamente desatualizados até a próxima gravação bem-sucedida.
+    Promise.all(updates.map((u) => api.updateProjectPosition(u.id, u.position))).catch((error) =>
+      handleMutationError('Falha ao reindexar projetos', error)
+    );
+  }
+
   function addSession({ projectId, name }) {
     const tempId = `tmp-${utils.uid()}`;
-    const optimistic = { id: tempId, projectId, name: name.trim() };
+    const lastPosition = getSessionsForProject(projectId).reduce((max, s) => (s.position > max ? s.position : max), null);
+    const optimistic = { id: tempId, projectId, name: name.trim(), position: calculateNewPosition(lastPosition, null) };
     state.sessions.push(optimistic);
     emit();
 
-    api.insertSessionRow(currentUserId, { projectId, name: optimistic.name }).then(({ data, error }) => {
+    api.insertSessionRow(currentUserId, { projectId, name: optimistic.name, position: optimistic.position }).then(({ data, error }) => {
       if (error) {
         state.sessions = state.sessions.filter((s) => s.id !== tempId);
         emit();
@@ -375,6 +468,62 @@
         handleMutationError('Falha ao excluir sessão', error);
       }
     });
+  }
+
+  // Mesmo desenho de reorderProjects, mas os vizinhos vêm de
+  // getSessionsForProject(projectId) (já ordenada e escopada a um só
+  // projeto) — sessões de projetos diferentes não competem pelo mesmo
+  // espaço de position.
+  function reorderSessions(projectId, draggedId, targetId, placeAfter) {
+    const list = getSessionsForProject(projectId);
+    const draggedIdx = list.findIndex((s) => s.id === draggedId);
+    const targetIdx = list.findIndex((s) => s.id === targetId);
+    if (draggedIdx === -1 || targetIdx === -1 || draggedId === targetId) return;
+
+    const dragged = state.sessions.find((s) => s.id === draggedId);
+    const previousPosition = dragged.position;
+
+    const [removed] = list.splice(draggedIdx, 1);
+    const insertAt = list.findIndex((s) => s.id === targetId) + (placeAfter ? 1 : 0);
+    list.splice(insertAt, 0, removed);
+
+    const prevNeighbor = list[insertAt - 1];
+    const nextNeighbor = list[insertAt + 1];
+    const newPosition = calculateNewPosition(
+      prevNeighbor && prevNeighbor.id !== draggedId ? prevNeighbor.position : null,
+      nextNeighbor && nextNeighbor.id !== draggedId ? nextNeighbor.position : null
+    );
+    dragged.position = newPosition;
+    emit();
+
+    api.updateSessionPosition(draggedId, newPosition).then(({ error }) => {
+      if (error) {
+        dragged.position = previousPosition;
+        emit();
+        handleMutationError('Falha ao reordenar sessão', error);
+        return;
+      }
+      if (needsReindex(prevNeighbor && prevNeighbor.position, nextNeighbor && nextNeighbor.position)) {
+        reindexSessionPositions(projectId);
+      }
+    });
+  }
+
+  function reindexSessionPositions(projectId) {
+    const sorted = getSessionsForProject(projectId);
+    const updates = [];
+    sorted.forEach((s, i) => {
+      const newPos = (i + 1) * 1000;
+      if (s.position !== newPos) {
+        updates.push({ id: s.id, position: newPos });
+        s.position = newPos;
+      }
+    });
+    if (!updates.length) return;
+    emit();
+    Promise.all(updates.map((u) => api.updateSessionPosition(u.id, u.position))).catch((error) =>
+      handleMutationError('Falha ao reindexar sessões', error)
+    );
   }
 
   function addTag({ name, color }) {
@@ -912,9 +1061,11 @@
     updateProject,
     deleteProject,
     toggleProjectFavorite,
+    reorderProjects,
     addSession,
     updateSession,
     deleteSession,
+    reorderSessions,
     addTag,
     updateTag,
     deleteTag,

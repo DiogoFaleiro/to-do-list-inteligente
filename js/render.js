@@ -95,6 +95,7 @@
     const extras = compact
       ? ''
       : `
+      <span class="drag-handle" data-drag-handle title="Arrastar para reordenar">⠿</span>
       <span class="fav-toggle ${p.isFavorite ? 'is-favorite' : ''}" data-fav-project="${p.id}" title="${p.isFavorite ? 'Remover dos favoritos' : 'Favoritar'}">${p.isFavorite ? '⭐' : '☆'}</span>
       <span class="edit-project" data-edit-project="${p.id}" title="Editar projeto">✏️</span>`;
     return `
@@ -144,10 +145,11 @@
         <span class="badge">${totalOpen}</span>
       </button>`;
 
-    els.projectList.innerHTML = allBtn + state.projects.map((p) => projectItemHtml(p, openCounts)).join('');
+    const sortedProjects = state.projects.slice().sort((a, b) => a.position - b.position);
+    els.projectList.innerHTML = allBtn + sortedProjects.map((p) => projectItemHtml(p, openCounts)).join('');
     els.tagList.innerHTML = state.tags.map((tag) => tagItemHtml(tag, tagCounts)).join('');
 
-    const favProjects = state.projects.filter((p) => p.isFavorite);
+    const favProjects = sortedProjects.filter((p) => p.isFavorite);
     const favTags = state.tags.filter((t) => t.isFavorite);
     els.favoritesSection.hidden = favProjects.length === 0 && favTags.length === 0;
     els.favoritesList.innerHTML =

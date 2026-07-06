@@ -220,6 +220,47 @@ button {
   }
 }
 
+/* Alça de arrastar-para-reordenar (projetos na sidebar, sessões no modal
+   de projeto). touch-action:none fica só aqui, numa alça pequena — nunca
+   no container/linha inteira, senão o toque de rolar a lista quebraria
+   (mesmo tipo de bug do drawer mobile já corrigido, evitado por escopo
+   cirúrgico). Em .project-item some/aparece no hover igual
+   fav-toggle/edit-project; em .session-editor-row (não é botão, não tem
+   esse jogo de hover) fica sempre visível. */
+.drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  touch-action: none;
+}
+
+.project-item .drag-handle {
+  display: none;
+}
+
+.project-item:hover .drag-handle {
+  display: inline;
+}
+
+@media (hover: none) {
+  .project-item .drag-handle {
+    display: inline;
+  }
+}
+
+.dragging {
+  opacity: 0.4;
+}
+
+.drop-above {
+  box-shadow: inset 0 2px 0 0 var(--primary);
+}
+
+.drop-below {
+  box-shadow: inset 0 -2px 0 0 var(--primary);
+}
+
 /* Linha de conta (avatar + nome + engrenagem) e rótulo "Meus projetos":
    mesmo padrão em qualquer tamanho de tela. */
 .sidebar-account-row {
