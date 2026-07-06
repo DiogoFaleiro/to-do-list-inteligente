@@ -211,17 +211,20 @@
   // "DD/MM" sem ano — valida dia/mês reais e REJEITA (não clampa, diferente
   // do "todo N de mês" recorrente) combinações impossíveis como 31/02: é
   // uma data específica, não faz sentido trocar silenciosamente pra outro
-  // dia sem o usuário perceber. Tenta o ano corrente, senão o que vem
-  // (cobre 29/02 quando só o ano que vem é bissexto).
+  // dia sem o usuário perceber. Laço de até 8 anos à frente (não só y/y+1)
+  // pra achar 29/02 mesmo quando o próximo ano bissexto está a 2-3 anos de
+  // distância — bissextos nunca ficam mais de 4 anos sem se repetir, 8
+  // anos garante encontrar um.
   function nextPunctualDDMM(todayISO, day, month) {
     if (month < 1 || month > 12 || day < 1 || day > 31) return null;
     const [y] = todayISO.split('-').map(Number);
-    if (day <= daysInMonth(y, month)) {
-      const candidate = `${y}-${pad2(month)}-${pad2(day)}`;
+    for (let offset = 0; offset <= 8; offset += 1) {
+      const candidateYear = y + offset;
+      if (day > daysInMonth(candidateYear, month)) continue; // ex: 29/02 fora de ano bissexto
+      const candidate = `${candidateYear}-${pad2(month)}-${pad2(day)}`;
       if (candidate >= todayISO) return candidate;
     }
-    if (day > daysInMonth(y + 1, month)) return null;
-    return `${y + 1}-${pad2(month)}-${pad2(day)}`;
+    return null;
   }
 
   const WEEKDAY_DISPLAY = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -429,6 +432,10 @@
       {
         // (?!\/\d) evita casar só "25/12" dentro de "25/12/2026" (data
         // absoluta com ano, tratada antes disso em parseTodoistDate).
+        // Trade-off aceito de propósito (mesmo comportamento do Todoist):
+        // qualquer "N/N" no texto é lido como DD/MM, então algo como
+        // "capítulo 3/12" também casa e vira 3 de dezembro — não há como
+        // distinguir uma fração de uma data só pelo formato do texto.
         id: 'ddmm',
         src: '\\b(?<d>\\d{1,2})\\/(?<m>\\d{1,2})\\b(?!\\/\\d)',
         build: (g, todayISO) => {
