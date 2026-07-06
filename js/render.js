@@ -629,9 +629,9 @@
   // no mesmo estilo do taskMetaHtml (📅 data simples, 🔁 regra recorrente).
   // Quando a data não é reconhecida, empilha um aviso em `warnings` e marca
   // a linha com ⚠️ em vez de inventar uma data.
-  function importDateMetaHtml(dateRaw, warnings) {
+  function importDateMetaHtml(dateRaw, dateLang, warnings) {
     if (!dateRaw) return '';
-    const d = App.importTodoist.parseTodoistDate(dateRaw);
+    const d = App.importTodoist.parseTodoistDate(dateRaw, dateLang);
     if (!d.ok) {
       warnings.push(`Data não reconhecida: "${utils.escapeHtml(dateRaw)}"`);
       return ` <span class="import-tree-task-meta">⚠️ data não reconhecida</span>`;
@@ -647,7 +647,7 @@
   }
 
   function importTaskHtml(task, warnings, isSubtask) {
-    const meta = importDateMetaHtml(task.dateRaw, warnings);
+    const meta = importDateMetaHtml(task.dateRaw, task.dateLang, warnings);
     const descIcon = task.description ? ` <span class="import-tree-task-meta" title="Tem descrição">📄</span>` : '';
     const cls = isSubtask ? 'import-tree-task import-tree-subtask' : 'import-tree-task';
     const childrenHtml = (task.children || []).map((child) => importTaskHtml(child, warnings, true)).join('');
