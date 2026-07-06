@@ -63,6 +63,38 @@
     return found ? found[key] : null;
   }
 
+  function sortedAlternation(names) {
+    return names
+      .slice()
+      .sort((a, b) => b.length - a.length)
+      .join('|');
+  }
+
+  // Domingo/sábado: toda forma (por extenso ou abreviada) já é inambígua
+  // sozinha. Segunda...sexta: só a forma "-feira" (sempre o 1º nome da
+  // lista em WEEKDAY_PATTERNS) é inambígua sozinha — usada pra data
+  // pontual sem exigir horário junto.
+  function unambiguousWeekdayNames() {
+    const all = [];
+    WEEKDAY_PATTERNS.forEach((w) => {
+      if (w.day === 0 || w.day === 6) all.push(...w.names);
+      else all.push(w.names[0]);
+    });
+    return all;
+  }
+
+  // segunda/seg, terça/ter, quarta/qua, quinta/qui, sexta/sex (sem
+  // "-feira") — palavras comuns demais pra virar data pontual sozinhas
+  // (ex: "Revisar segunda parte"); só valem como data quando vierem com
+  // horário junto (ver spec 'weekday-punctual-ambiguous').
+  function ambiguousWeekdayNames() {
+    const all = [];
+    WEEKDAY_PATTERNS.forEach((w) => {
+      if (w.day !== 0 && w.day !== 6) all.push(...w.names.slice(1));
+    });
+    return all;
+  }
+
   // Horário combinável com qualquer expressão de recorrência, nos formatos
   // "as"/"às" (já sem o acento, removido na normalização) é um prefixo
   // OPCIONAL que pode vir antes de qualquer formato numérico — "às HH",
@@ -154,6 +186,53 @@
     const candidate = `${y}-${pad2(month)}-${pad2(Math.min(day, daysInMonth(y, month)))}`;
     if (candidate >= todayISO) return candidate;
     return `${y + 1}-${pad2(month)}-${pad2(Math.min(day, daysInMonth(y + 1, month)))}`;
+  }
+
+  // ---- Datas PONTUAIS (recurrence: null) ----
+
+  // Próxima ocorrência do dia da semana, INCLUSIVE de hoje (se hoje já é
+  // esse dia, dueDate = hoje). Usado pelos dias da semana soltos (com
+  // guard de ambiguidade — ver unambiguousWeekdayNames/ambiguousWeekdayNames).
+  function nextWeekdayInclusive(todayISO, weekday) {
+    const todayWeekday = utils.parseISO(todayISO).getDay();
+    const diff = (weekday - todayWeekday + 7) % 7;
+    return utils.addDaysISO(todayISO, diff);
+  }
+
+  // Mesma coisa, mas ESTRITAMENTE futura (nunca hoje) — usado por
+  // "próxima/próximo X", onde o prefixo já deixa claro que não é hoje.
+  function nextWeekdayStrict(todayISO, weekday) {
+    const todayWeekday = utils.parseISO(todayISO).getDay();
+    let diff = (weekday - todayWeekday + 7) % 7;
+    if (diff === 0) diff = 7;
+    return utils.addDaysISO(todayISO, diff);
+  }
+
+  // "DD/MM" sem ano — valida dia/mês reais e REJEITA (não clampa, diferente
+  // do "todo N de mês" recorrente) combinações impossíveis como 31/02: é
+  // uma data específica, não faz sentido trocar silenciosamente pra outro
+  // dia sem o usuário perceber. Tenta o ano corrente, senão o que vem
+  // (cobre 29/02 quando só o ano que vem é bissexto).
+  function nextPunctualDDMM(todayISO, day, month) {
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    const [y] = todayISO.split('-').map(Number);
+    if (day <= daysInMonth(y, month)) {
+      const candidate = `${y}-${pad2(month)}-${pad2(day)}`;
+      if (candidate >= todayISO) return candidate;
+    }
+    if (day > daysInMonth(y + 1, month)) return null;
+    return `${y + 1}-${pad2(month)}-${pad2(day)}`;
+  }
+
+  const WEEKDAY_DISPLAY = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+  // describeRule (recurrence.js) não participa de datas pontuais —
+  // recurrence é null, então a descrição é só a data formatada em pt-BR,
+  // ex: "Ter, 08/07 às 08:00".
+  function formatPunctualDescription(dueDateISO, dueTime) {
+    const d = utils.parseISO(dueDateISO);
+    const timeSuffix = dueTime ? ` às ${dueTime}` : '';
+    return `${WEEKDAY_DISPLAY[d.getDay()]}, ${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}${timeSuffix}`;
   }
 
   // Primeira ocorrência inclusiva de hoje pras famílias diária/semanal —
@@ -291,6 +370,71 @@
         id: 'unsupported-hourly',
         src: '\\b(?:toda\\s+hora|a\\s+cada\\s+hora|de\\s+hora\\s+em\\s+hora)\\b',
         build: () => ({ unsupported: true })
+      },
+      // ---- Datas pontuais (recurrence: null) — todas perdem por span pra
+      // qualquer spec recorrente acima, já que os prefixos "todo(a)(s)" são
+      // sempre mais longos que a expressão pontual equivalente.
+      {
+        id: 'today',
+        src: '\\bhoje\\b',
+        build: (g, todayISO) => ({ dueDate: todayISO, recurrence: null })
+      },
+      {
+        id: 'tomorrow',
+        src: '\\bamanha\\b', // normalizeForMatch já tira o acento de "amanhã"
+        build: (g, todayISO) => ({ dueDate: utils.addDaysISO(todayISO, 1), recurrence: null })
+      },
+      {
+        id: 'day-after-tomorrow',
+        src: '\\bdepois\\s+de\\s+amanha\\b',
+        build: (g, todayISO) => ({ dueDate: utils.addDaysISO(todayISO, 2), recurrence: null })
+      },
+      {
+        id: 'in-n-days',
+        src: '\\bem\\s+(?<n>\\d{1,3})\\s+dias?\\b',
+        build: (g, todayISO) => ({ dueDate: utils.addDaysISO(todayISO, Number(g.n)), recurrence: null })
+      },
+      {
+        id: 'weekday-punctual-unambiguous',
+        src: `\\b(?<weekday>${sortedAlternation(unambiguousWeekdayNames())})\\b`,
+        build: (g, todayISO) => {
+          const day = findByName(WEEKDAY_PATTERNS, 'day', g.weekday);
+          if (day == null) return null;
+          return { dueDate: nextWeekdayInclusive(todayISO, day), recurrence: null };
+        }
+      },
+      {
+        // Nomes ambíguos ("segunda", "terça"...) só viram data quando vêm
+        // com horário junto — TIME_SRC embutido direto no src (sem o `?`
+        // opcional) e requireTimeInline avisa collectCandidates pra não
+        // acrescentar um segundo grupo de horário opcional por cima.
+        id: 'weekday-punctual-ambiguous',
+        src: `\\b(?<weekday>${sortedAlternation(ambiguousWeekdayNames())})\\b${TIME_SRC}`,
+        requireTimeInline: true,
+        build: (g, todayISO) => {
+          const day = findByName(WEEKDAY_PATTERNS, 'day', g.weekday);
+          if (day == null) return null;
+          return { dueDate: nextWeekdayInclusive(todayISO, day), recurrence: null };
+        }
+      },
+      {
+        id: 'weekday-next-explicit',
+        src: `\\bproxim[oa]\\s+(?<weekday>${weekdayAlt})\\b`,
+        build: (g, todayISO) => {
+          const day = findByName(WEEKDAY_PATTERNS, 'day', g.weekday);
+          if (day == null) return null;
+          return { dueDate: nextWeekdayStrict(todayISO, day), recurrence: null };
+        }
+      },
+      {
+        // (?!\/\d) evita casar só "25/12" dentro de "25/12/2026" (data
+        // absoluta com ano, tratada antes disso em parseTodoistDate).
+        id: 'ddmm',
+        src: '\\b(?<d>\\d{1,2})\\/(?<m>\\d{1,2})\\b(?!\\/\\d)',
+        build: (g, todayISO) => {
+          const dueDate = nextPunctualDDMM(todayISO, Number(g.d), Number(g.m));
+          return dueDate ? { dueDate, recurrence: null } : null;
+        }
       }
     ];
   }
@@ -298,7 +442,8 @@
   function collectCandidates(specs, normalizedText, todayISO) {
     const candidates = [];
     specs.forEach((spec) => {
-      const re = new RegExp(spec.src + '(?:' + TIME_SRC + ')?', 'g');
+      const fullSrc = spec.requireTimeInline ? spec.src : spec.src + '(?:' + TIME_SRC + ')?';
+      const re = new RegExp(fullSrc, 'g');
       let m = re.exec(normalizedText);
       while (m !== null) {
         const built = spec.build(m.groups || {}, todayISO);
@@ -350,7 +495,9 @@
 
     const explicitTime = extractTime(winner.groups);
     const dueTime = explicitTime || winner.built.defaultDueTime || null;
-    const description = recurrence.describeRule(winner.built.recurrence) + (dueTime ? ` às ${dueTime}` : '');
+    const description = winner.built.recurrence
+      ? recurrence.describeRule(winner.built.recurrence) + (dueTime ? ` às ${dueTime}` : '')
+      : formatPunctualDescription(winner.built.dueDate, dueTime);
 
     return {
       match,
