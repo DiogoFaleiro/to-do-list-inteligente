@@ -610,8 +610,11 @@
     }
     renderModalSubtasks();
     renderModalTags();
+    // Sem foco automático de propósito: no mobile, focar o título ao abrir
+    // dispara o teclado virtual só de visualizar a tarefa, dando a
+    // impressão de que já está editando o nome. O usuário foca ao clicar
+    // deliberadamente em algum campo.
     taskModal.hidden = false;
-    taskTitleInput.focus();
   }
 
   function closeTaskModal() {
