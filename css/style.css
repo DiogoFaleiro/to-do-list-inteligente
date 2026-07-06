@@ -1370,6 +1370,104 @@ a.btn-danger {
   font-size: 0.85rem;
 }
 
+/* Modal de tarefa: layout de duas colunas (estilo Todoist). Seletor
+   composto (.modal.task-modal) de propósito — .task-modal sozinha teria a
+   MESMA especificidade que .modal sozinha, e quem venceria seria só a
+   ordem no arquivo; o composto garante vitória real sobre a regra
+   genérica do bottom-sheet de ≤480px em qualquer ordem. */
+.modal.task-modal {
+  max-width: 860px;
+  width: 90vw;
+  max-height: 85vh;
+  padding: 0;
+  overflow: hidden; /* só .task-modal-body rola */
+}
+
+.modal.task-modal > h2 {
+  padding: 24px 24px 0;
+}
+
+.task-modal-body {
+  flex: 1 1 auto;
+  min-height: 0; /* essencial pro overflow-y funcionar dentro do flex column do .modal */
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: minmax(480px, 1fr) 280px;
+  grid-template-areas: 'a b' 'c b';
+  gap: 20px 24px;
+  align-content: start;
+  padding: 20px 24px;
+}
+
+.task-modal-area-a {
+  grid-area: a;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.task-modal-area-b {
+  grid-area: b;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.task-modal-area-c {
+  grid-area: c;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Data de vencimento + Horário lado a lado ficam apertados em 280px —
+   empilha só essa linha (não a nested dentro de #taskRepeatCustom). */
+.task-modal-area-b > .session-add-row {
+  flex-direction: column;
+}
+
+.modal.task-modal > .modal-actions {
+  flex-shrink: 0;
+  padding: 16px 24px 20px;
+  margin-top: 0;
+  border-top: 1px solid var(--border);
+}
+
+.modal-overlay.task-modal-overlay {
+  align-items: center;
+}
+
+/* Intermediário: janela centralizada, 1 coluna — evita a faixa ~721-940px
+   onde as duas colunas de fato não caberiam (minmax(480px,1fr) + 280px +
+   gaps exige ~836px de conteúdo mínimo). */
+@media (max-width: 940px) {
+  .modal.task-modal {
+    max-width: 600px;
+    width: 90vw;
+    max-height: 85vh;
+  }
+  .task-modal-body {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'a' 'b' 'c';
+  }
+}
+
+/* Mobile: tela cheia. */
+@media (max-width: 720px) {
+  .modal.task-modal {
+    width: 100vw;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+  }
+}
+
 /* Modal de preview do import do Todoist — mais largo que o padrão (380px)
    pra caber a árvore de seções/tarefas/subtarefas sem quebrar demais. */
 .modal-wide {

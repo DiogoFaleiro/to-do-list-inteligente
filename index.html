@@ -208,108 +208,116 @@
   </div>
 
   <!-- Modal de tarefa -->
-  <div id="taskModal" class="modal-overlay" hidden>
-    <form id="taskForm" class="modal">
+  <div id="taskModal" class="modal-overlay task-modal-overlay" hidden>
+    <form id="taskForm" class="modal task-modal">
       <h2 id="taskModalTitle">Nova tarefa</h2>
       <input type="hidden" id="taskId">
 
-      <label class="task-title-label">Título
-        <input type="text" id="taskTitle" required maxlength="120" placeholder="O que precisa ser feito? (@ para etiquetar)">
-        <div id="taskTagSuggest" class="tag-suggest-menu" hidden></div>
-        <div id="taskNlDateChip" class="nldate-chip" hidden></div>
-      </label>
+      <div class="task-modal-body">
+        <div class="task-modal-area-a">
+          <label class="task-title-label">Título
+            <input type="text" id="taskTitle" required maxlength="120" placeholder="O que precisa ser feito? (@ para etiquetar)">
+            <div id="taskTagSuggest" class="tag-suggest-menu" hidden></div>
+            <div id="taskNlDateChip" class="nldate-chip" hidden></div>
+          </label>
 
-      <label>Descrição
-        <textarea id="taskDescription" rows="3" maxlength="2000" placeholder="Detalhes adicionais (opcional)"></textarea>
-      </label>
-
-      <div class="tag-editor">
-        <span class="tag-editor-label">Etiquetas</span>
-        <div id="taskTagList" class="tag-editor-chips"></div>
-      </div>
-
-      <label>Projeto
-        <select id="taskProject"></select>
-      </label>
-
-      <label id="taskSessionRow" hidden>Sessão
-        <select id="taskSession"></select>
-      </label>
-
-      <div class="session-add-row">
-        <label id="taskDueDateRow">Data de vencimento
-          <input type="date" id="taskDueDate" required>
-        </label>
-        <label>Horário
-          <input type="time" id="taskDueTime">
-        </label>
-      </div>
-
-      <label>Repetir
-        <select id="taskRepeat">
-          <option value="never">Nunca</option>
-          <option value="daily">Todo dia</option>
-          <option value="weekly">Toda semana</option>
-          <option value="monthly">Todo mês</option>
-          <option value="yearly">Todo ano</option>
-          <option value="custom">Personalizar…</option>
-        </select>
-      </label>
-
-      <p id="taskRepeatNlNote" class="nldate-repeat-note" hidden></p>
-
-      <div id="taskRepeatCustom" class="session-editor" hidden>
-        <div class="session-add-row">
-          <span class="session-editor-label">Repetir a cada</span>
-          <input type="number" id="taskRepeatInterval" min="1" max="365" value="1">
-          <select id="taskRepeatUnit">
-            <option value="daily">dia(s)</option>
-            <option value="weekly">semana(s)</option>
-            <option value="monthly">mês(es)</option>
-          </select>
+          <label>Descrição
+            <textarea id="taskDescription" rows="3" maxlength="2000" placeholder="Detalhes adicionais (opcional)"></textarea>
+          </label>
         </div>
 
-        <div id="taskRepeatWeekdays" class="weekday-picker" hidden>
-          <label><input type="checkbox" value="1"> Seg</label>
-          <label><input type="checkbox" value="2"> Ter</label>
-          <label><input type="checkbox" value="3"> Qua</label>
-          <label><input type="checkbox" value="4"> Qui</label>
-          <label><input type="checkbox" value="5"> Sex</label>
-          <label><input type="checkbox" value="6"> Sáb</label>
-          <label><input type="checkbox" value="0"> Dom</label>
+        <div class="task-modal-area-b">
+          <label>Projeto
+            <select id="taskProject"></select>
+          </label>
+
+          <label id="taskSessionRow" hidden>Sessão
+            <select id="taskSession"></select>
+          </label>
+
+          <div class="session-add-row">
+            <label id="taskDueDateRow">Data de vencimento
+              <input type="date" id="taskDueDate" required>
+            </label>
+            <label>Horário
+              <input type="time" id="taskDueTime">
+            </label>
+          </div>
+
+          <label>Repetir
+            <select id="taskRepeat">
+              <option value="never">Nunca</option>
+              <option value="daily">Todo dia</option>
+              <option value="weekly">Toda semana</option>
+              <option value="monthly">Todo mês</option>
+              <option value="yearly">Todo ano</option>
+              <option value="custom">Personalizar…</option>
+            </select>
+          </label>
+
+          <p id="taskRepeatNlNote" class="nldate-repeat-note" hidden></p>
+
+          <div id="taskRepeatCustom" class="session-editor" hidden>
+            <div class="session-add-row">
+              <span class="session-editor-label">Repetir a cada</span>
+              <input type="number" id="taskRepeatInterval" min="1" max="365" value="1">
+              <select id="taskRepeatUnit">
+                <option value="daily">dia(s)</option>
+                <option value="weekly">semana(s)</option>
+                <option value="monthly">mês(es)</option>
+              </select>
+            </div>
+
+            <div id="taskRepeatWeekdays" class="weekday-picker" hidden>
+              <label><input type="checkbox" value="1"> Seg</label>
+              <label><input type="checkbox" value="2"> Ter</label>
+              <label><input type="checkbox" value="3"> Qua</label>
+              <label><input type="checkbox" value="4"> Qui</label>
+              <label><input type="checkbox" value="5"> Sex</label>
+              <label><input type="checkbox" value="6"> Sáb</label>
+              <label><input type="checkbox" value="0"> Dom</label>
+            </div>
+
+            <label>Contar a partir de
+              <select id="taskRepeatAnchor">
+                <option value="completed">Data de conclusão</option>
+                <option value="due">Data agendada</option>
+              </select>
+            </label>
+
+            <label class="checkbox-row">
+              <input type="checkbox" id="taskRepeatUntilToggle">
+              Terminar em uma data
+            </label>
+            <label id="taskRepeatUntilRow" hidden>Até
+              <input type="date" id="taskRepeatUntil">
+            </label>
+          </div>
+
+          <div class="tag-editor">
+            <span class="tag-editor-label">Etiquetas</span>
+            <div id="taskTagList" class="tag-editor-chips"></div>
+          </div>
         </div>
 
-        <label>Contar a partir de
-          <select id="taskRepeatAnchor">
-            <option value="completed">Data de conclusão</option>
-            <option value="due">Data agendada</option>
-          </select>
-        </label>
+        <div class="task-modal-area-c">
+          <div class="subtask-editor">
+            <span class="subtask-editor-label">Subtarefas</span>
+            <div id="taskSubtaskList" class="subtask-editor-list"></div>
+            <div class="subtask-add-row">
+              <input type="text" id="taskNewSubtaskInput" placeholder="Adicionar subtarefa" maxlength="120">
+              <button type="button" id="taskAddSubtaskBtn" class="btn-secondary">+ Adicionar</button>
+            </div>
+          </div>
 
-        <label class="checkbox-row">
-          <input type="checkbox" id="taskRepeatUntilToggle">
-          Terminar em uma data
-        </label>
-        <label id="taskRepeatUntilRow" hidden>Até
-          <input type="date" id="taskRepeatUntil">
-        </label>
-      </div>
-
-      <div class="subtask-editor">
-        <span class="subtask-editor-label">Subtarefas</span>
-        <div id="taskSubtaskList" class="subtask-editor-list"></div>
-        <div class="subtask-add-row">
-          <input type="text" id="taskNewSubtaskInput" placeholder="Adicionar subtarefa" maxlength="120">
-          <button type="button" id="taskAddSubtaskBtn" class="btn-secondary">+ Adicionar</button>
-        </div>
-      </div>
-
-      <div class="subtask-editor" id="taskCommentSection">
-        <span class="subtask-editor-label">Comentários</span>
-        <div id="taskCommentList" class="subtask-editor-list"></div>
-        <div class="subtask-add-row">
-          <input type="text" id="taskNewCommentInput" placeholder="Adicionar comentário" maxlength="5000">
-          <button type="button" id="taskAddCommentBtn" class="btn-secondary">Enviar</button>
+          <div class="subtask-editor" id="taskCommentSection">
+            <span class="subtask-editor-label">Comentários</span>
+            <div id="taskCommentList" class="subtask-editor-list"></div>
+            <div class="subtask-add-row">
+              <input type="text" id="taskNewCommentInput" placeholder="Adicionar comentário" maxlength="5000">
+              <button type="button" id="taskAddCommentBtn" class="btn-secondary">Enviar</button>
+            </div>
+          </div>
         </div>
       </div>
 
