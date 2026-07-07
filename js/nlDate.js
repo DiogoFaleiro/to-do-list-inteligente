@@ -370,6 +370,45 @@
         }
       },
       {
+        id: 'every-n-days',
+        src: '\\ba\\s+cada\\s+(?<n>\\d{1,3})\\s+dias?\\b',
+        build: (g, todayISO) => {
+          const n = Number(g.n);
+          if (n < 1 || n > 999) return null;
+          // anchor 'due' de propósito (diferente de 'todo dia', que é
+          // 'completed') — "a cada N dias" é uma grade fixa a partir da
+          // data agendada, não um contador que só começa a valer depois
+          // da primeira conclusão.
+          const rule = { freq: 'daily', interval: n, anchor: 'due' };
+          return { dueDate: firstOccurrence(rule, todayISO), recurrence: rule };
+        }
+      },
+      {
+        id: 'every-n-weeks',
+        src: '\\ba\\s+cada\\s+(?<n>\\d{1,3})\\s+semanas?\\b',
+        build: (g, todayISO) => {
+          const n = Number(g.n);
+          if (n < 1 || n > 999) return null;
+          const weekday = utils.parseISO(todayISO).getDay();
+          const rule = { freq: 'weekly', interval: n, byWeekday: [weekday], anchor: 'due' };
+          return { dueDate: firstOccurrence(rule, todayISO), recurrence: rule };
+        }
+      },
+      {
+        id: 'every-n-months',
+        src: '\\ba\\s+cada\\s+(?<n>\\d{1,3})\\s+mes(?:es)?\\b',
+        build: (g, todayISO) => {
+          const n = Number(g.n);
+          if (n < 1 || n > 999) return null;
+          // Mesmo cálculo direto de monthly-plain (não usa firstOccurrence
+          // nem firstMonthlyByMonthDay — a primeira ocorrência de uma
+          // regra mensal ancorada no dia de hoje é sempre hoje mesmo).
+          const day = Number(todayISO.slice(8, 10));
+          const rule = { freq: 'monthly', interval: n, byMonthDay: day, anchor: 'due' };
+          return { dueDate: todayISO, recurrence: rule };
+        }
+      },
+      {
         id: 'unsupported-hourly',
         src: '\\b(?:toda\\s+hora|a\\s+cada\\s+hora|de\\s+hora\\s+em\\s+hora)\\b',
         build: () => ({ unsupported: true })
