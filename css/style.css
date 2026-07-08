@@ -1530,9 +1530,26 @@ a.btn-danger {
 }
 
 /* Modal de preview do import do Todoist — mais largo que o padrão (380px)
-   pra caber a árvore de seções/tarefas/subtarefas sem quebrar demais. */
-.modal-wide {
-  max-width: 640px;
+   pra caber a árvore de seções/tarefas/subtarefas sem quebrar demais, e
+   com altura travada (mesmo princípio já usado nos modais de tarefa e
+   projeto): só .import-preview-body rola, cabeçalho/nome do projeto e a
+   barra de botões ficam sempre visíveis. Seletor composto
+   (.modal.modal-wide) de propósito — .modal-wide sozinha teria a MESMA
+   especificidade do .modal genérico do bottom-sheet de ≤480px. */
+.modal.modal-wide {
+  width: 90vw;
+  max-width: 900px;
+  max-height: 85vh;
+  overflow: hidden;
+}
+
+.import-preview-body {
+  flex: 1 1 auto;
+  min-height: 0; /* essencial pro overflow-y funcionar dentro do flex column do .modal */
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .import-warnings {
@@ -1553,8 +1570,9 @@ a.btn-danger {
 }
 
 .import-tree {
-  max-height: 45vh;
-  overflow-y: auto;
+  /* Sem max-height/overflow próprio de propósito — o scroll agora é do
+     wrapper .import-preview-body, pra não ter duas barras de rolagem
+     aninhadas (uma pros avisos+árvore+etiquetas juntos). */
   display: flex;
   flex-direction: column;
   gap: 4px;
