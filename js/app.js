@@ -29,6 +29,7 @@
   const importProjectNameInput = document.getElementById('importProjectName');
   const importTodoistCancelBtn = document.getElementById('importTodoistCancelBtn');
   const importTodoistConfirmBtn = document.getElementById('importTodoistConfirmBtn');
+  const importTagsSection = document.getElementById('importTagsSection');
   const listView = document.getElementById('listView');
   const boardView = document.getElementById('boardView');
   const groupByProjectToggleBtn = document.getElementById('groupByProjectToggleBtn');
@@ -862,7 +863,8 @@
     const text = await file.text();
     pendingImportParsed = App.importTodoist.parseTodoistExport(App.importTodoist.parseCsv(text));
     importProjectNameInput.value = file.name.replace(/\.csv$/i, '').replace(/_/g, ' ');
-    render.renderImportPreview(pendingImportParsed);
+    const tagMatches = App.importTodoist.collectImportTagNames(pendingImportParsed, store.getState().tags);
+    render.renderImportPreview(pendingImportParsed, tagMatches);
     importTodoistModal.hidden = false;
   });
 
@@ -879,9 +881,19 @@
     if (!pendingImportParsed) return;
     importTodoistConfirmBtn.disabled = true;
     importTodoistConfirmBtn.textContent = 'Importando...';
+    // Escolha de cada etiqueta é lida direto do <select> no momento da
+    // confirmação — não existe espelho em JS (mesmo princípio já usado
+    // por importProjectNameInput.value nesta função).
+    const tagChoices = [...importTagsSection.querySelectorAll('.import-tag-select')].map((select) => {
+      const name = select.dataset.importTagName;
+      return select.value === 'create'
+        ? { name, action: 'create' }
+        : { name, action: 'link', tagId: select.value.slice(4) }; // "tag:UUID" -> UUID
+    });
     const result = await store.importTodoistProject(
       pendingImportParsed,
-      importProjectNameInput.value.trim() || 'Importado do Todoist'
+      importProjectNameInput.value.trim() || 'Importado do Todoist',
+      tagChoices
     );
     importTodoistConfirmBtn.disabled = false;
     importTodoistConfirmBtn.textContent = 'Importar';

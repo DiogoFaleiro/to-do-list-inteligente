@@ -79,6 +79,70 @@
     return title.replace(/^\*+/, '').replace(/\*+$/, '').trim();
   }
 
+  // ---- Etiquetas embutidas no título (@nome) ----
+
+  const TAG_COMBINING_MARKS_RE = new RegExp('[' + String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f) + ']', 'g');
+
+  // Chave de casamento de etiqueta: tolera acento e caixa (ex: "Contábil"
+  // bate com "@contabil"). Mesma técnica de js/nlDate.js (NFD + remoção de
+  // marcas combinantes) — duplicada aqui, não importada (cada módulo é seu
+  // próprio closure IIFE), mas EXPORTADA pra js/store.js reusar a mesma
+  // função em vez de reimplementar: uma segunda cópia divergente causaria
+  // vínculo silencioso à etiqueta errada.
+  function normalizeTagKey(name) {
+    return name.normalize('NFD').replace(TAG_COMBINING_MARKS_RE, '').toLowerCase();
+  }
+
+  // @ precedido de espaço ou início de string (nunca de outro caractere de
+  // palavra) — evita casar o @ de um e-mail tipo "fulano@empresa.com", onde
+  // o @ vem colado a uma letra. Nome: letras (com acento), números, hífen,
+  // underscore.
+  // LIMITAÇÃO CONHECIDA (não corrigida agora): um @ colado direto em
+  // pontuação sem espaço antes (ex: "Revisão)@marketing", parêntese sem
+  // espaço) não é reconhecido como token — fica como texto solto no
+  // título, sem nenhum aviso específico no preview.
+  const TAG_TOKEN_RE = /(?:^|\s)@([\p{L}\p{N}_-]+)/gu;
+
+  function extractTagNames(title) {
+    const names = [];
+    let m;
+    TAG_TOKEN_RE.lastIndex = 0;
+    while ((m = TAG_TOKEN_RE.exec(title))) names.push(m[1]);
+    return names;
+  }
+
+  // Cada match já inclui o espaço/início que precede o @ (ver TAG_TOKEN_RE),
+  // então remover e não deixar espaço duplo — só precisa de um trim() no
+  // final pro caso do token estar no começo da string (ali não há espaço
+  // antes pra consumir).
+  function stripTagTokens(title) {
+    TAG_TOKEN_RE.lastIndex = 0;
+    return title.replace(TAG_TOKEN_RE, '').trim();
+  }
+
+  // Junta e deduplica (tolerante a acento/caixa, via normalizeTagKey) os
+  // nomes extraídos de TODAS as tarefas/subtarefas do import inteiro, e
+  // casa cada um contra as etiquetas já existentes do usuário. matchedTag
+  // é null quando não bate com nenhuma etiqueta existente.
+  function collectImportTagNames(parsed, existingTags) {
+    const seen = new Map(); // chave normalizada -> nome original (1ª ocorrência)
+    const collect = (tasks) => {
+      tasks.forEach((task) => {
+        (task.tagNames || []).forEach((name) => {
+          const key = normalizeTagKey(name);
+          if (!seen.has(key)) seen.set(key, name);
+        });
+        if (task.children && task.children.length) collect(task.children);
+      });
+    };
+    parsed.sections.forEach((s) => collect(s.tasks));
+
+    return Array.from(seen.entries()).map(([key, name]) => ({
+      name,
+      matchedTag: existingTags.find((t) => normalizeTagKey(t.name) === key) || null
+    }));
+  }
+
   // Notas com anexo (imagem, arquivo etc.) do Todoist trazem um marcador
   // [[file {json}]] no meio do texto — o anexo em si nunca é baixado/
   // importado (não há como, sem a API do Todoist), só um aviso textual no
@@ -155,7 +219,17 @@
         // de DATE_LANG existir.
         const dateLang = (row[dateLangIdx] || '').trim().toLowerCase() || 'pt';
         const description = (row[descriptionIdx] || '').trim() || null;
-        const task = { title: stripMarkdown(content), dateRaw, dateLang, description, indent, children: [], comments: [] };
+        const tagNames = extractTagNames(content);
+        const task = {
+          title: stripMarkdown(stripTagTokens(content)),
+          dateRaw,
+          dateLang,
+          description,
+          indent,
+          children: [],
+          comments: [],
+          tagNames
+        };
 
         const parent = indent > 1 ? parentByIndent[indent - 1] : null;
         if (parent) {
@@ -357,5 +431,5 @@
     };
   }
 
-  App.importTodoist = { parseCsv, parseTodoistExport, parseTodoistDate };
+  App.importTodoist = { parseCsv, parseTodoistExport, parseTodoistDate, collectImportTagNames, normalizeTagKey };
 })(window.App = window.App || {});

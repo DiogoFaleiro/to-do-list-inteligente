@@ -864,7 +864,7 @@
   // projeto+sessões+tarefas+subtarefas, não uma mutação isolada) — usa um
   // estado de loading e recarrega tudo do banco no final. Se qualquer etapa
   // falhar, o que já foi inserido fica inserido (sem rollback parcial).
-  async function importTodoistProject(parsed, projectName) {
+  async function importTodoistProject(parsed, projectName, tagChoices) {
     state.importStatus = { loading: true, error: null };
     emit();
     try {
@@ -940,6 +940,49 @@
         const { data, error } = await api.insertTasksBatch(subtaskRows);
         if (error) throw error;
         subtaskInsertedRows = data;
+      }
+
+      // Etiquetas: cria em lote as marcadas como 'create', monta um mapa
+      // nome-normalizado -> tagId real (combinando recém-criadas + vinculadas a
+      // existentes escolhidas no preview), depois vincula em lote via
+      // task_tags. Usa App.importTodoist.normalizeTagKey (não um
+      // .toLowerCase() local) pra garantir a MESMA regra de acento/caixa usada
+      // no casamento do preview — uma segunda normalização reimplementada aqui
+      // poderia divergir sutilmente e vincular à etiqueta errada sem erro
+      // nenhum. Ordem importa: tags e tasks precisam existir ANTES do insert
+      // de task_tags (RLS de task_tags_insert_own exige as duas).
+      const normalizeTagKey = App.importTodoist.normalizeTagKey;
+      const tagIdByName = {};
+      (tagChoices || []).forEach((c) => {
+        if (c.action === 'link') tagIdByName[normalizeTagKey(c.name)] = c.tagId;
+      });
+      const toCreate = (tagChoices || []).filter((c) => c.action === 'create');
+      if (toCreate.length > 0) {
+        const { data, error } = await api.insertTagsBatch(toCreate.map((c) => ({ user_id: currentUserId, name: c.name })));
+        if (error) throw error;
+        // Correlação posicional por índice (mesmo padrão do resto da função) —
+        // data[i] corresponde a toCreate[i] na mesma ordem de envio.
+        toCreate.forEach((c, i) => {
+          tagIdByName[normalizeTagKey(c.name)] = data[i].id;
+        });
+      }
+
+      const seenPairs = new Set();
+      const taskTagRows = [];
+      const pushTagRows = (node, taskId) => {
+        (node.tagNames || []).forEach((name) => {
+          const tagId = tagIdByName[normalizeTagKey(name)];
+          const key = `${taskId}:${tagId}`;
+          if (!tagId || seenPairs.has(key)) return;
+          seenPairs.add(key);
+          taskTagRows.push({ task_id: taskId, tag_id: tagId });
+        });
+      };
+      plan.forEach((p, i) => pushTagRows(p.task, topLevelRows[i].id));
+      subtaskNodes.forEach((n, i) => pushTagRows(n, subtaskInsertedRows[i].id));
+      if (taskTagRows.length > 0) {
+        const { error } = await api.insertTaskTagsBatch(taskTagRows);
+        if (error) throw error;
       }
 
       // Comentários das tarefas (notas do Todoist) — casados pelos ids reais

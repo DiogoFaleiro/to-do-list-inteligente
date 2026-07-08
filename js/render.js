@@ -29,7 +29,8 @@
     showCompletedMenuBtn: document.getElementById('showCompletedMenuBtn'),
     groupByProjectMenuBtn: document.getElementById('groupByProjectMenuBtn'),
     importTodoistTree: document.getElementById('importTodoistTree'),
-    importTodoistWarnings: document.getElementById('importTodoistWarnings')
+    importTodoistWarnings: document.getElementById('importTodoistWarnings'),
+    importTagsSection: document.getElementById('importTagsSection')
   };
 
   const PERIOD_TITLES = { today: 'Hoje', week: 'Em breve', month: 'Mês', all: 'Todas as tarefas' };
@@ -662,10 +663,53 @@
     return tasks.reduce((sum, task) => sum + (task.comments || []).length + countImportComments(task.children || []), 0);
   }
 
+  // Uma linha "@nome -> seletor" da seção Etiquetas do preview. O select
+  // mistura as etiquetas existentes do usuário com uma opção "criar nova" —
+  // pré-selecionada quando não há correspondência, ou a etiqueta casada
+  // quando há (editável nos dois casos).
+  function importTagRowHtml(match, existingTags) {
+    const selectedId = match.matchedTag ? match.matchedTag.id : null;
+    const createOption = `<option value="create"${selectedId ? '' : ' selected'}>+ Criar etiqueta "@${utils.escapeHtml(match.name)}"</option>`;
+    const tagOptions = existingTags
+      .map((t) => `<option value="tag:${t.id}"${t.id === selectedId ? ' selected' : ''}>${utils.escapeHtml(t.name)}</option>`)
+      .join('');
+    return `
+      <div class="import-tag-row">
+        <span class="import-tag-name">@${utils.escapeHtml(match.name)}</span>
+        <select class="import-tag-select" data-import-tag-name="${utils.escapeHtml(match.name)}">${createOption}${tagOptions}</select>
+      </div>`;
+  }
+
+  // Seção "Etiquetas" do preview: uma lista das que já batem com etiquetas
+  // existentes (vinculação automática, editável) e outra das sem
+  // correspondência (criação nova por padrão, editável). Some inteira
+  // quando o CSV não tem nenhum @token — não polui o preview à toa.
+  function renderImportTagsSection(tagMatches) {
+    if (!tagMatches.length) {
+      els.importTagsSection.hidden = true;
+      els.importTagsSection.innerHTML = '';
+      return;
+    }
+    const existingTags = store.getState().tags;
+    const matched = tagMatches.filter((m) => m.matchedTag);
+    const unmatched = tagMatches.filter((m) => !m.matchedTag);
+    const group = (label, items) =>
+      items.length
+        ? `<p class="import-tags-label">${label}</p>${items.map((m) => importTagRowHtml(m, existingTags)).join('')}`
+        : '';
+    els.importTagsSection.innerHTML =
+      `<div class="import-tags-heading">Etiquetas</div>` +
+      group('Serão vinculadas automaticamente', matched) +
+      group('Sem correspondência — serão criadas', unmatched);
+    els.importTagsSection.hidden = false;
+  }
+
   // Pré-visualização do import do Todoist: monta a árvore de seções/tarefas/
   // subtarefas e a lista de avisos (datas não reconhecidas + comentários a
-  // importar) numa só passada recursiva pela estrutura de parseTodoistExport.
-  function renderImportPreview(parsed) {
+  // importar) numa só passada recursiva pela estrutura de parseTodoistExport,
+  // e a seção de etiquetas extraídas dos títulos (tagMatches, ver
+  // App.importTodoist.collectImportTagNames).
+  function renderImportPreview(parsed, tagMatches) {
     const warnings = [];
     const sectionsHtml = parsed.sections
       .filter((section) => section.tasks.length > 0)
@@ -690,6 +734,8 @@
     els.importTodoistWarnings.hidden = warnings.length === 0;
     els.importTodoistWarnings.innerHTML =
       warnings.length === 0 ? '' : `<ul>${warnings.map((w) => `<li>${w}</li>`).join('')}</ul>`;
+
+    renderImportTagsSection(tagMatches || []);
   }
 
   function renderAll() {

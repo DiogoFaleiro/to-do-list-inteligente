@@ -98,6 +98,17 @@
     return supabaseClient.from('task_tags').delete().eq('task_id', taskId).eq('tag_id', tagId);
   }
 
+  // Usados pelo import do Todoist (etiquetas extraídas de @token no
+  // título) — mesmo molde de insertSessionsBatch/insertTasksBatch/
+  // insertCommentsBatch.
+  function insertTagsBatch(rows) {
+    return supabaseClient.from('tags').insert(rows).select();
+  }
+
+  function insertTaskTagsBatch(rows) {
+    return supabaseClient.from('task_tags').insert(rows).select();
+  }
+
   function deleteTasksByProject(projectId) {
     return supabaseClient.from('tasks').delete().eq('project_id', projectId);
   }
@@ -333,6 +344,8 @@
     deleteTagRow,
     insertTaskTag,
     deleteTaskTag,
+    insertTagsBatch,
+    insertTaskTagsBatch,
     insertTask,
     updateTaskRow,
     deleteTaskRow,

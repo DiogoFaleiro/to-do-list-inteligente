@@ -1588,6 +1588,53 @@ a.btn-danger {
   font-size: 0.8rem;
 }
 
+.import-tags-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.import-tags-section[hidden] {
+  display: none;
+}
+
+.import-tags-heading {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.import-tags-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 4px 0 0;
+}
+
+.import-tag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.import-tag-name {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.import-tag-select {
+  flex: 1;
+  max-width: 220px;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+}
+
 .api-token-info {
   flex: 1;
   min-width: 0;
