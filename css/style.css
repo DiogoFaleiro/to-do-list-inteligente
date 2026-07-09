@@ -145,6 +145,30 @@ button {
   gap: 4px;
 }
 
+/* Desktop/tablet (tudo acima de 480px — ver comentário no breakpoint
+   mobile mais abaixo): a sidebar fica travada em 100vh e só as listas de
+   projetos/etiquetas rolam internamente, preenchendo o espaço restante da
+   coluna. Perfil, atalhos, botões e o cabeçalho "Meus projetos" continuam
+   sempre visíveis. Escopo isolado num media query próprio (em vez de
+   depender da ordem das regras) pra garantir que nada aqui vaze pro
+   drawer mobile de ≤480px, que já resolve seu próprio scroll de forma
+   diferente (sidebar inteira rolando como painel de tela cheia). */
+@media (min-width: 481px) {
+  .sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #projectList,
+  #tagList {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
 .project-item {
   display: flex;
   align-items: center;
