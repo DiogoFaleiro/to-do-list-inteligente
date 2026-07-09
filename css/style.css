@@ -304,6 +304,41 @@ button {
   margin: 4px 0 0;
 }
 
+/* Cabeçalho de seção com um "+" contextual ao lado (ex: Etiquetas) — reduz
+   poluição visual movendo a ação de criar da lista de botões do topo da
+   sidebar pra perto de onde o item vai efetivamente aparecer. */
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 0 0;
+}
+
+.sidebar-section-header .sidebar-section-label {
+  margin: 0;
+}
+
+.sidebar-section-add-btn {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  border-radius: 6px;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.sidebar-section-add-btn:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
 .sidebar-account-info {
   display: flex;
   align-items: center;

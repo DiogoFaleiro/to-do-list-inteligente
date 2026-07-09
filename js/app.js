@@ -869,9 +869,13 @@
   newProjectBtn.addEventListener('click', () => openProjectModal(null));
   newTagBtn.addEventListener('click', () => openTagModal(null));
 
-  // Import do Todoist: botão abre o seletor de arquivo escondido; escolher
-  // um .csv faz o parsing (puro, js/importTodoist.js) e mostra o preview.
-  importTodoistBtn.addEventListener('click', () => importTodoistFileInput.click());
+  // Import do Todoist: botão (agora dentro do menu da engrenagem) fecha o
+  // menu e abre o seletor de arquivo escondido; escolher um .csv faz o
+  // parsing (puro, js/importTodoist.js) e mostra o preview.
+  importTodoistBtn.addEventListener('click', () => {
+    accountMenu.hidden = true;
+    importTodoistFileInput.click();
+  });
 
   importTodoistFileInput.addEventListener('change', async () => {
     const file = importTodoistFileInput.files[0];

@@ -98,6 +98,7 @@
           <button id="accountMenuBtn" class="mobile-icon-btn" type="button" aria-label="Configurações da conta" title="Configurações">⚙️</button>
           <div id="accountMenu" class="period-menu" hidden>
             <button type="button" id="accountThemeBtn"><span id="accountThemeIcon" aria-hidden="true">🌙</span> Alternar tema</button>
+            <button type="button" id="importTodoistBtn">📥 Importar CSV</button>
             <a id="accountAdminBtn" href="admin/index.html" hidden>📊 Painel Admin</a>
             <button type="button" id="accountLogoutBtn">Sair</button>
           </div>
@@ -116,13 +117,14 @@
       </div>
 
       <button id="newProjectBtn" class="btn-secondary btn-block">+ Novo projeto</button>
-      <button id="importTodoistBtn" class="btn-secondary btn-block">📥 Importar CSV</button>
       <input type="file" id="importTodoistFileInput" accept=".csv,text/csv" hidden>
       <p class="sidebar-section-label">Meus projetos</p>
       <nav id="projectList" class="project-list"></nav>
 
-      <button id="newTagBtn" class="btn-secondary btn-block">+ Nova etiqueta</button>
-      <p class="sidebar-section-label">Etiquetas</p>
+      <div class="sidebar-section-header">
+        <p class="sidebar-section-label">Etiquetas</p>
+        <button type="button" id="newTagBtn" class="sidebar-section-add-btn" title="Nova etiqueta" aria-label="Nova etiqueta">+</button>
+      </div>
       <nav id="tagList" class="project-list"></nav>
     </aside>
 
