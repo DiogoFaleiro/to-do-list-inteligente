@@ -576,11 +576,6 @@
     renderNlDateChip();
     taskRepeatNlNote.hidden = true;
     taskRepeatNlNote.textContent = '';
-    // Descrição sempre reabre colapsada, mesmo que a tarefa já tenha texto
-    // salvo (padrão Todoist) — o valor pré-preenchido continua acessível
-    // no submit independente de o usuário clicar pra expandir ou não.
-    taskDescriptionToggle.hidden = false;
-    taskDescriptionLabel.hidden = true;
     const state = store.getState();
     const defaultProject = task
       ? task.projectId
@@ -598,6 +593,13 @@
       taskIdInput.value = task.id;
       taskTitleInput.value = task.title;
       taskDescriptionInput.value = task.description || '';
+      // Tarefa que já tem descrição salva abre com o campo já expandido
+      // (senão o texto some da vista, apesar de continuar no valor real do
+      // textarea) — só tarefa sem descrição nenhuma abre com o rótulo
+      // colapsado "☰ Descrição".
+      const hasDescription = !!task.description;
+      taskDescriptionToggle.hidden = hasDescription;
+      taskDescriptionLabel.hidden = !hasDescription;
       taskDueDateInput.value = task.dueDate || utils.todayISO();
       taskDueTimeInput.value = task.dueTime || '';
       populateRepeatFields(task.recurrence);
@@ -611,6 +613,8 @@
     } else {
       taskModalTitle.textContent = 'Nova tarefa';
       taskIdInput.value = '';
+      taskDescriptionToggle.hidden = false;
+      taskDescriptionLabel.hidden = true;
       taskDueDateInput.value = forcedDueDate || utils.todayISO();
       taskDueTimeInput.value = '';
       populateRepeatFields(null);
