@@ -100,6 +100,8 @@
   const taskIdInput = document.getElementById('taskId');
   const taskTitleInput = document.getElementById('taskTitle');
   const taskDescriptionInput = document.getElementById('taskDescription');
+  const taskDescriptionToggle = document.getElementById('taskDescriptionToggle');
+  const taskDescriptionLabel = document.getElementById('taskDescriptionLabel');
   const taskProjectSelect = document.getElementById('taskProject');
   const taskSessionSelect = document.getElementById('taskSession');
   const taskDueDateInput = document.getElementById('taskDueDate');
@@ -574,6 +576,11 @@
     renderNlDateChip();
     taskRepeatNlNote.hidden = true;
     taskRepeatNlNote.textContent = '';
+    // Descrição sempre reabre colapsada, mesmo que a tarefa já tenha texto
+    // salvo (padrão Todoist) — o valor pré-preenchido continua acessível
+    // no submit independente de o usuário clicar pra expandir ou não.
+    taskDescriptionToggle.hidden = false;
+    taskDescriptionLabel.hidden = true;
     const state = store.getState();
     const defaultProject = task
       ? task.projectId
@@ -846,6 +853,12 @@
   viewToggle.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-view]');
     if (btn) store.setView(btn.dataset.view);
+  });
+
+  taskDescriptionToggle.addEventListener('click', () => {
+    taskDescriptionToggle.hidden = true;
+    taskDescriptionLabel.hidden = false;
+    taskDescriptionInput.focus();
   });
 
   newTaskBtn.addEventListener('click', () => openTaskModal(null));
