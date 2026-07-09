@@ -828,6 +828,18 @@ a.btn-danger {
   font-weight: 500;
 }
 
+/* Prévia da descrição no card/linha (Lista e Painel) — truncada em até 2
+   linhas com reticências, estilo Todoist. Só existe quando a tarefa tem
+   descrição (ver taskDescriptionPreviewHtml em render.js). */
+.task-description-preview {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
 .task-meta {
   display: flex;
   flex-wrap: wrap;

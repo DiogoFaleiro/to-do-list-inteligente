@@ -170,11 +170,6 @@
     if (task.recurrence) {
       parts.push(`<span class="tag tag-recurring">🔁 ${escapeHtml(App.recurrence.describeRule(task.recurrence))}</span>`);
     }
-    if (task.description) {
-      // Só o indicador aqui — o texto completo só aparece ao expandir a
-      // tarefa (ver subtaskPanelHtml), não repetido/truncado no card/linha.
-      parts.push(`<span class="tag" title="Tem descrição">📄</span>`);
-    }
     if (task.dueDate) {
       const overdue = utils.isOverdue(task.dueDate, today) && task.status !== 'done';
       const timeSuffix = task.dueTime ? ` · ${task.dueTime.slice(0, 5).replace(':', 'h')}` : '';
@@ -203,6 +198,17 @@
     if (!subtasks.length) return '';
     const done = subtasks.filter((s) => s.status === 'done').length;
     return `<span class="tag subtask-progress-tag">☑ ${done}/${subtasks.length}</span>`;
+  }
+
+  // Prévia da descrição direto no card/linha (Lista e Painel), abaixo do
+  // título — estilo Todoist. Truncada em até 2 linhas via CSS
+  // (-webkit-line-clamp, ver .task-description-preview); nada é renderizado
+  // quando a tarefa não tem descrição (sem placeholder vazio ocupando
+  // espaço). O texto completo (sem truncar) continua disponível ao
+  // expandir a tarefa — ver subtaskPanelHtml, não alterado por esta função.
+  function taskDescriptionPreviewHtml(task) {
+    if (!task.description) return '';
+    return `<div class="task-description-preview">${escapeHtml(task.description)}</div>`;
   }
 
   // Menu "⋯" com Editar/Data/Excluir. Substitui os antigos botões soltos de
@@ -266,6 +272,7 @@
           <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
           <div class="task-info">
             <div class="task-title">${escapeHtml(task.title)}</div>
+            ${taskDescriptionPreviewHtml(task)}
             <div class="task-meta">${taskMetaHtml(task, options)}${subtaskProgressTagHtml(subtasks)}</div>
           </div>
           ${taskMenuHtml(task)}
@@ -396,6 +403,7 @@
           <div class="task-title">${escapeHtml(task.title)}</div>
           ${taskMenuHtml(task)}
         </div>
+        ${taskDescriptionPreviewHtml(task)}
         <div class="task-meta">${taskMetaHtml(task, options)}${subtaskProgressTagHtml(subtasks)}</div>
         ${subtaskPanelHtml(task, subtasks)}
       </div>`;
