@@ -185,10 +185,12 @@
     return parts.join('');
   }
 
-  // Setinha de expandir/recolher (existe quando a tarefa tem subtarefas e/ou
-  // descrição — as duas coisas compartilham o mesmo painel, ver subtaskPanelHtml)
+  // Setinha de expandir/recolher (só existe quando há subtarefas — a
+  // descrição já tem prévia própria direto no card, ver
+  // taskDescriptionPreviewHtml; não faz sentido expandir se não há nada a
+  // mais pra mostrar).
   function subtaskToggleHtml(task, subtasks) {
-    if (!subtasks.length && !task.description) return '';
+    if (!subtasks.length) return '';
     const isExpanded = expandedTaskIds.has(task.id);
     return `<button type="button" class="subtask-toggle-btn" data-toggle-subtasks="${task.id}" title="${isExpanded ? 'Recolher' : 'Expandir'} detalhes">${isExpanded ? '▾' : '▸'}</button>`;
   }
@@ -233,14 +235,14 @@
       </div>`;
   }
 
-  // Painel expansível com a descrição completa (se houver) + o checklist de
-  // subtarefas + miniformulário de adicionar (se houver alguma subtarefa).
-  // Reaproveitado tanto na Lista quanto no Painel (Kanban).
+  // Painel expansível com o checklist de subtarefas + miniformulário de
+  // adicionar. Reaproveitado tanto na Lista quanto no Painel (Kanban). A
+  // descrição NÃO entra aqui — já tem sua própria prévia direto no card
+  // (ver taskDescriptionPreviewHtml); mostrá-la de novo aqui duplicava o
+  // texto quando a tarefa também tinha subtarefas.
   function subtaskPanelHtml(task, subtasks) {
-    if ((!subtasks.length && !task.description) || !expandedTaskIds.has(task.id)) return '';
-    const descriptionHtml = task.description ? `<div class="task-description-view">${escapeHtml(task.description)}</div>` : '';
-    const subtasksHtml = subtasks.length
-      ? `
+    if (!subtasks.length || !expandedTaskIds.has(task.id)) return '';
+    const subtasksHtml = `
         ${subtasks
           .map(
             (s) => `
@@ -254,11 +256,9 @@
         <form class="subtask-add-form" data-add-subtask="${task.id}">
           <input type="text" placeholder="Adicionar subtarefa" maxlength="120">
           <button type="submit" class="btn-link">+ Adicionar</button>
-        </form>`
-      : '';
+        </form>`;
     return `
       <div class="subtask-panel">
-        ${descriptionHtml}
         ${subtasksHtml}
       </div>`;
   }
