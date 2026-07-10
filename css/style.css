@@ -1514,6 +1514,36 @@ a.btn-danger {
   gap: 8px;
 }
 
+/* Campo de Data de vencimento (modal de tarefa) + botão "x" pra limpar com
+   1 clique, sem precisar abrir o date picker nativo e apagar na mão —
+   útil tanto quando o campo começa vazio (tarefa nova) quanto quando vem
+   pré-preenchido pela coluna de data do Painel ("+ Adicionar tarefa"). */
+.due-date-field {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.due-date-field input {
+  flex: 1;
+  min-width: 0;
+}
+
+.due-date-clear-btn {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.due-date-clear-btn:hover {
+  background: var(--bg);
+}
+
 .session-add-row input,
 .session-add-row select,
 .session-add-row label {

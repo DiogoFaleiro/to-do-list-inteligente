@@ -105,6 +105,7 @@
   const taskProjectSelect = document.getElementById('taskProject');
   const taskSessionSelect = document.getElementById('taskSession');
   const taskDueDateInput = document.getElementById('taskDueDate');
+  const taskDueDateClearBtn = document.getElementById('taskDueDateClearBtn');
   const taskDueDateRow = document.getElementById('taskDueDateRow');
   const taskDueTimeInput = document.getElementById('taskDueTime');
   const taskRepeatSelect = document.getElementById('taskRepeat');
@@ -615,7 +616,11 @@
       taskIdInput.value = '';
       taskDescriptionToggle.hidden = false;
       taskDescriptionLabel.hidden = true;
-      taskDueDateInput.value = forcedDueDate || utils.todayISO();
+      // Vazio por padrão: o usuário escolhe a data deliberadamente, ou
+      // deixa em branco e salva sem data (já suportado no filtro/banco).
+      // `forcedDueDate` (coluna de data do Painel) continua pré-preenchendo
+      // como sugestão — só não inventa "hoje" quando não há sugestão nenhuma.
+      taskDueDateInput.value = forcedDueDate || '';
       taskDueTimeInput.value = '';
       populateRepeatFields(null);
       taskCommentSection.hidden = true;
@@ -1293,6 +1298,13 @@
     }
   }
   taskDueDateInput.addEventListener('input', () => markNlDateFieldTouched('dueDate'));
+  // "x" ao lado do campo: limpa a data (vazia por padrão ou pré-preenchida
+  // pela coluna do Painel) com 1 clique. Marca como campo tocado à mão pra
+  // o chip de sugestão de data não reintroduzir uma data sozinho depois.
+  taskDueDateClearBtn.addEventListener('click', () => {
+    taskDueDateInput.value = '';
+    markNlDateFieldTouched('dueDate');
+  });
   taskDueTimeInput.addEventListener('input', () => markNlDateFieldTouched('dueTime'));
   [taskRepeatSelect, taskRepeatUnit, taskRepeatWeekdays, taskRepeatAnchor, taskRepeatUntilToggle].forEach((el) =>
     el.addEventListener('change', () => markNlDateFieldTouched('repeat'))

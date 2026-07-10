@@ -240,7 +240,10 @@
 
           <div class="session-add-row">
             <label id="taskDueDateRow">Data de vencimento
-              <input type="date" id="taskDueDate" required>
+              <div class="due-date-field">
+                <input type="date" id="taskDueDate">
+                <button type="button" id="taskDueDateClearBtn" class="due-date-clear-btn" title="Remover data">✕</button>
+              </div>
             </label>
             <label>Horário
               <input type="time" id="taskDueTime">

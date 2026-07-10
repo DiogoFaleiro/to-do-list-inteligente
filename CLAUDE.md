@@ -1,46 +1,62 @@
-# CLAUDE.md
-
-Guia para quem (humano ou IA) for mexer neste repositório.
-
-## Arquitetura
-
-App 100% client-side (HTML/CSS/JS puro, sem build tools, sem framework) sobre Supabase (Postgres + Auth + Storage). Cada arquivo `js/*.js` é um módulo IIFE que recebe `window.App` e pendura suas funções públicas nele:
-
-```js
-(function (App) {
-  // ...
-  App.nomeDoModulo = { funcaoPublica1, funcaoPublica2 };
-})(window.App = window.App || {});
-```
-
-Um módulo consome outro lendo a propriedade correspondente de `App` (ex: `const { store, render, auth, migrate, api, utils } = App;` no topo de `js/app.js`). Por isso **a ordem de `<script>` em `index.html` importa** — um módulo só pode depender de quem já rodou antes dele:
-
-```
-js/utils.js          → App.utils (datas, formatação, uid)
-js/localPrefs.js      → App.localPrefs (preferências de UI no localStorage)
-js/supabaseClient.js  → App.supabaseClient (cliente Supabase) + App.auth (signUp/signIn/signOut/sessão)
-js/api.js             → App.api (toda chamada .from()/.rpc() ao Supabase — camada fina, sem lógica de negócio)
-js/migrate.js         → App.migrate (migra dados de uma versão antiga só-localStorage pra a conta logada, uma vez só)
-js/store.js           → App.store (estado em memória + mutações otimistas; depende de utils/localPrefs/api)
-js/render.js          → App.render (toda geração de HTML/DOM a partir do estado; depende de store/utils)
-js/app.js             → wiring de eventos (cliques, forms, modais); depende de todos os anteriores
-```
-
 `admin/index.html` é uma página separada com seu próprio bootstrap: carrega só `supabaseClient.js` + `api.js` + `adminDashboard.js` (não carrega `store.js`/`render.js`/`app.js` — o painel admin não usa o app principal).
 
 ## Padrões obrigatórios
 
 - **Toda mutação de dado é otimista com rollback.** Uma ação do usuário (criar/editar/excluir projeto, tarefa, sessão, tag, token...) atualiza `state` em memória e chama `emit()` **antes** da resposta do Supabase chegar. Se a chamada falhar, o handler desfaz a mutação local (restaura o valor anterior ou remove o item otimista) e chama `handleMutationError(contexto, error)` (`js/store.js`). Esse helper: loga o erro, checa se é erro de autenticação (nesse caso força logout via `onAuthError`), e senão mostra um `alert()` avisando a falha — nunca falha em silêncio. Ver `addSession`/`updateSession`/`deleteSession`/`createApiToken` em `js/store.js` como referência do padrão.
-- **Todo texto vindo do usuário passa por `escapeHtml()` antes de entrar em `innerHTML`.** Existe uma cópia local dessa função em `js/render.js` e outra em `js/app.js` (cada módulo é seu próprio closure IIFE, não compartilham escopo) — ambas idênticas: criam uma `<div>`, atribuem `textContent`, leem `innerHTML` de volta. Nunca interpolar `task.title`, `project.name`, etc. direto numa template string de HTML.
+  - **Exceção:** operações de import (Todoist) NÃO seguem esse padrão — são batch, sem rollback parcial; se uma etapa falhar, informa que o import ficou incompleto e recarrega o estado real via `loadInitialData`, sem tentar desfazer o que já foi inserido.
+  - **Exceção:** dados carregados sob demanda (ex: comentários de uma tarefa) não entram no `loadInitialData` — são buscados ao abrir a tarefa e cacheados em `state.commentsByTask` (ou equivalente); o rollback otimista aqui opera sobre esse cache específico, não sobre o array global de tasks.
+- **Todo texto vindo do usuário passa por `escapeHtml()` antes de entrar em `innerHTML`.** Existe uma cópia local dessa função em `js/render.js` e outra em `js/app.js` (cada módulo é seu próprio closure IIFE, não compartilham escopo) — ambas idênticas: criam uma `<div>`, atribuem `textContent`, leem `innerHTML` de volta. Nunca interpolar `task.title`, `project.name`, `comment.content`, `task.description`, etc. direto numa template string de HTML. Ícones literais do próprio app (ex: `🔁`, `📄`) NÃO precisam passar por escapeHtml — só texto de origem externa (usuário ou CSV importado).
 - **Preferências de UI ficam só em `localPrefs` (localStorage), nunca no Supabase.** `view`, `period`, `projectFilter`, `tagFilter`, `theme`, `groupByProject`, `showCompleted`, `recurringOnly` — tudo isso é local ao navegador (`js/localPrefs.js`, chave `todolist.ui.v1`), lido uma vez em `state.ui = localPrefs.load()` e regravado via `persistUi()` (`js/store.js`) a cada mutador (`setPeriod`, `setProjectFilter`, etc.). Isso é intencional: são preferências de navegação de UI, não dado do usuário — não faz sentido sincronizar entre dispositivos nem consultar via RLS.
+
+## Modelo de recorrência (estilo Todoist)
+
+- Uma tarefa recorrente é **uma única linha** em `tasks`, com `due_date`/`due_time` reais e uma coluna `recurrence jsonb` descrevendo a regra: `{ freq: 'daily'|'weekly'|'monthly', interval, anchor: 'due'|'completed', byWeekday?, byMonthDay?: number|'last', byNthWeekday?: {n, weekday}, until? }`.
+- **Nunca existem tarefas futuras pré-criadas.** Ao concluir uma recorrente, `setTaskStatus` (`js/store.js`) NÃO marca `done` — grava uma linha em `task_completions` e chama `App.recurrence.nextOccurrence(rule, dueDate, hoje)` para rolar a `due_date` para a próxima ocorrência **estritamente futura** (pula ocorrências perdidas; nunca recua). Só vira `done` de verdade se `until` foi atingido e não há próxima ocorrência.
+- **Duas âncoras, dois comportamentos:** `anchor:'due'` calcula a próxima ocorrência a partir da data agendada (ex: toda terça, sempre nas terças); `anchor:'completed'` calcula a partir de quando você concluiu (usado para diárias simples — "todo dia" no Todoist rola pro dia seguinte à conclusão, não ao vencimento).
+- **`firstOccurrence` (base = ontem) só vale para `daily`/`weekly`.** É o truque para a primeira ocorrência incluir hoje (chamar `nextOccurrence(rule, ontem, ontem)`, já que `nextOccurrence` sempre retorna estritamente futuro em relação à base). Para as famílias mensais mais ricas (`byMonthDay` numérico, `byNthWeekday`, `byMonthDay:'last'`, aniversário anual), **não reusar esse truque** — `js/nlDate.js` calcula a primeira ocorrência direto por aritmética de data própria (mais simples e testável); `App.recurrence.nextOccurrence` continua sendo o único mecanismo usado para o recálculo pós-conclusão.
+- **`getFilteredTasks` (filtros de período) não tem bypass para recorrentes.** Elas têm `due_date` real e obedecem às mesmas regras de data que qualquer tarefa — "Hoje" só mostra recorrente se vence hoje ou está atrasada; nunca existe um `if (t.recurrence) return true` incondicional num filtro de período.
+- **Tarefas sem `due_date` e sem `recurrence`** (ex: itens sem data do import) não aparecem em "Hoje" (que é estrita, por design — igual ao Todoist) nem em nenhuma coluna do painel "Em breve" a menos que exista um grupo/coluna explícito "Sem data" — sempre alcançáveis em pelo menos uma visão, pra bater com o badge de contagem do projeto.
+
+## Parser de linguagem natural (`js/nlDate.js`)
+
+- **Vocabulário é uma lista fechada, não inteligência geral.** Qualquer termo fora do que está explicitamente especificado (ver histórico de decisões) falha por design — antes de investigar como bug um termo "não reconhecido", confirme que ele está no vocabulário pretendido.
+- Arquitetura: lista plana de *pattern specs* (regex + função `build`) competindo num mesmo pool, sem ordem de prioridade manual — desambiguação é só "maior span vence" (empate: `start` mais à esquerda). Isso elimina a necessidade de manter uma lista ordenada por especificidade.
+- Normalização remove acentos preservando o **tamanho da string** (NFD + remoção de marcas combinantes), então `match.start`/`match.end` sempre mapeiam 1:1 para o texto original — essencial porque o texto removido do título (chip de sugestão) precisa vir do texto **original com acentos**, nunca do normalizado.
+- Dentro de uma alternação regex `(a|b|c)` (nomes de dias da semana, meses, etc.), o motor JS usa a **primeira alternativa que bate, não a mais longa** (diferente de POSIX) — listas de nomes devem estar ordenadas por tamanho decrescente (`segunda-feira` antes de `segunda` antes de `seg`), senão o span do match fica errado.
+- Dias da semana soltos ("terça", "segunda") são ambíguos em português comum ("Revisar segunda parte") — só viram data pontual quando acompanhados de horário explícito, sufixo `-feira`, ou forem sábado/domingo (sem forma "-feira", sem ambiguidade prática).
+- Datas pontuais (`recurrence: null`) e recorrências competem no mesmo pool de specs — "toda terça às 08h" (recorrente) precisa vencer "terça às 08h" (pontual) pelo span, nunca por regra hardcoded separada.
+- `js/importTodoist.js` delega para `App.nlDate.parse` (vocabulário pt-BR); import em inglês (`DATE_LANG='en'` no CSV do Todoist) usa um mini-vocabulário próprio e local ao import, sem inflar `nlDate.js` — evitar interpretar datas numéricas curtas ambíguas entre locales (`DD/MM` vs `MM/DD`) quando o idioma é incerto; melhor cair em "não reconhecido" do que inverter dia/mês silenciosamente.
+- **Todo bug de parser reportado como "não funciona" deve primeiro ser reproduzido isoladamente no console** (`App.nlDate.parse("...")` ou `App.importTodoist.parseTodoistDate("...", lang)`) antes de qualquer mudança de código — já aconteceu mais de uma vez de o parser estar correto e o problema estar (a) no Service Worker servindo versão em cache, ou (b) na integração (parâmetro não repassado entre camadas, ex.: `lang` não chegando do CSV até o parser).
+
+## Testes: unitário não substitui teste de fluxo
+
+Um bug de integração real já escapou de uma suíte que só testava a função isolada (`parseTodoistDate` com `lang` passado manualmente) enquanto o caminho real (`parseTodoistExport` → `parseTodoistDate`) não repassava esse parâmetro. Regra: sempre que uma correção envolver a **integração entre duas camadas** (parser → import, store → api, etc.), o teste de aceitação deve exercitar o caminho completo (ex: `parseCsv` + `parseTodoistExport` com um CSV mínimo de verdade), não só a função isolada com argumentos passados à mão.
 
 ## Migrations (Supabase)
 
-- **Nunca editar um arquivo `supabase/migrations/00XX_*.sql` já existente.** Uma correção ou mudança de schema sempre vira um arquivo **novo**, com o próximo número sequencial (ex: depois de `0009_api_tokens.sql`, a próxima é `0010_algo.sql`).
+- **Nunca editar um arquivo `supabase/migrations/00XX_*.sql` já existente.** Uma correção ou mudança de schema sempre vira um arquivo **novo**, com o próximo número sequencial.
 - Migrations são escritas para rodar com segurança mais de uma vez quando possível (`create table if not exists`, `drop policy if exists` antes de recriar, `create or replace function`), mas isso não substitui a regra acima — o arquivo antigo continua intacto como registro histórico do que já rodou.
-- **O código nunca deve assumir que uma migration nova já rodou.** Quem aplica as migrations no SQL Editor do Supabase é o usuário, manualmente, uma de cada vez — nenhum código aqui roda migrations automaticamente. Isso significa: ao introduzir uma migration nova, avisar explicitamente que ela precisa ser rodada antes de testar/depender da funcionalidade que ela habilita, e não seguir para o próximo passo (testar, fazer deploy do JS que a usa) até o usuário confirmar que rodou.
+- **O código nunca deve assumir que uma migration nova já rodou.** Quem aplica as migrations no SQL Editor do Supabase é o usuário, manualmente, uma de cada vez — nenhum código aqui roda migrations automaticamente. Ao introduzir uma migration nova, avisar explicitamente que ela precisa ser rodada antes de testar/depender da funcionalidade que ela habilita, e não seguir para o próximo passo até o usuário confirmar que rodou.
+- Toda tabela nova tem RLS habilitada com policies restritas a `user_id = auth.uid()`; dados carregados sob demanda (comentários, etc.) nunca entram no `loadInitialData` global.
 
 ## Service Worker (`sw.js`)
 
-- `CACHE_NAME` (ex: `todolist-cache-v26`) precisa ser incrementado **toda vez** que algum arquivo listado em `APP_SHELL` mudar (hoje: `index.html`, `css/style.css`, e todos os `js/*.js` carregados por ele — `utils`, `localPrefs`, `supabaseClient`, `api`, `migrate`, `store`, `render`, `app`). O fetch handler é "rede primeiro, cache como reserva" (`self.addEventListener('fetch', ...)`), mas a instalação (`install`) só troca de cache quando `CACHE_NAME` muda — sem o bump, um usuário com o Service Worker antigo instalado pode continuar servindo uma versão desatualizada do app enquanto offline ou em condições de rede instável.
+- `CACHE_NAME` precisa ser incrementado **toda vez** que algum arquivo listado em `APP_SHELL` mudar (`index.html`, `css/style.css`, e todos os `js/*.js` carregados por ele). O fetch handler é "rede primeiro, cache como reserva", mas a instalação só troca de cache quando `CACHE_NAME` muda — sem o bump, um usuário com o Service Worker antigo instalado pode continuar servindo uma versão desatualizada do app.
+- **Bump de `CACHE_NAME` é parte da definição de pronto de qualquer fase que toque `index.html`, `css/style.css` ou qualquer `js/*.js` do `APP_SHELL` — sem exceção, mesmo para "só um arquivo JS puro".** Já causou dois incidentes reais nesta base de código (funcionalidade implementada e no repositório, mas invisível no app porque o SW servia a versão anterior).
+- **Todo teste pós-deploy começa com hard refresh (`Ctrl+Shift+R`) e, se persistir, conferência do Service Worker ativo em DevTools → Application → Service Workers** (Update/Unregister) antes de qualquer investigação de bug no código. Regra prática: se um termo/feature recém-implementado simplesmente "não aparece" (em vez de aparecer com comportamento errado), suspeitar de cache antes de suspeitar de lógica.
 - Arquivos fora do `APP_SHELL` (ex: `admin/*`, `supabase/migrations/*`) não precisam de bump.
+
+## CSS: especificidade não é afetada por media query
+
+Uma regra dentro de `@media (...)` **não** tem especificidade maior que uma regra equivalente fora dele — quem vence em empate de especificidade é a ordem de aparição no arquivo, o que é frágil. Ao criar uma variante específica de um componente compartilhado (ex: `.task-modal` sobre `.modal`), usar um seletor composto (`.modal.task-modal`) para garantir vitória real, em vez de contar com a posição no arquivo.
+
+## Fluxo de trabalho com Claude Code
+
+- **Plan Mode primeiro quando:** o prompt introduz estado novo, mapeamento de ids entre lotes de insert, parsing de formato externo, ou mexe no motor de recorrência/parser de data. **Execução direta quando:** migration isolada com conteúdo já especificado, ou CRUD repetitivo que só estende um padrão já existente em 3+ lugares do código (campo viajando por api → store → modal → render).
+- Accept Edits é o modo padrão de execução (edições de arquivo automáticas; comandos Bash continuam pedindo aprovação) — Auto Mode só se justifica em sessões longas e autônomas onde até comandos Bash rotineiros gerariam fadiga de aprovação.
+- Ao revisar um plano antes de aprovar, verificar sempre: (a) se algum campo novo tem representação completa em TODAS as camadas que o consomem (já houve caso de `recurrence` avançada não caber no formulário existente, degradando silenciosamente); (b) se há corrida entre debounce/eventos assíncronos e ações do usuário (ex: Enter antes do debounce de parsing terminar); (c) se dados sensíveis a RLS incluem `user_id` em todas as linhas de inserts em lote.
+- Quando o Code reportar "não consigo reproduzir o bug", não presumir que o reporte original estava errado — pode ser: (a) cache do Service Worker, (b) integração entre camadas não coberta pelo teste, (c) vocabulário/feature genuinamente ainda não implementado (confundido com bug). Pedir reprodução com mais detalhe (onde exatamente, navegador vs console, sequência exata de ações) antes de aceitar "sem bug" ou insistir em uma correção sem causa confirmada.
+
+## Roadmap / decisões pendentes
+
+- [preencher: itens em aberto no momento, ex. remoção da coluna `recurring` legada, contagem de `task_completions` no admin dashboard, etc.]
