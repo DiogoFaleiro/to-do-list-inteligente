@@ -285,6 +285,16 @@ button {
   box-shadow: inset 0 -2px 0 0 var(--primary);
 }
 
+/* Indicador de soltar pro eixo horizontal (colunas do Painel) — mesma
+   ideia de .drop-above/.drop-below, só virado de lado. */
+.drop-left {
+  box-shadow: inset 2px 0 0 0 var(--primary);
+}
+
+.drop-right {
+  box-shadow: inset -2px 0 0 0 var(--primary);
+}
+
 /* Linha de conta (avatar + nome + engrenagem) e rótulo "Meus projetos":
    mesmo padrão em qualquer tamanho de tela. */
 .sidebar-account-row {
@@ -1141,6 +1151,10 @@ a.btn-danger {
   min-height: 200px;
 }
 
+/* Alça de arrastar (⠿) aqui não tem a regra de esconder/mostrar no hover
+   que .project-item tem (escopada só a .project-item .drag-handle) —
+   coluna do Painel não tem o mesmo conceito de "hover de linha", então
+   fica visível sempre, de propósito. */
 .board-column h2 {
   font-size: 0.95rem;
   margin: 0 0 12px;

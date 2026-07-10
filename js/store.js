@@ -61,7 +61,14 @@
   }
 
   function mapProjectFromRow(row) {
-    return { id: row.id, name: row.name, color: row.color, isFavorite: !!row.is_favorite, position: row.position };
+    return {
+      id: row.id,
+      name: row.name,
+      color: row.color,
+      isFavorite: !!row.is_favorite,
+      position: row.position,
+      boardPosition: row.board_position
+    };
   }
 
   // Posição fracionária: a nova entra na média entre os vizinhos (ou
@@ -84,6 +91,30 @@
   function needsReindex(prevPosition, nextPosition) {
     if (prevPosition == null || nextPosition == null) return false;
     return nextPosition - prevPosition < POSITION_GAP_EPSILON;
+  }
+
+  // Núcleo puro (sem emit/API/rollback, que ficam por conta de cada
+  // chamador) do cálculo de arrastar-e-soltar: dado `list` já ordenada
+  // pelo campo de posição relevante, remove o item arrastado e o
+  // reinsere ao lado do alvo, devolvendo a nova position (média dos
+  // vizinhos) e quem são os vizinhos (pro needsReindex de cada chamador).
+  // getId/getPosition abstraem qual campo é a "posição" (position ou
+  // boardPosition) e servem sidebar, sessões e colunas do Painel com o
+  // mesmo código.
+  function computeReorderPosition(list, draggedId, targetId, placeAfter, getId, getPosition) {
+    const draggedIdx = list.findIndex((item) => getId(item) === draggedId);
+    const targetIdx = list.findIndex((item) => getId(item) === targetId);
+    if (draggedIdx === -1 || targetIdx === -1 || draggedId === targetId) return null;
+
+    const [removed] = list.splice(draggedIdx, 1);
+    const insertAt = list.findIndex((item) => getId(item) === targetId) + (placeAfter ? 1 : 0);
+    list.splice(insertAt, 0, removed);
+
+    const prevNeighbor = list[insertAt - 1];
+    const nextNeighbor = list[insertAt + 1];
+    const prevPosition = prevNeighbor && getId(prevNeighbor) !== draggedId ? getPosition(prevNeighbor) : null;
+    const nextPosition = nextNeighbor && getId(nextNeighbor) !== draggedId ? getPosition(nextNeighbor) : null;
+    return { newPosition: calculateNewPosition(prevPosition, nextPosition), prevPosition, nextPosition };
   }
 
   function mapTagFromRow(row) {
@@ -270,11 +301,13 @@
   function addProject({ name, color }) {
     const tempId = `tmp-${utils.uid()}`;
     const lastPosition = state.projects.reduce((max, p) => (p.position > max ? p.position : max), null);
+    const lastBoardPosition = state.projects.reduce((max, p) => (p.boardPosition > max ? p.boardPosition : max), null);
     const optimistic = {
       id: tempId,
       name: name.trim(),
       color: color || '#6c5ce7',
-      position: calculateNewPosition(lastPosition, null)
+      position: calculateNewPosition(lastPosition, null),
+      boardPosition: calculateNewPosition(lastBoardPosition, null)
     };
     state.projects.push(optimistic);
     emit();
@@ -355,34 +388,23 @@
   // (render.js) já ordena por position antes de desenhar a lista.
   function reorderProjects(draggedId, targetId, placeAfter) {
     const list = state.projects.slice().sort((a, b) => a.position - b.position);
-    const draggedIdx = list.findIndex((p) => p.id === draggedId);
-    const targetIdx = list.findIndex((p) => p.id === targetId);
-    if (draggedIdx === -1 || targetIdx === -1 || draggedId === targetId) return;
-
     const dragged = state.projects.find((p) => p.id === draggedId);
+    if (!dragged) return;
+    const result = computeReorderPosition(list, draggedId, targetId, placeAfter, (p) => p.id, (p) => p.position);
+    if (!result) return;
+
     const previousPosition = dragged.position;
-
-    const [removed] = list.splice(draggedIdx, 1);
-    const insertAt = list.findIndex((p) => p.id === targetId) + (placeAfter ? 1 : 0);
-    list.splice(insertAt, 0, removed);
-
-    const prevNeighbor = list[insertAt - 1];
-    const nextNeighbor = list[insertAt + 1];
-    const newPosition = calculateNewPosition(
-      prevNeighbor && prevNeighbor.id !== draggedId ? prevNeighbor.position : null,
-      nextNeighbor && nextNeighbor.id !== draggedId ? nextNeighbor.position : null
-    );
-    dragged.position = newPosition;
+    dragged.position = result.newPosition;
     emit();
 
-    api.updateProjectPosition(draggedId, newPosition).then(({ error }) => {
+    api.updateProjectPosition(draggedId, result.newPosition).then(({ error }) => {
       if (error) {
         dragged.position = previousPosition;
         emit();
         handleMutationError('Falha ao reordenar projeto', error);
         return;
       }
-      if (needsReindex(prevNeighbor && prevNeighbor.position, nextNeighbor && nextNeighbor.position)) {
+      if (needsReindex(result.prevPosition, result.nextPosition)) {
         reindexProjectPositions();
       }
     });
@@ -410,6 +432,53 @@
     // ficam temporariamente desatualizados até a próxima gravação bem-sucedida.
     Promise.all(updates.map((u) => api.updateProjectPosition(u.id, u.position))).catch((error) =>
       handleMutationError('Falha ao reindexar projetos', error)
+    );
+  }
+
+  // Mesmo desenho de reorderProjects, mas para a ordem PRÓPRIA das colunas
+  // do Painel (boardPosition), independente da position da sidebar —
+  // arrastar uma coluna aqui nunca move o projeto na lista lateral, e
+  // vice-versa. Não é escopado por projeto (ao contrário de
+  // reorderSessions): colunas do Painel competem pelo mesmo espaço de
+  // boardPosition entre todos os projetos do usuário.
+  function reorderProjectsBoard(draggedId, targetId, placeAfter) {
+    const list = state.projects.slice().sort((a, b) => a.boardPosition - b.boardPosition);
+    const dragged = state.projects.find((p) => p.id === draggedId);
+    if (!dragged) return;
+    const result = computeReorderPosition(list, draggedId, targetId, placeAfter, (p) => p.id, (p) => p.boardPosition);
+    if (!result) return;
+
+    const previousBoardPosition = dragged.boardPosition;
+    dragged.boardPosition = result.newPosition;
+    emit();
+
+    api.updateProjectBoardPosition(draggedId, result.newPosition).then(({ error }) => {
+      if (error) {
+        dragged.boardPosition = previousBoardPosition;
+        emit();
+        handleMutationError('Falha ao reordenar coluna do Painel', error);
+        return;
+      }
+      if (needsReindex(result.prevPosition, result.nextPosition)) {
+        reindexProjectBoardPositions();
+      }
+    });
+  }
+
+  function reindexProjectBoardPositions() {
+    const sorted = state.projects.slice().sort((a, b) => a.boardPosition - b.boardPosition);
+    const updates = [];
+    sorted.forEach((p, i) => {
+      const newPos = (i + 1) * 1000;
+      if (p.boardPosition !== newPos) {
+        updates.push({ id: p.id, boardPosition: newPos });
+        p.boardPosition = newPos;
+      }
+    });
+    if (!updates.length) return;
+    emit();
+    Promise.all(updates.map((u) => api.updateProjectBoardPosition(u.id, u.boardPosition))).catch((error) =>
+      handleMutationError('Falha ao reindexar colunas do Painel', error)
     );
   }
 
@@ -476,34 +545,23 @@
   // espaço de position.
   function reorderSessions(projectId, draggedId, targetId, placeAfter) {
     const list = getSessionsForProject(projectId);
-    const draggedIdx = list.findIndex((s) => s.id === draggedId);
-    const targetIdx = list.findIndex((s) => s.id === targetId);
-    if (draggedIdx === -1 || targetIdx === -1 || draggedId === targetId) return;
-
     const dragged = state.sessions.find((s) => s.id === draggedId);
+    if (!dragged) return;
+    const result = computeReorderPosition(list, draggedId, targetId, placeAfter, (s) => s.id, (s) => s.position);
+    if (!result) return;
+
     const previousPosition = dragged.position;
-
-    const [removed] = list.splice(draggedIdx, 1);
-    const insertAt = list.findIndex((s) => s.id === targetId) + (placeAfter ? 1 : 0);
-    list.splice(insertAt, 0, removed);
-
-    const prevNeighbor = list[insertAt - 1];
-    const nextNeighbor = list[insertAt + 1];
-    const newPosition = calculateNewPosition(
-      prevNeighbor && prevNeighbor.id !== draggedId ? prevNeighbor.position : null,
-      nextNeighbor && nextNeighbor.id !== draggedId ? nextNeighbor.position : null
-    );
-    dragged.position = newPosition;
+    dragged.position = result.newPosition;
     emit();
 
-    api.updateSessionPosition(draggedId, newPosition).then(({ error }) => {
+    api.updateSessionPosition(draggedId, result.newPosition).then(({ error }) => {
       if (error) {
         dragged.position = previousPosition;
         emit();
         handleMutationError('Falha ao reordenar sessão', error);
         return;
       }
-      if (needsReindex(prevNeighbor && prevNeighbor.position, nextNeighbor && nextNeighbor.position)) {
+      if (needsReindex(result.prevPosition, result.nextPosition)) {
         reindexSessionPositions(projectId);
       }
     });
@@ -1105,6 +1163,7 @@
     deleteProject,
     toggleProjectFavorite,
     reorderProjects,
+    reorderProjectsBoard,
     addSession,
     updateSession,
     deleteSession,

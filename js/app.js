@@ -1574,6 +1574,9 @@
     let startScrollLeft = 0;
 
     el.addEventListener('pointerdown', (e) => {
+      // Segurar a alça de reordenar uma coluna (enableReorderDrag, mesmo
+      // elemento) não deve TAMBÉM disparar o pan-scroll do painel inteiro.
+      if (e.target.closest('.drag-handle')) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       isPointerDown = true;
       dragged = false;
@@ -1640,19 +1643,83 @@
   // continua rolando a lista normalmente. touch-action:none fica só na
   // alça (CSS), nunca no container: é isso que evita o toque de reordenar
   // competir com o gesto de rolar a lista.
-  function enableReorderDrag(container, rowSelector, onReorder) {
+  // Auto-scroll do container durante um arraste, quando o ponteiro chega
+  // perto de uma borda (topo/baixo pra listas verticais, esquerda/direita
+  // pro Painel horizontal). Só um arraste fica ativo por vez no app
+  // inteiro, então um único loop requestAnimationFrame (sem lib externa)
+  // serve os três contextos — cada um só liga o loop enquanto o ponteiro
+  // está dentro da zona de borda do SEU container.
+  const AUTO_SCROLL_EDGE_ZONE = 48;
+  const AUTO_SCROLL_MAX_SPEED = 14;
+  let autoScrollRAF = null;
+  let autoScrollSpeed = 0;
+  let autoScrollContainer = null;
+  let autoScrollAxis = 'y';
+
+  function updateAutoScroll(container, e, axis) {
+    const rect = container.getBoundingClientRect();
+    const isY = axis === 'y';
+    const pos = isY ? e.clientY : e.clientX;
+    const near = pos - (isY ? rect.top : rect.left);
+    const far = (isY ? rect.bottom : rect.right) - pos;
+
+    let speed = 0;
+    if (near < AUTO_SCROLL_EDGE_ZONE) {
+      speed = -AUTO_SCROLL_MAX_SPEED * (1 - Math.max(near, 0) / AUTO_SCROLL_EDGE_ZONE);
+    } else if (far < AUTO_SCROLL_EDGE_ZONE) {
+      speed = AUTO_SCROLL_MAX_SPEED * (1 - Math.max(far, 0) / AUTO_SCROLL_EDGE_ZONE);
+    }
+
+    autoScrollSpeed = speed;
+    autoScrollContainer = container;
+    autoScrollAxis = axis;
+
+    if (speed !== 0 && !autoScrollRAF) {
+      const step = () => {
+        if (!autoScrollContainer || autoScrollSpeed === 0) {
+          autoScrollRAF = null;
+          return;
+        }
+        if (autoScrollAxis === 'y') autoScrollContainer.scrollTop += autoScrollSpeed;
+        else autoScrollContainer.scrollLeft += autoScrollSpeed;
+        autoScrollRAF = requestAnimationFrame(step);
+      };
+      autoScrollRAF = requestAnimationFrame(step);
+    } else if (speed === 0 && autoScrollRAF) {
+      cancelAnimationFrame(autoScrollRAF);
+      autoScrollRAF = null;
+    }
+  }
+
+  function stopAutoScroll() {
+    if (autoScrollRAF) cancelAnimationFrame(autoScrollRAF);
+    autoScrollRAF = null;
+    autoScrollSpeed = 0;
+    autoScrollContainer = null;
+  }
+
+  // `axis: 'y'` (padrão, sidebar/sessões) compara clientY contra o topo/
+  // base das linhas; `axis: 'x'` (colunas do Painel) compara clientX
+  // contra esquerda/direita — mesmo mecanismo, só troca qual eixo do
+  // ponteiro/retângulo é lido.
+  function enableReorderDrag(container, rowSelector, onReorder, { axis = 'y' } = {}) {
     let draggedEl = null;
-    let startY = 0;
+    let startPos = 0;
     let dragging = false;
     let lastTarget = null;
     let placeAfter = false;
+
+    const isY = axis === 'y';
+    const clientPos = (e) => (isY ? e.clientY : e.clientX);
+    const dropBeforeClass = isY ? 'drop-above' : 'drop-left';
+    const dropAfterClass = isY ? 'drop-below' : 'drop-right';
 
     container.addEventListener('pointerdown', (e) => {
       const handle = e.target.closest('.drag-handle');
       if (!handle) return;
       draggedEl = handle.closest(rowSelector);
       if (!draggedEl) return;
-      startY = e.clientY;
+      startPos = clientPos(e);
       dragging = false;
       container.setPointerCapture(e.pointerId);
     });
@@ -1660,28 +1727,31 @@
     container.addEventListener('pointermove', (e) => {
       if (!draggedEl) return;
       if (!dragging) {
-        if (Math.abs(e.clientY - startY) < 4) return; // limiar, evita "arraste" por tremor
+        if (Math.abs(clientPos(e) - startPos) < 4) return; // limiar, evita "arraste" por tremor
         dragging = true;
         draggedEl.classList.add('dragging');
       }
+      updateAutoScroll(container, e, axis);
+
       const under = document.elementFromPoint(e.clientX, e.clientY);
       const target = under && under.closest(rowSelector);
-      if (lastTarget) lastTarget.classList.remove('drop-above', 'drop-below');
+      if (lastTarget) lastTarget.classList.remove(dropBeforeClass, dropAfterClass);
       if (!target || target === draggedEl) {
         lastTarget = null;
         return;
       }
       const rect = target.getBoundingClientRect();
-      placeAfter = e.clientY > rect.top + rect.height / 2;
-      target.classList.add(placeAfter ? 'drop-below' : 'drop-above');
+      placeAfter = isY ? e.clientY > rect.top + rect.height / 2 : e.clientX > rect.left + rect.width / 2;
+      target.classList.add(placeAfter ? dropAfterClass : dropBeforeClass);
       lastTarget = target;
     });
 
     function endDrag() {
+      stopAutoScroll();
       if (draggedEl && dragging && lastTarget) {
         onReorder(draggedEl, lastTarget, placeAfter);
       }
-      if (lastTarget) lastTarget.classList.remove('drop-above', 'drop-below');
+      if (lastTarget) lastTarget.classList.remove(dropBeforeClass, dropAfterClass);
       if (draggedEl) draggedEl.classList.remove('dragging');
       draggedEl = null;
       dragging = false;
@@ -1712,6 +1782,15 @@
   enableReorderDrag(projectSessionList, '.session-editor-row', (draggedEl, targetEl, placeAfter) => {
     store.reorderSessions(projectIdInput.value, draggedEl.dataset.sessionId, targetEl.dataset.sessionId, placeAfter);
   });
+
+  enableReorderDrag(
+    boardView,
+    '.board-column[data-board-project]',
+    (draggedEl, targetEl, placeAfter) => {
+      store.reorderProjectsBoard(draggedEl.dataset.boardProject, targetEl.dataset.boardProject, placeAfter);
+    },
+    { axis: 'x' }
+  );
 
   // Mantém a bolinha ativa em dia durante qualquer scroll (arraste ou
   // nativo), sem precisar re-renderizar o Painel inteiro.

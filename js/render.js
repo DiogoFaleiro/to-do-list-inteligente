@@ -292,7 +292,7 @@
   // "Sem projeto" mesmo vazio, para o Painel mostrar a coluna.
   function groupTasksByProject(tasks) {
     const state = store.getState();
-    const groups = state.projects.map((p) => ({ id: p.id, name: p.name, color: p.color, tasks: [] }));
+    const groups = state.projects.map((p) => ({ id: p.id, name: p.name, color: p.color, boardPosition: p.boardPosition, tasks: [] }));
     const groupById = {};
     groups.forEach((g) => {
       groupById[g.id] = g;
@@ -470,6 +470,21 @@
     const relevantGroups = splitBySession
       ? groupTasksByProject(tasks).filter((g) => g.id === projectFilter)
       : groupTasksByProject(tasks).filter((g) => g.tasks.length > 0);
+
+    // Ordem das colunas de projeto no Painel é própria (boardPosition),
+    // independente da position da sidebar — só se aplica quando NÃO
+    // dividimos por sessão (sub-colunas de sessão continuam na ordem que
+    // já vinha de groupTasksBySession/sessions.position). "Sem projeto"
+    // (id null) não tem boardPosition — fica sempre por último, como já
+    // era antes desta mudança.
+    if (!splitBySession) {
+      const none = relevantGroups.find((g) => g.id === null);
+      const real = relevantGroups.filter((g) => g.id !== null).sort((a, b) => a.boardPosition - b.boardPosition);
+      relevantGroups.length = 0;
+      relevantGroups.push(...real);
+      if (none) relevantGroups.push(none);
+    }
+
     const columns = [];
 
     relevantGroups.forEach((g) => {
@@ -510,9 +525,19 @@
         const addTaskAttrs = col.isDateColumn
           ? `data-add-task-date="${col.dateISO || ''}"`
           : `data-add-task-project="${col.projectId || ''}" data-add-task-session="${col.sessionId || ''}"`;
+        // Só colunas de projeto inteiro (sem divisão por sessão, sem ser
+        // "Sem projeto" nem coluna de data) são reordenáveis — o atributo
+        // data-board-project dobra como seletor de linha do
+        // enableReorderDrag, então colunas inelegíveis já saem
+        // automaticamente de jogo como origem e como alvo do arraste.
+        const isReorderable = !!col.projectId && !col.isSessionColumn;
+        const colAttrs = isReorderable ? ` data-board-project="${col.projectId}"` : '';
+        const handle = isReorderable
+          ? `<span class="drag-handle" data-drag-handle title="Arrastar para reordenar">⠿</span>`
+          : '';
         return `
-      <div class="board-column">
-        <h2>${dot}${escapeHtml(col.name)} <span class="count">${col.tasks.length}</span></h2>
+      <div class="board-column"${colAttrs}>
+        <h2>${dot}${escapeHtml(col.name)} <span class="count">${col.tasks.length}</span>${handle}</h2>
         <div class="board-cards">${col.tasks.map((t) => boardCardHtml(t, cardOptions)).join('')}</div>
         <button type="button" class="board-add-task-btn" ${addTaskAttrs}>+ Adicionar tarefa</button>
       </div>`;

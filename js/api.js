@@ -31,10 +31,10 @@
       .order('created_at', { ascending: true });
   }
 
-  function insertProject(userId, { name, color, position }) {
+  function insertProject(userId, { name, color, position, boardPosition }) {
     return supabaseClient
       .from('projects')
-      .insert({ user_id: userId, name, color, position })
+      .insert({ user_id: userId, name, color, position, board_position: boardPosition })
       .select()
       .single();
   }
@@ -49,6 +49,10 @@
 
   function updateProjectPosition(id, position) {
     return supabaseClient.from('projects').update({ position }).eq('id', id).select().single();
+  }
+
+  function updateProjectBoardPosition(id, boardPosition) {
+    return supabaseClient.from('projects').update({ board_position: boardPosition }).eq('id', id).select().single();
   }
 
   function deleteProjectRow(id) {
@@ -327,6 +331,7 @@
     updateProjectRow,
     updateProjectFavorite,
     updateProjectPosition,
+    updateProjectBoardPosition,
     deleteProjectRow,
     deleteProjectCascade,
     deleteTasksByProject,
