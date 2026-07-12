@@ -797,7 +797,10 @@
     const editBtn = e.target.closest('[data-edit-project]');
     if (editBtn) {
       const project = render.projectById(editBtn.dataset.editProject);
-      if (project) openProjectModal(project);
+      if (project) {
+        closeMobileSidebar();
+        openProjectModal(project);
+      }
       return;
     }
     const favBtn = e.target.closest('[data-fav-project]');
@@ -814,7 +817,10 @@
     const editBtn = e.target.closest('[data-edit-tag]');
     if (editBtn) {
       const tag = store.getState().tags.find((t) => t.id === editBtn.dataset.editTag);
-      if (tag) openTagModal(tag);
+      if (tag) {
+        closeMobileSidebar();
+        openTagModal(tag);
+      }
       return;
     }
     const favBtn = e.target.closest('[data-fav-tag]');
@@ -851,11 +857,17 @@
     if (periodBtn) {
       store.setProjectFilter('all');
       store.setPeriod(periodBtn.dataset.quickPeriod);
+      closeAllSearch();
+      setMobileNavActive(null);
+      closeMobileSidebar();
       return;
     }
     if (e.target.closest('[data-quick-recurring]')) {
       store.setProjectFilter('all');
       store.setRecurringOnly(true);
+      closeAllSearch();
+      setMobileNavActive(null);
+      closeMobileSidebar();
     }
   });
 
@@ -871,14 +883,21 @@
   });
 
   newTaskBtn.addEventListener('click', () => openTaskModal(null));
-  newProjectBtn.addEventListener('click', () => openProjectModal(null));
-  newTagBtn.addEventListener('click', () => openTagModal(null));
+  newProjectBtn.addEventListener('click', () => {
+    closeMobileSidebar();
+    openProjectModal(null);
+  });
+  newTagBtn.addEventListener('click', () => {
+    closeMobileSidebar();
+    openTagModal(null);
+  });
 
   // Import do Todoist: botão (agora dentro do menu da engrenagem) fecha o
   // menu e abre o seletor de arquivo escondido; escolher um .csv faz o
   // parsing (puro, js/importTodoist.js) e mostra o preview.
   importTodoistBtn.addEventListener('click', () => {
     accountMenu.hidden = true;
+    closeMobileSidebar();
     importTodoistFileInput.click();
   });
 
@@ -1035,7 +1054,10 @@
     accountModal.hidden = true;
   }
 
-  sidebarAvatar.addEventListener('click', openAccountModal);
+  sidebarAvatar.addEventListener('click', () => {
+    closeMobileSidebar();
+    openAccountModal();
+  });
   accountCancelBtn.addEventListener('click', closeAccountModal);
 
   accountModal.addEventListener('click', (e) => {
