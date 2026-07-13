@@ -8,6 +8,12 @@
     tasks: [],
     tags: [],
     apiTokens: [],
+    campaigns: [],
+    campaignClients: [],
+    // Carregadas sob demanda (loadCampaigns), só quando a tela Campanhas
+    // abre — não fazem parte de loadInitialData, mesmo padrão de apiTokens.
+    campaignsLoaded: false,
+    campaignImportStatus: { loading: false, error: null },
     // Mapa taskId -> [tagId, ...]. Não é persistido: reconstruído a cada
     // loadInitialData a partir das linhas de task_tags.
     taskTags: {},
@@ -140,6 +146,43 @@
     return { id: row.id, taskId: row.task_id, userId: row.user_id, content: row.content, createdAt: row.created_at };
   }
 
+  function mapCampaignFromRow(row) {
+    return {
+      id: row.id,
+      name: row.name,
+      trialDays: row.trial_days,
+      followupProjectId: row.followup_project_id,
+      followupSessionId: row.followup_session_id,
+      fup1Date: row.fup1_date,
+      fup2Date: row.fup2_date,
+      fup3Date: row.fup3_date,
+      fup1Message: row.fup1_message,
+      fup2Message: row.fup2_message,
+      fup3Message: row.fup3_message,
+      status: row.status,
+      createdAt: row.created_at
+    };
+  }
+
+  function mapCampaignClientFromRow(row) {
+    return {
+      id: row.id,
+      campaignId: row.campaign_id,
+      conexaId: row.conexa_id,
+      name: row.name,
+      phone: row.phone,
+      plan: row.plan,
+      status: row.status,
+      fup1Sent: !!row.fup1_sent,
+      fup2Sent: !!row.fup2_sent,
+      fup3Sent: !!row.fup3_sent,
+      trialStart: row.trial_start,
+      followupTaskId: row.followup_task_id,
+      mrr: row.mrr,
+      notes: row.notes
+    };
+  }
+
   function mapTaskFromRow(row) {
     return {
       id: row.id,
@@ -240,6 +283,73 @@
     }
   }
 
+  // Métricas por campanha são calculadas aqui, no client, a partir da
+  // contagem real de campaign_clients por status — nunca persistidas como
+  // coluna agregada (evita duas fontes de verdade dessincronizando).
+  function getCampaignClientCounts(campaignId) {
+    const clients = state.campaignClients.filter((c) => c.campaignId === campaignId);
+    const counts = { total: clients.length, sem_resposta: 0, respondeu: 0, trial: 0, convertido: 0, recusou: 0 };
+    clients.forEach((c) => {
+      counts[c.status] = (counts[c.status] || 0) + 1;
+    });
+    return counts;
+  }
+
+  // Carregado sob demanda (só quando a tela Campanhas abre), não no
+  // loadInitialData geral — mesmo padrão de loadApiTokens.
+  async function loadCampaigns() {
+    const [campaignsRes, clientsRes] = await Promise.all([api.fetchCampaigns(), api.fetchCampaignClients()]);
+    if (campaignsRes.error) {
+      handleMutationError('Falha ao carregar campanhas', campaignsRes.error);
+      return;
+    }
+    if (clientsRes.error) {
+      handleMutationError('Falha ao carregar clientes das campanhas', clientsRes.error);
+      return;
+    }
+    state.campaigns = (campaignsRes.data || []).map(mapCampaignFromRow);
+    state.campaignClients = (clientsRes.data || []).map(mapCampaignClientFromRow);
+    state.campaignsLoaded = true;
+    emit();
+  }
+
+  // Criação de campanha: sem update otimista (é uma inserção em lote de
+  // campanha + clientes, não uma mutação isolada) — mesma exceção do import
+  // do Todoist. Se o insert de campaign_clients falhar, a campanha já
+  // inserida fica inserida (sem rollback parcial); o estado real é
+  // recarregado via loadCampaigns no final.
+  async function createCampaignWithClients(fields, clients) {
+    state.campaignImportStatus = { loading: true, error: null };
+    emit();
+    try {
+      const { data: campaignRow, error: cErr } = await api.insertCampaign(currentUserId, fields);
+      if (cErr) throw cErr;
+
+      if (clients.length > 0) {
+        const rows = clients.map((c) => ({
+          campaign_id: campaignRow.id,
+          user_id: currentUserId,
+          conexa_id: c.conexaId || null,
+          name: c.name,
+          phone: c.phone || null,
+          plan: c.plan || null
+        }));
+        const { error: ccErr } = await api.insertCampaignClientsBatch(rows);
+        if (ccErr) throw ccErr;
+      }
+
+      await loadCampaigns();
+      state.campaignImportStatus = { loading: false, error: null };
+      emit();
+      return { ok: true };
+    } catch (err) {
+      state.campaignImportStatus = { loading: false, error: err };
+      emit();
+      handleMutationError('Falha ao criar campanha (import ficou incompleto)', err);
+      return { ok: false, error: err };
+    }
+  }
+
   function deleteApiToken(id) {
     const removed = state.apiTokens.find((t) => t.id === id);
     state.apiTokens = state.apiTokens.filter((t) => t.id !== id);
@@ -295,6 +405,10 @@
     state.commentsByTask = {};
     state.search = '';
     state.importStatus = { loading: false, error: null };
+    state.campaigns = [];
+    state.campaignClients = [];
+    state.campaignsLoaded = false;
+    state.campaignImportStatus = { loading: false, error: null };
     emit();
   }
 
@@ -1084,6 +1198,7 @@
   }
 
   function setPeriod(period) {
+    state.ui.screen = 'tasks';
     state.ui.period = period;
     state.ui.recurringOnly = false;
     persistUi();
@@ -1091,6 +1206,7 @@
   }
 
   function setProjectFilter(projectId) {
+    state.ui.screen = 'tasks';
     state.ui.projectFilter = projectId;
     state.ui.tagFilter = null;
     state.ui.recurringOnly = false;
@@ -1103,6 +1219,7 @@
   // esteja, por isso zera o filtro de projeto (mesmo "um filtro por vez"
   // que já existia entre projeto e período).
   function setTagFilter(tagId) {
+    state.ui.screen = 'tasks';
     state.ui.tagFilter = tagId;
     state.ui.projectFilter = 'all';
     state.ui.recurringOnly = false;
@@ -1115,7 +1232,18 @@
   // (quem chama já reseta o filtro de projeto antes, ver app.js), mas
   // qualquer um dos outros filtros acima desliga ela de volta.
   function setRecurringOnly(value) {
+    state.ui.screen = 'tasks';
     state.ui.recurringOnly = !!value;
+    persistUi();
+    emit();
+  }
+
+  // Tela "Campanhas": ortogonal a período/projeto/etiqueta — trocar de tela
+  // preserva o filtro que estava ativo antes. Os 4 setters acima já voltam
+  // pra 'tasks' de graça (são o ponto de entrada de toda navegação de
+  // filtro); a exceção manual é a aba mobile "Buscar" (ver js/app.js).
+  function setScreen(screen) {
+    state.ui.screen = screen === 'campaigns' ? 'campaigns' : 'tasks';
     persistUi();
     emit();
   }
@@ -1154,6 +1282,9 @@
     loadApiTokens,
     createApiToken,
     deleteApiToken,
+    getCampaignClientCounts,
+    loadCampaigns,
+    createCampaignWithClients,
     subscribe,
     setAuthErrorHandler,
     loadInitialData,
@@ -1189,6 +1320,7 @@
     setProjectFilter,
     setTagFilter,
     setRecurringOnly,
+    setScreen,
     setSearchQuery,
     setTheme,
     setGroupByProject,

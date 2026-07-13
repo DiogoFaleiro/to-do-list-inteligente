@@ -8,7 +8,8 @@
     recurringOnly: false,
     theme: 'system',
     groupByProject: false,
-    showCompleted: true
+    showCompleted: true,
+    screen: 'tasks'
   };
 
   function load() {

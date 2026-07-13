@@ -30,7 +30,17 @@
     groupByProjectMenuBtn: document.getElementById('groupByProjectMenuBtn'),
     importTodoistTree: document.getElementById('importTodoistTree'),
     importTodoistWarnings: document.getElementById('importTodoistWarnings'),
-    importTagsSection: document.getElementById('importTagsSection')
+    importTagsSection: document.getElementById('importTagsSection'),
+    tasksScreen: document.getElementById('tasksScreen'),
+    campaignsView: document.getElementById('campaignsView'),
+    campaignsListEl: document.getElementById('campaignsListEl'),
+    quickFilterCampaigns: document.getElementById('quickFilterCampaigns'),
+    campaignProjectSelect: document.getElementById('campaignProjectSelect'),
+    campaignSessionRow: document.getElementById('campaignSessionRow'),
+    campaignSessionSelect: document.getElementById('campaignSessionSelect'),
+    campaignImportTable: document.getElementById('campaignImportTable'),
+    campaignImportTableBody: document.getElementById('campaignImportTableBody'),
+    campaignImportWarnings: document.getElementById('campaignImportWarnings')
   };
 
   const PERIOD_TITLES = { today: 'Hoje', week: 'Em breve', month: 'Mês', all: 'Todas as tarefas' };
@@ -595,8 +605,85 @@
         .join('');
   }
 
+  function renderCampaignProjectOptions(selectedId) {
+    const state = store.getState();
+    els.campaignProjectSelect.innerHTML =
+      `<option value="">Sem projeto</option>` +
+      state.projects
+        .map((p) => `<option value="${p.id}" ${p.id === selectedId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`)
+        .join('');
+  }
+
+  // Mesmo padrão de renderTaskSessionOptions: só mostra o campo "Sessão"
+  // quando o projeto selecionado tiver alguma sessão cadastrada.
+  function renderCampaignSessionOptions(projectId, selectedId) {
+    const sessions = projectId ? store.getSessionsForProject(projectId) : [];
+    els.campaignSessionRow.hidden = sessions.length === 0;
+    els.campaignSessionSelect.innerHTML =
+      `<option value="">Sem sessão</option>` +
+      sessions
+        .map((s) => `<option value="${s.id}" ${s.id === selectedId ? 'selected' : ''}>${escapeHtml(s.name)}</option>`)
+        .join('');
+  }
+
+  // Preview do import de clientes (planilha .xlsx do Conexa) — todos os
+  // checkboxes vêm marcados por padrão; texto de origem externa (nome/
+  // celular/plano vindos da planilha) sempre passa por escapeHtml.
+  function renderCampaignImportPreview(parsed) {
+    els.campaignImportWarnings.hidden = !parsed.warnings.length;
+    els.campaignImportWarnings.innerHTML = parsed.warnings.length
+      ? `<ul>${parsed.warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join('')}</ul>`
+      : '';
+    els.campaignImportTable.hidden = parsed.clients.length === 0;
+    els.campaignImportTableBody.innerHTML = parsed.clients
+      .map(
+        (c, i) => `
+        <tr>
+          <td><input type="checkbox" data-campaign-client-check="${i}" checked></td>
+          <td>${escapeHtml(c.name)}</td>
+          <td>${escapeHtml(c.phone || '')}</td>
+          <td>${escapeHtml(c.plan || '')}</td>
+        </tr>`
+      )
+      .join('');
+  }
+
+  const CAMPAIGN_STATUS_LABEL = { ativa: 'Ativa', encerrada: 'Encerrada' };
+
+  function renderCampaignsList() {
+    const state = store.getState();
+    if (!state.campaignsLoaded) {
+      els.campaignsListEl.innerHTML = `<p class="empty-state">Carregando campanhas...</p>`;
+      return;
+    }
+    if (!state.campaigns.length) {
+      els.campaignsListEl.innerHTML = `<p class="empty-state">Nenhuma campanha ainda. Crie a primeira acima.</p>`;
+      return;
+    }
+    els.campaignsListEl.innerHTML = state.campaigns
+      .map((c) => {
+        const counts = store.getCampaignClientCounts(c.id);
+        const project = c.followupProjectId ? projectById(c.followupProjectId) : null;
+        return `
+        <div class="campaign-row">
+          <div class="campaign-row-name">${escapeHtml(c.name)}
+            <span class="campaign-status-badge campaign-status-${c.status}">${escapeHtml(CAMPAIGN_STATUS_LABEL[c.status] || c.status)}</span>
+          </div>
+          <div class="campaign-row-meta">
+            ${counts.total} cliente${counts.total === 1 ? '' : 's'}
+            · ${counts.trial} em trial · ${counts.convertido} convertido${counts.convertido === 1 ? '' : 's'}
+            ${project ? `· ${escapeHtml(project.name)}` : ''}
+          </div>
+        </div>`;
+      })
+      .join('');
+  }
+
   function renderToolbarState() {
     const state = store.getState();
+    if (els.quickFilterCampaigns) {
+      els.quickFilterCampaigns.classList.toggle('active', state.ui.screen === 'campaigns');
+    }
     els.periodTabs.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.period === state.ui.period));
     els.viewToggle.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.view === state.ui.view));
     els.listView.hidden = state.ui.view !== 'list';
@@ -776,7 +863,12 @@
     renderToolbarState();
     applyTheme();
     const state = store.getState();
-    if (state.ui.view === 'list') {
+    const isCampaigns = state.ui.screen === 'campaigns';
+    els.tasksScreen.hidden = isCampaigns;
+    els.campaignsView.hidden = !isCampaigns;
+    if (isCampaigns) {
+      renderCampaignsList();
+    } else if (state.ui.view === 'list') {
       renderList();
     } else {
       renderBoard();
@@ -793,6 +885,10 @@
     toggleTaskMenu,
     closeTaskMenu,
     updateBoardDotsActive,
-    renderImportPreview
+    renderImportPreview,
+    renderCampaignProjectOptions,
+    renderCampaignSessionOptions,
+    renderCampaignImportPreview,
+    renderCampaignsList
   };
 })(window.App = window.App || {});

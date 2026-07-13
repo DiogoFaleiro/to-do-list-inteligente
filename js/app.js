@@ -30,6 +30,29 @@
   const importTodoistCancelBtn = document.getElementById('importTodoistCancelBtn');
   const importTodoistConfirmBtn = document.getElementById('importTodoistConfirmBtn');
   const importTagsSection = document.getElementById('importTagsSection');
+
+  // Tela "Campanhas" e modal de criação (com import de clientes via xlsx)
+  const newCampaignBtn = document.getElementById('newCampaignBtn');
+  const campaignCreateModal = document.getElementById('campaignCreateModal');
+  const campaignNameInput = document.getElementById('campaignNameInput');
+  const campaignTrialDaysInput = document.getElementById('campaignTrialDaysInput');
+  const campaignProjectSelect = document.getElementById('campaignProjectSelect');
+  const campaignSessionSelect = document.getElementById('campaignSessionSelect');
+  const campaignFup1Date = document.getElementById('campaignFup1Date');
+  const campaignFup2Date = document.getElementById('campaignFup2Date');
+  const campaignFup3Date = document.getElementById('campaignFup3Date');
+  const campaignFup1Message = document.getElementById('campaignFup1Message');
+  const campaignFup2Message = document.getElementById('campaignFup2Message');
+  const campaignFup3Message = document.getElementById('campaignFup3Message');
+  const campaignChooseFileBtn = document.getElementById('campaignChooseFileBtn');
+  const campaignImportFileInput = document.getElementById('campaignImportFileInput');
+  const campaignImportFileName = document.getElementById('campaignImportFileName');
+  const campaignImportTableBody = document.getElementById('campaignImportTableBody');
+  const campaignImportWarnings = document.getElementById('campaignImportWarnings');
+  const campaignImportTable = document.getElementById('campaignImportTable');
+  const campaignCreateCancelBtn = document.getElementById('campaignCreateCancelBtn');
+  const campaignCreateConfirmBtn = document.getElementById('campaignCreateConfirmBtn');
+
   const listView = document.getElementById('listView');
   const boardView = document.getElementById('boardView');
   const groupByProjectToggleBtn = document.getElementById('groupByProjectToggleBtn');
@@ -92,6 +115,10 @@
   // Estrutura parseada do .csv escolhido, em espera até o usuário confirmar
   // o import no modal de preview (ou cancelar, o que descarta ela).
   let pendingImportParsed = null;
+  // Clientes parseados da planilha .xlsx escolhida no modal de criação de
+  // campanha — a seleção via checkbox é lida direto do DOM na confirmação
+  // (mesmo padrão de pendingImportParsed/data-import-tag-name).
+  let pendingCampaignClients = null;
 
   // Modal de tarefa
   const taskModal = document.getElementById('taskModal');
@@ -868,6 +895,15 @@
       closeAllSearch();
       setMobileNavActive(null);
       closeMobileSidebar();
+      return;
+    }
+    const screenBtn = e.target.closest('[data-quick-screen]');
+    if (screenBtn) {
+      store.setScreen(screenBtn.dataset.quickScreen);
+      closeAllSearch();
+      setMobileNavActive(null);
+      closeMobileSidebar();
+      if (!store.getState().campaignsLoaded) store.loadCampaigns();
     }
   });
 
@@ -948,6 +984,103 @@
     }
     // Erro: handleMutationError (store.js) já alertou; modal fica aberto
     // pra o usuário tentar de novo sem perder o preview/nome digitado.
+  });
+
+  function openCampaignCreateModal() {
+    campaignNameInput.value = '';
+    campaignTrialDaysInput.value = 7;
+    campaignFup1Date.value = '';
+    campaignFup2Date.value = '';
+    campaignFup3Date.value = '';
+    campaignFup1Message.value = '';
+    campaignFup2Message.value = '';
+    campaignFup3Message.value = '';
+    campaignImportFileName.textContent = '';
+    campaignImportTableBody.innerHTML = '';
+    campaignImportTable.hidden = true;
+    campaignImportWarnings.hidden = true;
+    pendingCampaignClients = null;
+    render.renderCampaignProjectOptions(null);
+    render.renderCampaignSessionOptions(null, null);
+    campaignCreateModal.hidden = false;
+  }
+
+  function closeCampaignCreateModal() {
+    campaignCreateModal.hidden = true;
+    pendingCampaignClients = null;
+  }
+
+  newCampaignBtn.addEventListener('click', openCampaignCreateModal);
+  campaignCreateCancelBtn.addEventListener('click', closeCampaignCreateModal);
+  campaignCreateModal.addEventListener('click', (e) => {
+    if (e.target === campaignCreateModal) closeCampaignCreateModal();
+  });
+
+  campaignProjectSelect.addEventListener('change', () => {
+    render.renderCampaignSessionOptions(campaignProjectSelect.value || null, null);
+  });
+
+  campaignChooseFileBtn.addEventListener('click', () => {
+    // Pré-carrega em paralelo com a escolha do arquivo; erro real é tratado
+    // no handler de 'change' abaixo (aqui é só uma otimização de tempo).
+    App.importCampaigns.loadSheetJs().catch(() => {});
+    campaignImportFileInput.click();
+  });
+
+  campaignImportFileInput.addEventListener('change', async () => {
+    const file = campaignImportFileInput.files[0];
+    campaignImportFileInput.value = '';
+    if (!file) return;
+    campaignImportFileName.textContent = 'Carregando...';
+    try {
+      await App.importCampaigns.loadSheetJs();
+      const buffer = await file.arrayBuffer();
+      const parsed = App.importCampaigns.parseWorkbook(buffer);
+      pendingCampaignClients = parsed.clients;
+      campaignImportFileName.textContent = file.name;
+      render.renderCampaignImportPreview(parsed);
+    } catch (err) {
+      console.error('Falha ao importar planilha de clientes', err);
+      campaignImportFileName.textContent = '';
+      pendingCampaignClients = null;
+      alert('Não foi possível ler a planilha. Verifique sua conexão com a internet (a leitura de .xlsx depende de uma biblioteca carregada por CDN) e se o arquivo é um .xlsx válido.');
+    }
+  });
+
+  campaignCreateConfirmBtn.addEventListener('click', async () => {
+    if (!campaignNameInput.value.trim()) {
+      campaignNameInput.focus();
+      return;
+    }
+    campaignCreateConfirmBtn.disabled = true;
+    campaignCreateConfirmBtn.textContent = 'Criando...';
+
+    // Seleção via checkbox é lida direto do DOM na confirmação, não
+    // espelhada em array JS paralelo (mesmo padrão do import Todoist).
+    const checkedIdx = [...campaignImportTableBody.querySelectorAll('[data-campaign-client-check]')]
+      .filter((cb) => cb.checked)
+      .map((cb) => Number(cb.dataset.campaignClientCheck));
+    const clients = (pendingCampaignClients || []).filter((_, i) => checkedIdx.includes(i));
+
+    const fields = {
+      name: campaignNameInput.value.trim(),
+      trialDays: Number(campaignTrialDaysInput.value) || 7,
+      followupProjectId: campaignProjectSelect.value || null,
+      followupSessionId: campaignSessionSelect.value || null,
+      fup1Date: campaignFup1Date.value || null,
+      fup2Date: campaignFup2Date.value || null,
+      fup3Date: campaignFup3Date.value || null,
+      fup1Message: campaignFup1Message.value.trim() || null,
+      fup2Message: campaignFup2Message.value.trim() || null,
+      fup3Message: campaignFup3Message.value.trim() || null
+    };
+
+    const result = await store.createCampaignWithClients(fields, clients);
+    campaignCreateConfirmBtn.disabled = false;
+    campaignCreateConfirmBtn.textContent = 'Criar campanha';
+    if (result.ok) closeCampaignCreateModal();
+    // Erro: handleMutationError (store.js) já alertou; modal fica aberto
+    // pra o usuário tentar de novo sem perder os campos preenchidos.
   });
 
   // Navegação mobile: sidebar vira painel "Navegar", rodapé fixo, menu ⋮ de período
@@ -1177,6 +1310,7 @@
         store.setProjectFilter('all');
         store.setPeriod('week');
       } else if (tab === 'search') {
+        store.setScreen('tasks');
         closeMobileSidebar();
         boardView.hidden = true;
         listView.hidden = false;

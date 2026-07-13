@@ -1757,6 +1757,143 @@ a.btn-danger {
   font-size: 0.9rem;
 }
 
+/* #tasksScreen reproduz o layout que .main tinha antes de virar um wrapper
+   com dois filhos (tasksScreen/campaignsView) — só um dos dois é visível
+   por vez, alternado por state.ui.screen. */
+#tasksScreen {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.campaigns-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.campaigns-view[hidden] {
+  display: none;
+}
+
+.campaigns-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.campaigns-view-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.campaigns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.campaign-row {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.campaign-row-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.campaign-row-meta {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.campaign-status-badge {
+  font-size: 0.75rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+  background: var(--border);
+  color: var(--text-muted);
+}
+
+.campaign-status-ativa {
+  background: var(--success-tint);
+  color: var(--success);
+}
+
+.campaign-status-encerrada {
+  background: var(--border);
+  color: var(--text-muted);
+}
+
+/* Seletor composto (.modal.modal-wide) já garante a mesma vitória de
+   especificidade usada pelo import do Todoist — reaproveitado aqui. */
+.campaign-create-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) 1fr;
+  gap: 20px;
+}
+
+.campaign-create-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.campaign-create-fields textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+.campaign-create-preview {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.campaign-import-filename {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.campaign-import-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.campaign-import-table[hidden] {
+  display: none;
+}
+
+.campaign-import-table th,
+.campaign-import-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+@media (max-width: 940px) {
+  .campaign-create-body {
+    grid-template-columns: 1fr;
+  }
+}
+
 .import-tags-label {
   font-size: 0.8rem;
   color: var(--text-muted);

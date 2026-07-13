@@ -261,6 +261,55 @@
     return supabaseClient.from('tasks').insert(rows).select();
   }
 
+  function fetchCampaigns() {
+    return supabaseClient.from('campaigns').select('*').order('created_at', { ascending: false });
+  }
+
+  // Sem filtro por campaign_id aqui — RLS já restringe ao dono; a
+  // filtragem por campanha acontece em memória no store (mesmo padrão de
+  // getSessionsForProject).
+  function fetchCampaignClients() {
+    return supabaseClient.from('campaign_clients').select('*');
+  }
+
+  function insertCampaign(userId, {
+    name,
+    trialDays,
+    followupProjectId,
+    followupSessionId,
+    fup1Date,
+    fup2Date,
+    fup3Date,
+    fup1Message,
+    fup2Message,
+    fup3Message
+  }) {
+    return supabaseClient
+      .from('campaigns')
+      .insert({
+        user_id: userId,
+        name,
+        trial_days: trialDays,
+        followup_project_id: followupProjectId || null,
+        followup_session_id: followupSessionId || null,
+        fup1_date: fup1Date || null,
+        fup2_date: fup2Date || null,
+        fup3_date: fup3Date || null,
+        fup1_message: fup1Message || null,
+        fup2_message: fup2Message || null,
+        fup3_message: fup3Message || null
+      })
+      .select()
+      .single();
+  }
+
+  // Insere vários clientes de uma vez (usado pela criação de campanha) — o
+  // chamador monta as linhas prontas (snake_case), mesmo padrão de
+  // insertSessionsBatch/insertTasksBatch.
+  function insertCampaignClientsBatch(rows) {
+    return supabaseClient.from('campaign_clients').insert(rows).select();
+  }
+
   async function fetchAdminStats() {
     const { data, error } = await supabaseClient.rpc('admin_dashboard_stats');
     if (error) throw error;
@@ -364,6 +413,10 @@
     insertCommentsBatch,
     insertProjectsBatch,
     insertTasksBatch,
+    fetchCampaigns,
+    fetchCampaignClients,
+    insertCampaign,
+    insertCampaignClientsBatch,
     fetchAdminStats,
     fetchAdminTasksByWeekday,
     fetchAdminUserList,
