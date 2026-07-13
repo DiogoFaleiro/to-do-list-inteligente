@@ -33,6 +33,7 @@
 
   // Tela "Campanhas" e modal de criação (com import de clientes via xlsx)
   const newCampaignBtn = document.getElementById('newCampaignBtn');
+  const campaignsListEl = document.getElementById('campaignsListEl');
   const campaignCreateModal = document.getElementById('campaignCreateModal');
   const campaignNameInput = document.getElementById('campaignNameInput');
   const campaignTrialDaysInput = document.getElementById('campaignTrialDaysInput');
@@ -905,6 +906,14 @@
       closeMobileSidebar();
       if (!store.getState().campaignsLoaded) store.loadCampaigns();
     }
+  });
+
+  // Botão "Tentar de novo" do estado de erro (ver renderCampaignsList) —
+  // delegado no container, já que o botão só existe no DOM quando há erro.
+  // loadCampaigns() já se protege contra chamada concorrente sozinho, então
+  // não precisa de guard aqui: sempre pode disparar de novo.
+  campaignsListEl.addEventListener('click', (e) => {
+    if (e.target.closest('[data-campaigns-retry]')) store.loadCampaigns();
   });
 
   viewToggle.addEventListener('click', (e) => {
@@ -2063,6 +2072,18 @@
       await migrate.migrateIfNeeded(user.id);
       ensureSubscribed();
       await store.loadInitialData(user.id);
+
+      // Gatilho de boot da tela Campanhas: ancorado aqui de propósito —
+      // só depois da sessão restaurada (parâmetro user já veio de uma
+      // sessão válida) e do loadInitialData concluído, nunca antes (senão
+      // corre risco de disparar com a sessão do Supabase ainda não pronta).
+      // Sem await: a UI mostra "Carregando campanhas..." via
+      // renderCampaignsList enquanto a busca está em voo, sem bloquear o
+      // resto do boot. Refresh direto na tela Campanhas cai aqui (o clique
+      // na sidebar não roda, já que o usuário nunca clicou).
+      if (store.getState().ui.screen === 'campaigns' && !store.getState().campaignsLoaded) {
+        store.loadCampaigns();
+      }
 
       authLoadingScreen.hidden = true;
       authScreen.hidden = true;

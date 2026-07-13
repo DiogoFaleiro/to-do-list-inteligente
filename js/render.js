@@ -652,6 +652,18 @@
 
   function renderCampaignsList() {
     const state = store.getState();
+    // Três estados possíveis: erro (com retry), carregando (ainda não
+    // carregou com sucesso nenhuma vez) e carregado (lista ou empty state).
+    // Nunca "loading eterno": loadCampaigns sempre sai de campaignsLoading
+    // pra um dos outros dois, sucesso ou erro (ver js/store.js).
+    if (state.campaignsError) {
+      els.campaignsListEl.innerHTML = `
+        <div class="empty-state">
+          <p>Não foi possível carregar as campanhas.</p>
+          <button type="button" class="btn-secondary" data-campaigns-retry>Tentar de novo</button>
+        </div>`;
+      return;
+    }
     if (!state.campaignsLoaded) {
       els.campaignsListEl.innerHTML = `<p class="empty-state">Carregando campanhas...</p>`;
       return;

@@ -13,6 +13,14 @@
     // Carregadas sob demanda (loadCampaigns), só quando a tela Campanhas
     // abre — não fazem parte de loadInitialData, mesmo padrão de apiTokens.
     campaignsLoaded: false,
+    // true só enquanto uma chamada a loadCampaigns está em voo — usado pra
+    // não disparar duas buscas concorrentes (gatilho de boot + clique na
+    // sidebar podem competir). Sempre volta a false ao final (sucesso ou
+    // erro), então um retry nunca fica bloqueado.
+    campaignsLoading: false,
+    // Preenchido quando loadCampaigns falha — permite a UI mostrar um
+    // estado de erro com botão "Tentar de novo" em vez de loading eterno.
+    campaignsError: null,
     campaignImportStatus: { loading: false, error: null },
     // Mapa taskId -> [tagId, ...]. Não é persistido: reconstruído a cada
     // loadInitialData a partir das linhas de task_tags.
@@ -297,20 +305,35 @@
 
   // Carregado sob demanda (só quando a tela Campanhas abre), não no
   // loadInitialData geral — mesmo padrão de loadApiTokens.
+  // Guard contra chamadas concorrentes (gatilho de boot + clique na
+  // sidebar podem disparar quase juntos) — nunca contra retry sequencial:
+  // campaignsLoading sempre volta a false no fim, sucesso ou erro, então
+  // um clique em "Tentar de novo" depois de uma falha sempre dispara de novo.
   async function loadCampaigns() {
-    const [campaignsRes, clientsRes] = await Promise.all([api.fetchCampaigns(), api.fetchCampaignClients()]);
-    if (campaignsRes.error) {
-      handleMutationError('Falha ao carregar campanhas', campaignsRes.error);
-      return;
-    }
-    if (clientsRes.error) {
-      handleMutationError('Falha ao carregar clientes das campanhas', clientsRes.error);
-      return;
-    }
-    state.campaigns = (campaignsRes.data || []).map(mapCampaignFromRow);
-    state.campaignClients = (clientsRes.data || []).map(mapCampaignClientFromRow);
-    state.campaignsLoaded = true;
+    if (state.campaignsLoading) return;
+    state.campaignsLoading = true;
+    state.campaignsError = null;
     emit();
+    try {
+      const [campaignsRes, clientsRes] = await Promise.all([api.fetchCampaigns(), api.fetchCampaignClients()]);
+      const error = campaignsRes.error || clientsRes.error;
+      if (error) throw error;
+      state.campaigns = (campaignsRes.data || []).map(mapCampaignFromRow);
+      state.campaignClients = (clientsRes.data || []).map(mapCampaignClientFromRow);
+      state.campaignsLoaded = true;
+      state.campaignsLoading = false;
+      state.campaignsError = null;
+      emit();
+    } catch (error) {
+      console.error('Falha ao carregar campanhas', error);
+      state.campaignsLoading = false;
+      state.campaignsError = error;
+      emit();
+      // Erro de autenticação (ex: JWT expirado) força logout, igual ao
+      // resto do app — sem alert() aqui: a UI já mostra o estado de erro
+      // com "Tentar de novo", um alert bloqueante seria redundante.
+      if (isAuthError(error) && onAuthError) onAuthError();
+    }
   }
 
   // Criação de campanha: sem update otimista (é uma inserção em lote de
@@ -408,6 +431,8 @@
     state.campaigns = [];
     state.campaignClients = [];
     state.campaignsLoaded = false;
+    state.campaignsLoading = false;
+    state.campaignsError = null;
     state.campaignImportStatus = { loading: false, error: null };
     emit();
   }
