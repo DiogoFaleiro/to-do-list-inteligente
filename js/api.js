@@ -321,6 +321,7 @@
     if (patch.trialStart !== undefined) payload.trial_start = patch.trialStart;
     if (patch.mrr !== undefined) payload.mrr = patch.mrr;
     if (patch.notes !== undefined) payload.notes = patch.notes;
+    if (patch.followupTaskId !== undefined) payload.followup_task_id = patch.followupTaskId;
     return supabaseClient.from('campaign_clients').update(payload).eq('id', id).select().single();
   }
 

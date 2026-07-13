@@ -416,19 +416,53 @@
   // Mutação otimista genérica de 1 patch por vez (nunca mistura campos de
   // fontes diferentes no mesmo patch) — molde de toggleProjectFavorite/
   // updateProject: snapshot, muta, emit, chama API, reverte no erro.
-  function updateCampaignClientField(id, patch) {
+  // Ao ativar trial (patch.status === 'trial'): marca trial_start = hoje
+  // (só se ainda vazio) no mesmo patch, e — de forma assíncrona, depois da
+  // mutação otimista já ter emitido — cria a tarefa de acompanhamento pelo
+  // fluxo normal do app (addTask), guardando o id em followup_task_id.
+  // Idempotente por followupTaskId (não por status): sair e voltar pra
+  // trial não duplica a tarefa. 'convertido'/'recusou' não tocam nisso —
+  // são só o patch genérico normal, encerramento da tarefa é manual.
+  async function updateCampaignClientField(id, patch) {
     const c = state.campaignClients.find((x) => x.id === id);
     if (!c) return;
     const previous = { ...c };
-    Object.assign(c, patch);
+    const isActivatingTrial = patch.status === 'trial';
+    const effectivePatch = { ...patch };
+    if (isActivatingTrial && !c.trialStart) {
+      effectivePatch.trialStart = utils.todayISO();
+    }
+
+    Object.assign(c, effectivePatch);
     emit();
-    api.updateCampaignClientRow(id, patch).then(({ error }) => {
+    api.updateCampaignClientRow(id, effectivePatch).then(({ error }) => {
       if (error) {
         Object.assign(c, previous);
         emit();
         handleMutationError('Falha ao atualizar cliente da campanha', error);
       }
     });
+
+    if (!isActivatingTrial || previous.followupTaskId) return;
+
+    const campaign = state.campaigns.find((camp) => camp.id === c.campaignId);
+    if (!campaign || !campaign.followupProjectId) {
+      console.error('Trial ativado sem projeto de destino configurado na campanha', c.campaignId);
+      alert(
+        'Cliente marcado como trial, mas a campanha não tem projeto de destino configurado — a tarefa de acompanhamento não foi criada. Configure o projeto na campanha e crie a tarefa manualmente se precisar.'
+      );
+      return;
+    }
+
+    const task = await addTask({
+      title: `Acompanhar trial: ${c.name} (${c.phone || ''})`,
+      projectId: campaign.followupProjectId,
+      sessionId: campaign.followupSessionId || null,
+      dueDate: utils.addDaysISO(utils.todayISO(), 7)
+    });
+    if (task) {
+      updateCampaignClientField(id, { followupTaskId: task.id });
+    }
   }
 
   // Encerrar/reativar campanha — mesma função nos dois sentidos.
