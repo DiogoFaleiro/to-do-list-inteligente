@@ -31,6 +31,9 @@
     commentsByTask: {},
     // Texto de busca digitado no momento — não persiste entre recarregamentos.
     search: '',
+    // Filtro rápido de status na tela de detalhe da campanha — efêmero,
+    // igual "search" acima: não persiste, reseta a cada openCampaignDetail.
+    campaignClientStatusFilter: 'all',
     // Estado do import do Todoist (sem otimismo — a UI só mostra loading).
     importStatus: { loading: false, error: null },
     ui: localPrefs.load()
@@ -303,6 +306,43 @@
     return counts;
   }
 
+  // Métricas do cabeçalho da tela de detalhe — distinta de
+  // getCampaignClientCounts (que é contagem EXATA por status, usada só na
+  // lista). Aqui "responded" é status ALÉM de sem_resposta (respondeu +
+  // trial + convertido + recusou somados), não o status literal
+  // "respondeu" — fácil de confundir com counts.respondeu acima, que é
+  // outra coisa. Recalcula do zero a cada chamada: como toda mutação de
+  // cliente passa por emit() -> renderAll() -> renderCampaignDetail(), as
+  // métricas atualizam sozinhas, sem nenhuma assinatura/cache.
+  function getCampaignMetrics(campaignId) {
+    const clients = state.campaignClients.filter((c) => c.campaignId === campaignId);
+    const total = clients.length;
+    const responded = clients.filter((c) => c.status !== 'sem_resposta').length;
+    const trial = clients.filter((c) => c.status === 'trial').length;
+    const convertido = clients.filter((c) => c.status === 'convertido').length;
+    const mrrAdicional = clients
+      .filter((c) => c.status === 'convertido')
+      .reduce((sum, c) => sum + (Number(c.mrr) || 0), 0);
+    const conversionRate = total > 0 ? convertido / total : 0;
+    return { total, responded, trial, convertido, mrrAdicional, conversionRate };
+  }
+
+  // Navegação pra tela de detalhe — screen/campaignDetailId persistem
+  // (mesmo mecanismo de projectFilter/tagFilter), então F5 dentro do
+  // detalhe reabre na mesma campanha.
+  function openCampaignDetail(campaignId) {
+    state.ui.screen = 'campaignDetail';
+    state.ui.campaignDetailId = campaignId;
+    state.campaignClientStatusFilter = 'all';
+    persistUi();
+    emit();
+  }
+
+  function setCampaignClientStatusFilter(status) {
+    state.campaignClientStatusFilter = status;
+    emit();
+  }
+
   // Carregado sob demanda (só quando a tela Campanhas abre), não no
   // loadInitialData geral — mesmo padrão de loadApiTokens.
   // Guard contra chamadas concorrentes (gatilho de boot + clique na
@@ -373,6 +413,64 @@
     }
   }
 
+  // Mutação otimista genérica de 1 patch por vez (nunca mistura campos de
+  // fontes diferentes no mesmo patch) — molde de toggleProjectFavorite/
+  // updateProject: snapshot, muta, emit, chama API, reverte no erro.
+  function updateCampaignClientField(id, patch) {
+    const c = state.campaignClients.find((x) => x.id === id);
+    if (!c) return;
+    const previous = { ...c };
+    Object.assign(c, patch);
+    emit();
+    api.updateCampaignClientRow(id, patch).then(({ error }) => {
+      if (error) {
+        Object.assign(c, previous);
+        emit();
+        handleMutationError('Falha ao atualizar cliente da campanha', error);
+      }
+    });
+  }
+
+  // Encerrar/reativar campanha — mesma função nos dois sentidos.
+  function setCampaignStatus(id, status) {
+    const camp = state.campaigns.find((x) => x.id === id);
+    if (!camp) return;
+    const previous = camp.status;
+    camp.status = status;
+    emit();
+    api.updateCampaignRow(id, { status }).then(({ error }) => {
+      if (error) {
+        camp.status = previous;
+        emit();
+        handleMutationError('Falha ao atualizar status da campanha', error);
+      }
+    });
+  }
+
+  // Sem RPC: campaign_clients.campaign_id já tem "on delete cascade" (ver
+  // migration 0015), então o DELETE simples já cascateia no banco sozinho.
+  // O strip local de campaignClients é só o espelho otimista, mesmo padrão
+  // de deleteProject com sessions/tasks.
+  function deleteCampaign(id) {
+    const removedCampaign = state.campaigns.find((c) => c.id === id);
+    const removedClients = state.campaignClients.filter((c) => c.campaignId === id);
+    state.campaigns = state.campaigns.filter((c) => c.id !== id);
+    state.campaignClients = state.campaignClients.filter((c) => c.campaignId !== id);
+    emit();
+    api.deleteCampaignRow(id).then(({ error }) => {
+      if (error) {
+        // Reinsere no fim do array (não na posição original) — a ordem
+        // exata só é restaurada no próximo loadCampaigns() (reordena por
+        // created_at). Transitório e intencional: só afeta a ordem visual
+        // por um instante após uma falha de exclusão, nunca os dados.
+        if (removedCampaign) state.campaigns.push(removedCampaign);
+        state.campaignClients = state.campaignClients.concat(removedClients);
+        emit();
+        handleMutationError('Falha ao excluir campanha', error);
+      }
+    });
+  }
+
   function deleteApiToken(id) {
     const removed = state.apiTokens.find((t) => t.id === id);
     state.apiTokens = state.apiTokens.filter((t) => t.id !== id);
@@ -434,6 +532,7 @@
     state.campaignsLoading = false;
     state.campaignsError = null;
     state.campaignImportStatus = { loading: false, error: null };
+    state.campaignClientStatusFilter = 'all';
     emit();
   }
 
@@ -1296,6 +1395,14 @@
     emit();
   }
 
+  // "Encerrar" tira a campanha da lista padrão sem escondê-la de vez —
+  // este toggle é como ela continua acessível (persiste, igual showCompleted).
+  function setShowEncerradas(showEncerradas) {
+    state.ui.showEncerradas = !!showEncerradas;
+    persistUi();
+    emit();
+  }
+
   App.store = {
     getState,
     getFilteredTasks,
@@ -1308,8 +1415,14 @@
     createApiToken,
     deleteApiToken,
     getCampaignClientCounts,
+    getCampaignMetrics,
     loadCampaigns,
     createCampaignWithClients,
+    openCampaignDetail,
+    updateCampaignClientField,
+    setCampaignStatus,
+    deleteCampaign,
+    setCampaignClientStatusFilter,
     subscribe,
     setAuthErrorHandler,
     loadInitialData,
@@ -1349,6 +1462,7 @@
     setSearchQuery,
     setTheme,
     setGroupByProject,
-    setShowCompleted
+    setShowCompleted,
+    setShowEncerradas
   };
 })(window.App = window.App || {});

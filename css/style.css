@@ -1894,6 +1894,179 @@ a.btn-danger {
   }
 }
 
+.campaigns-view-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.campaigns-show-ended-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.campaign-row {
+  cursor: pointer;
+}
+
+.campaign-row:hover {
+  border-color: var(--primary);
+}
+
+/* Tela de detalhe da campanha — conteúdo normal de fluxo (sem
+   position:fixed/z-index), igual .campaigns-view, pra não conflitar com o
+   drawer mobile (.sidebar.mobile-open, z-index 130) nem o bottom nav
+   (z-index 140). */
+.campaign-detail-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.campaign-detail-view[hidden] {
+  display: none;
+}
+
+.campaign-detail-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.campaign-detail-name {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.campaign-detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.campaign-detail-header-actions .btn-danger {
+  margin-right: 0;
+}
+
+.campaign-detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.campaign-metric-tile {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.campaign-metric-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.campaign-metric-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.campaign-detail-project {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.campaign-detail-messages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.campaign-detail-message {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.campaign-detail-message label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.campaign-detail-message textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.campaign-detail-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.campaign-detail-filter button {
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.campaign-detail-filter button.active {
+  background: var(--primary-tint);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* Único container de scroll da tabela (nunca aninhar dois) — mesma
+   filosofia do .board-view: scroll horizontal deliberado, sem esconder
+   coluna, funciona igual em qualquer largura. */
+.campaign-clients-table-wrap {
+  overflow-x: auto;
+}
+
+.campaign-clients-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.campaign-clients-table th,
+.campaign-clients-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.campaign-clients-table textarea {
+  min-height: 32px;
+  min-width: 140px;
+  resize: vertical;
+  white-space: normal;
+}
+
+.campaign-clients-table input[type='number'] {
+  width: 90px;
+}
+
 .import-tags-label {
   font-size: 0.8rem;
   color: var(--text-muted);

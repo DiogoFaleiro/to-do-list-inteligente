@@ -310,6 +310,34 @@
     return supabaseClient.from('campaign_clients').insert(rows).select();
   }
 
+  // Payload condicional (mesmo padrão de updateProfile) — patch é um objeto
+  // parcial em camelCase, só os campos presentes viram coluna no update.
+  function updateCampaignClientRow(id, patch) {
+    const payload = {};
+    if (patch.status !== undefined) payload.status = patch.status;
+    if (patch.fup1Sent !== undefined) payload.fup1_sent = patch.fup1Sent;
+    if (patch.fup2Sent !== undefined) payload.fup2_sent = patch.fup2Sent;
+    if (patch.fup3Sent !== undefined) payload.fup3_sent = patch.fup3Sent;
+    if (patch.trialStart !== undefined) payload.trial_start = patch.trialStart;
+    if (patch.mrr !== undefined) payload.mrr = patch.mrr;
+    if (patch.notes !== undefined) payload.notes = patch.notes;
+    return supabaseClient.from('campaign_clients').update(payload).eq('id', id).select().single();
+  }
+
+  // Mesmo formato condicional — só status é usado nesta fase, mas escrito
+  // genérico pra reaproveitar se outros campos de campanha virarem editáveis.
+  function updateCampaignRow(id, patch) {
+    const payload = {};
+    if (patch.status !== undefined) payload.status = patch.status;
+    return supabaseClient.from('campaigns').update(payload).eq('id', id).select().single();
+  }
+
+  // DELETE simples — campaign_clients.campaign_id tem "on delete cascade"
+  // (migration 0015), então o banco já cuida dos clientes sozinho, sem RPC.
+  function deleteCampaignRow(id) {
+    return supabaseClient.from('campaigns').delete().eq('id', id);
+  }
+
   async function fetchAdminStats() {
     const { data, error } = await supabaseClient.rpc('admin_dashboard_stats');
     if (error) throw error;
@@ -417,6 +445,9 @@
     fetchCampaignClients,
     insertCampaign,
     insertCampaignClientsBatch,
+    updateCampaignClientRow,
+    updateCampaignRow,
+    deleteCampaignRow,
     fetchAdminStats,
     fetchAdminTasksByWeekday,
     fetchAdminUserList,

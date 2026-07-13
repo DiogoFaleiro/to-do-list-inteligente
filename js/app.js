@@ -53,6 +53,7 @@
   const campaignImportTable = document.getElementById('campaignImportTable');
   const campaignCreateCancelBtn = document.getElementById('campaignCreateCancelBtn');
   const campaignCreateConfirmBtn = document.getElementById('campaignCreateConfirmBtn');
+  const campaignDetailView = document.getElementById('campaignDetailView');
 
   const listView = document.getElementById('listView');
   const boardView = document.getElementById('boardView');
@@ -913,7 +914,17 @@
   // loadCampaigns() já se protege contra chamada concorrente sozinho, então
   // não precisa de guard aqui: sempre pode disparar de novo.
   campaignsListEl.addEventListener('click', (e) => {
-    if (e.target.closest('[data-campaigns-retry]')) store.loadCampaigns();
+    if (e.target.closest('[data-campaigns-retry]')) {
+      store.loadCampaigns();
+      return;
+    }
+    const row = e.target.closest('[data-campaign-id]');
+    if (row) store.openCampaignDetail(row.dataset.campaignId);
+  });
+
+  const showEncerradasToggle = document.getElementById('showEncerradasToggle');
+  showEncerradasToggle.addEventListener('change', () => {
+    store.setShowEncerradas(showEncerradasToggle.checked);
   });
 
   viewToggle.addEventListener('click', (e) => {
@@ -1090,6 +1101,100 @@
     if (result.ok) closeCampaignCreateModal();
     // Erro: handleMutationError (store.js) já alertou; modal fica aberto
     // pra o usuário tentar de novo sem perder os campos preenchidos.
+  });
+
+  // Tela de detalhe da campanha: todo o conteúdo é re-renderizado via
+  // innerHTML a cada mutação (renderCampaignDetail), então os listeners
+  // ficam no container estático (nunca nos elementos internos, que são
+  // recriados a cada render). Checkboxes seguem o mesmo padrão do
+  // data-toggle de tarefa concluída: o mutador flipa o valor do store
+  // direto, sem ler checkbox.checked (o re-render corrige a UI sozinho).
+  campaignDetailView.addEventListener('click', (e) => {
+    if (e.target.closest('[data-back-to-campaigns]')) {
+      store.setScreen('campaigns');
+      return;
+    }
+
+    const statusToggleBtn = e.target.closest('[data-campaign-status-toggle]');
+    if (statusToggleBtn) {
+      const id = statusToggleBtn.dataset.campaignStatusToggle;
+      const campaign = store.getState().campaigns.find((c) => c.id === id);
+      if (campaign) store.setCampaignStatus(id, campaign.status === 'ativa' ? 'encerrada' : 'ativa');
+      return;
+    }
+
+    const deleteBtn = e.target.closest('[data-campaign-delete]');
+    if (deleteBtn) {
+      const id = deleteBtn.dataset.campaignDelete;
+      const campaign = store.getState().campaigns.find((c) => c.id === id);
+      const ok = confirm(`Excluir a campanha "${campaign ? campaign.name : ''}"? Os clientes dela também serão excluídos.`);
+      if (ok) {
+        store.deleteCampaign(id);
+        store.setScreen('campaigns');
+      }
+      return;
+    }
+
+    const copyBtn = e.target.closest('[data-copy-message]');
+    if (copyBtn) {
+      const idx = copyBtn.dataset.copyMessage;
+      const textarea = campaignDetailView.querySelector(`[data-message-idx="${idx}"]`);
+      if (textarea) {
+        textarea.select();
+        navigator.clipboard.writeText(textarea.value).catch(() => {
+          document.execCommand('copy');
+        });
+        const originalLabel = copyBtn.textContent;
+        copyBtn.textContent = 'Copiado!';
+        setTimeout(() => {
+          copyBtn.textContent = originalLabel;
+        }, 1500);
+      }
+      return;
+    }
+
+    const filterBtn = e.target.closest('[data-client-status-filter]');
+    if (filterBtn) {
+      store.setCampaignClientStatusFilter(filterBtn.dataset.clientStatusFilter);
+      return;
+    }
+
+    const fupToggle = e.target.closest('[data-client-fup-toggle]');
+    if (fupToggle) {
+      const row = fupToggle.closest('[data-client-id]');
+      if (!row) return;
+      const client = store.getState().campaignClients.find((c) => c.id === row.dataset.clientId);
+      if (!client) return;
+      const field = `fup${fupToggle.dataset.clientFupToggle}Sent`;
+      store.updateCampaignClientField(row.dataset.clientId, { [field]: !client[field] });
+    }
+  });
+
+  // change (não input): status/trial_start/MRR/notas só salvam ao sair do
+  // campo — nunca durante a digitação. O app re-renderiza a tabela inteira
+  // via innerHTML a cada mutação (é assim que as métricas do cabeçalho
+  // recalculam sozinhas), então salvar em cada tecla destruiria o próprio
+  // campo em edição no meio da digitação (perda de foco/cursor).
+  campaignDetailView.addEventListener('change', (e) => {
+    const row = e.target.closest('[data-client-id]');
+    if (!row) return;
+    const clientId = row.dataset.clientId;
+
+    if (e.target.matches('[data-client-status-select]')) {
+      store.updateCampaignClientField(clientId, { status: e.target.value });
+      return;
+    }
+    if (e.target.matches('[data-client-trial-start]')) {
+      store.updateCampaignClientField(clientId, { trialStart: e.target.value || null });
+      return;
+    }
+    if (e.target.matches('[data-client-mrr]')) {
+      store.updateCampaignClientField(clientId, { mrr: Number(e.target.value) || 0 });
+      return;
+    }
+    if (e.target.matches('[data-client-notes]')) {
+      store.updateCampaignClientField(clientId, { notes: e.target.value.trim() || null });
+    }
   });
 
   // Navegação mobile: sidebar vira painel "Navegar", rodapé fixo, menu ⋮ de período
@@ -2079,9 +2184,11 @@
       // corre risco de disparar com a sessão do Supabase ainda não pronta).
       // Sem await: a UI mostra "Carregando campanhas..." via
       // renderCampaignsList enquanto a busca está em voo, sem bloquear o
-      // resto do boot. Refresh direto na tela Campanhas cai aqui (o clique
-      // na sidebar não roda, já que o usuário nunca clicou).
-      if (store.getState().ui.screen === 'campaigns' && !store.getState().campaignsLoaded) {
+      // resto do boot. Refresh direto na tela Campanhas ou no detalhe de
+      // uma campanha cai aqui (o clique na sidebar não roda, já que o
+      // usuário nunca clicou).
+      const bootScreen = store.getState().ui.screen;
+      if ((bootScreen === 'campaigns' || bootScreen === 'campaignDetail') && !store.getState().campaignsLoaded) {
         store.loadCampaigns();
       }
 

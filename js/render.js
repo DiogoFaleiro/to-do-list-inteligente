@@ -40,7 +40,9 @@
     campaignSessionSelect: document.getElementById('campaignSessionSelect'),
     campaignImportTable: document.getElementById('campaignImportTable'),
     campaignImportTableBody: document.getElementById('campaignImportTableBody'),
-    campaignImportWarnings: document.getElementById('campaignImportWarnings')
+    campaignImportWarnings: document.getElementById('campaignImportWarnings'),
+    showEncerradasToggle: document.getElementById('showEncerradasToggle'),
+    campaignDetailView: document.getElementById('campaignDetailView')
   };
 
   const PERIOD_TITLES = { today: 'Hoje', week: 'Em breve', month: 'Mês', all: 'Todas as tarefas' };
@@ -649,9 +651,19 @@
   }
 
   const CAMPAIGN_STATUS_LABEL = { ativa: 'Ativa', encerrada: 'Encerrada' };
+  const CAMPAIGN_CLIENT_STATUS_LABEL = {
+    sem_resposta: 'Sem resposta',
+    respondeu: 'Respondeu',
+    trial: 'Trial ativado',
+    convertido: 'Convertido',
+    recusou: 'Recusou'
+  };
 
   function renderCampaignsList() {
     const state = store.getState();
+    if (els.showEncerradasToggle) {
+      els.showEncerradasToggle.checked = !!state.ui.showEncerradas;
+    }
     // Três estados possíveis: erro (com retry), carregando (ainda não
     // carregou com sucesso nenhuma vez) e carregado (lista ou empty state).
     // Nunca "loading eterno": loadCampaigns sempre sai de campaignsLoading
@@ -668,16 +680,21 @@
       els.campaignsListEl.innerHTML = `<p class="empty-state">Carregando campanhas...</p>`;
       return;
     }
-    if (!state.campaigns.length) {
+    // "Encerrar" tira a campanha da lista padrão, mas ela continua
+    // acessível via este toggle (nunca é escondida de vez).
+    const visibleCampaigns = state.campaigns.filter(
+      (c) => state.ui.showEncerradas || c.status === 'ativa'
+    );
+    if (!visibleCampaigns.length) {
       els.campaignsListEl.innerHTML = `<p class="empty-state">Nenhuma campanha ainda. Crie a primeira acima.</p>`;
       return;
     }
-    els.campaignsListEl.innerHTML = state.campaigns
+    els.campaignsListEl.innerHTML = visibleCampaigns
       .map((c) => {
         const counts = store.getCampaignClientCounts(c.id);
         const project = c.followupProjectId ? projectById(c.followupProjectId) : null;
         return `
-        <div class="campaign-row">
+        <div class="campaign-row" data-campaign-id="${c.id}">
           <div class="campaign-row-name">${escapeHtml(c.name)}
             <span class="campaign-status-badge campaign-status-${c.status}">${escapeHtml(CAMPAIGN_STATUS_LABEL[c.status] || c.status)}</span>
           </div>
@@ -691,10 +708,129 @@
       .join('');
   }
 
+  // Tela de detalhe: controla o próprio conteúdo inteiro via innerHTML
+  // (mesmo padrão de renderCampaignsList) — não precisa de sub-referências
+  // em `els`, só o container. campaignDetailId pode ficar stale (campanha
+  // excluída em outra aba, já que persiste em localStorage) — trata isso
+  // como estado vazio com botão voltar, nunca quebra.
+  function renderCampaignDetail() {
+    const state = store.getState();
+    const campaign = state.campaigns.find((c) => c.id === state.ui.campaignDetailId);
+    if (!campaign) {
+      els.campaignDetailView.innerHTML = `
+        <div class="empty-state">
+          <p>Campanha não encontrada.</p>
+          <button type="button" class="btn-secondary" data-back-to-campaigns>← Campanhas</button>
+        </div>`;
+      return;
+    }
+
+    const metrics = store.getCampaignMetrics(campaign.id);
+    const project = campaign.followupProjectId ? projectById(campaign.followupProjectId) : null;
+    const statusToggleLabel = campaign.status === 'ativa' ? 'Encerrar' : 'Reativar';
+
+    const clients = state.campaignClients
+      .filter((c) => c.campaignId === campaign.id)
+      .filter((c) => state.campaignClientStatusFilter === 'all' || c.status === state.campaignClientStatusFilter);
+
+    const statusFilterButtons = ['all', ...Object.keys(CAMPAIGN_CLIENT_STATUS_LABEL)]
+      .map((status) => {
+        const label = status === 'all' ? 'Todos' : CAMPAIGN_CLIENT_STATUS_LABEL[status];
+        const active = state.campaignClientStatusFilter === status ? 'active' : '';
+        return `<button type="button" class="${active}" data-client-status-filter="${status}">${escapeHtml(label)}</button>`;
+      })
+      .join('');
+
+    const messagesHtml = [1, 2, 3]
+      .map((n) => {
+        const msg = campaign[`fup${n}Message`] || '';
+        const dateLabel = campaign[`fup${n}Date`] ? ` — ${utils.formatDateBR(campaign[`fup${n}Date`])}` : '';
+        return `
+        <div class="campaign-detail-message">
+          <label>FUP${n}${dateLabel}</label>
+          <textarea readonly data-message-idx="${n}">${escapeHtml(msg)}</textarea>
+          <button type="button" class="btn-secondary" data-copy-message="${n}">Copiar</button>
+        </div>`;
+      })
+      .join('');
+
+    const tableRows = clients
+      .map((c) => {
+        const trialEnd = c.trialStart ? utils.formatDateBR(utils.addDaysISO(c.trialStart, campaign.trialDays)) : '—';
+        const statusOptions = Object.keys(CAMPAIGN_CLIENT_STATUS_LABEL)
+          .map(
+            (s) =>
+              `<option value="${s}" ${c.status === s ? 'selected' : ''}>${escapeHtml(CAMPAIGN_CLIENT_STATUS_LABEL[s])}</option>`
+          )
+          .join('');
+        return `
+        <tr data-client-id="${c.id}">
+          <td>${escapeHtml(c.name)}</td>
+          <td>${escapeHtml(c.phone || '')}</td>
+          <td>${escapeHtml(c.plan || '')}</td>
+          <td><select data-client-status-select>${statusOptions}</select></td>
+          <td><input type="checkbox" data-client-fup-toggle="1" ${c.fup1Sent ? 'checked' : ''}></td>
+          <td><input type="checkbox" data-client-fup-toggle="2" ${c.fup2Sent ? 'checked' : ''}></td>
+          <td><input type="checkbox" data-client-fup-toggle="3" ${c.fup3Sent ? 'checked' : ''}></td>
+          <td><input type="date" data-client-trial-start value="${c.trialStart || ''}"></td>
+          <td>${trialEnd}</td>
+          <td><input type="number" step="0.01" min="0" data-client-mrr value="${c.mrr}" ${c.status !== 'convertido' ? 'disabled' : ''}></td>
+          <td><textarea data-client-notes>${escapeHtml(c.notes || '')}</textarea></td>
+        </tr>`;
+      })
+      .join('');
+
+    const fup1Header = campaign.fup1Date ? utils.formatDateBR(campaign.fup1Date) : '—';
+    const fup2Header = campaign.fup2Date ? utils.formatDateBR(campaign.fup2Date) : '—';
+    const fup3Header = campaign.fup3Date ? utils.formatDateBR(campaign.fup3Date) : '—';
+
+    els.campaignDetailView.innerHTML = `
+      <header class="campaign-detail-header">
+        <button type="button" class="btn-secondary" data-back-to-campaigns>← Campanhas</button>
+        <h2 class="campaign-detail-name">${escapeHtml(campaign.name)}</h2>
+        <span class="campaign-status-badge campaign-status-${campaign.status}">${escapeHtml(CAMPAIGN_STATUS_LABEL[campaign.status] || campaign.status)}</span>
+        <div class="campaign-detail-header-actions">
+          <button type="button" class="btn-secondary" data-campaign-status-toggle="${campaign.id}">${statusToggleLabel}</button>
+          <button type="button" class="btn-danger" data-campaign-delete="${campaign.id}">Excluir campanha</button>
+        </div>
+      </header>
+
+      <div class="campaign-detail-metrics">
+        <div class="campaign-metric-tile"><span class="campaign-metric-value">${metrics.total}</span><span class="campaign-metric-label">Clientes</span></div>
+        <div class="campaign-metric-tile"><span class="campaign-metric-value">${metrics.responded}</span><span class="campaign-metric-label">Responderam</span></div>
+        <div class="campaign-metric-tile"><span class="campaign-metric-value">${metrics.trial}</span><span class="campaign-metric-label">Trials ativados</span></div>
+        <div class="campaign-metric-tile"><span class="campaign-metric-value">${metrics.convertido}</span><span class="campaign-metric-label">Convertidos</span></div>
+        <div class="campaign-metric-tile"><span class="campaign-metric-value">R$ ${metrics.mrrAdicional.toFixed(2)}</span><span class="campaign-metric-label">MRR adicional</span></div>
+        <div class="campaign-metric-tile"><span class="campaign-metric-value">${(metrics.conversionRate * 100).toFixed(1)}%</span><span class="campaign-metric-label">Taxa de conversão</span></div>
+      </div>
+      ${project ? `<p class="campaign-detail-project">Projeto de destino: ${escapeHtml(project.name)}</p>` : ''}
+
+      <div class="campaign-detail-messages">${messagesHtml}</div>
+
+      <div class="campaign-detail-filter">${statusFilterButtons}</div>
+
+      <div class="campaign-clients-table-wrap">
+        <table class="campaign-clients-table">
+          <thead>
+            <tr>
+              <th>Nome</th><th>Celular</th><th>Plano</th><th>Status</th>
+              <th>FUP1 (${fup1Header})</th><th>FUP2 (${fup2Header})</th><th>FUP3 (${fup3Header})</th>
+              <th>Trial início</th><th>Trial fim</th><th>MRR</th><th>Observações</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows || `<tr><td colspan="11" class="empty-state">Nenhum cliente com esse filtro.</td></tr>`}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
   function renderToolbarState() {
     const state = store.getState();
     if (els.quickFilterCampaigns) {
-      els.quickFilterCampaigns.classList.toggle('active', state.ui.screen === 'campaigns');
+      els.quickFilterCampaigns.classList.toggle(
+        'active',
+        state.ui.screen === 'campaigns' || state.ui.screen === 'campaignDetail'
+      );
     }
     els.periodTabs.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.period === state.ui.period));
     els.viewToggle.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.view === state.ui.view));
@@ -875,11 +1011,14 @@
     renderToolbarState();
     applyTheme();
     const state = store.getState();
-    const isCampaigns = state.ui.screen === 'campaigns';
-    els.tasksScreen.hidden = isCampaigns;
-    els.campaignsView.hidden = !isCampaigns;
-    if (isCampaigns) {
+    const screen = state.ui.screen;
+    els.tasksScreen.hidden = screen !== 'tasks';
+    els.campaignsView.hidden = screen !== 'campaigns';
+    els.campaignDetailView.hidden = screen !== 'campaignDetail';
+    if (screen === 'campaigns') {
       renderCampaignsList();
+    } else if (screen === 'campaignDetail') {
+      renderCampaignDetail();
     } else if (state.ui.view === 'list') {
       renderList();
     } else {
@@ -901,6 +1040,7 @@
     renderCampaignProjectOptions,
     renderCampaignSessionOptions,
     renderCampaignImportPreview,
-    renderCampaignsList
+    renderCampaignsList,
+    renderCampaignDetail
   };
 })(window.App = window.App || {});

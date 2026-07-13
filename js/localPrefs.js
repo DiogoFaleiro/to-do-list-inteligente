@@ -9,7 +9,9 @@
     theme: 'system',
     groupByProject: false,
     showCompleted: true,
-    screen: 'tasks'
+    screen: 'tasks',
+    campaignDetailId: null,
+    showEncerradas: false
   };
 
   function load() {

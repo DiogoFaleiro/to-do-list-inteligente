@@ -1,5 +1,5 @@
 (function (App) {
-  const SHEETJS_SRC = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+  const SHEETJS_SRC = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
   let sheetJsPromise = null;
 
   // Cacheia a Promise pra nunca injetar o <script> duas vezes. Em caso de

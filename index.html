@@ -193,10 +193,17 @@
     <section id="campaignsView" class="campaigns-view" hidden>
       <header class="campaigns-view-header">
         <h2>Campanhas</h2>
-        <button type="button" id="newCampaignBtn" class="btn-primary">+ Nova campanha</button>
+        <div class="campaigns-view-header-actions">
+          <label class="campaigns-show-ended-toggle">
+            <input type="checkbox" id="showEncerradasToggle"> Mostrar encerradas
+          </label>
+          <button type="button" id="newCampaignBtn" class="btn-primary">+ Nova campanha</button>
+        </div>
       </header>
       <div id="campaignsListEl" class="campaigns-list"></div>
     </section>
+
+    <section id="campaignDetailView" class="campaign-detail-view" hidden></section>
     </main>
 
     <!-- Rodapé de navegação, só visível no mobile (≤480px) -->
