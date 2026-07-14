@@ -54,6 +54,13 @@
   const campaignCreateCancelBtn = document.getElementById('campaignCreateCancelBtn');
   const campaignCreateConfirmBtn = document.getElementById('campaignCreateConfirmBtn');
   const campaignDetailView = document.getElementById('campaignDetailView');
+  const campaignAddClientModal = document.getElementById('campaignAddClientModal');
+  const campaignAddClientForm = document.getElementById('campaignAddClientForm');
+  const campaignAddClientName = document.getElementById('campaignAddClientName');
+  const campaignAddClientPhone = document.getElementById('campaignAddClientPhone');
+  const campaignAddClientPlan = document.getElementById('campaignAddClientPlan');
+  const campaignAddClientNotes = document.getElementById('campaignAddClientNotes');
+  const campaignAddClientCancelBtn = document.getElementById('campaignAddClientCancelBtn');
 
   const listView = document.getElementById('listView');
   const boardView = document.getElementById('boardView');
@@ -1030,10 +1037,46 @@
     pendingCampaignClients = null;
   }
 
+  // Modal simples de inserção manual de 1 cliente, aberto a partir do
+  // botão no cabeçalho da tabela do detalhe da campanha — molde de
+  // openTagModal/closeTagModal.
+  function openCampaignAddClientModal() {
+    campaignAddClientForm.reset();
+    campaignAddClientModal.hidden = false;
+    campaignAddClientName.focus();
+  }
+
+  function closeCampaignAddClientModal() {
+    campaignAddClientModal.hidden = true;
+  }
+
   newCampaignBtn.addEventListener('click', openCampaignCreateModal);
   campaignCreateCancelBtn.addEventListener('click', closeCampaignCreateModal);
   campaignCreateModal.addEventListener('click', (e) => {
     if (e.target === campaignCreateModal) closeCampaignCreateModal();
+  });
+
+  campaignAddClientCancelBtn.addEventListener('click', closeCampaignAddClientModal);
+  campaignAddClientModal.addEventListener('click', (e) => {
+    if (e.target === campaignAddClientModal) closeCampaignAddClientModal();
+  });
+
+  campaignAddClientForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = campaignAddClientName.value.trim();
+    if (!name) {
+      campaignAddClientName.focus();
+      return;
+    }
+    const campaignId = store.getState().ui.campaignDetailId;
+    if (!campaignId) return;
+    store.addCampaignClient(campaignId, {
+      name,
+      phone: campaignAddClientPhone.value.trim() || null,
+      plan: campaignAddClientPlan.value.trim() || null,
+      notes: campaignAddClientNotes.value.trim() || null
+    });
+    closeCampaignAddClientModal();
   });
 
   campaignProjectSelect.addEventListener('change', () => {
@@ -1112,6 +1155,11 @@
   campaignDetailView.addEventListener('click', (e) => {
     if (e.target.closest('[data-back-to-campaigns]')) {
       store.setScreen('campaigns');
+      return;
+    }
+
+    if (e.target.closest('[data-open-add-client]')) {
+      openCampaignAddClientModal();
       return;
     }
 

@@ -38,3 +38,27 @@ order by created_at;
 -- select count(*) from public.profiles where email ilike 'dfsystemsolucoes+%@gmail.com';
 -- select count(*) from public.projects where user_id not in (select id from auth.users);
 -- select count(*) from public.tasks where user_id not in (select id from auth.users);
+
+
+-- =========================================================================
+-- VARIANTE B — apaga QUALQUER conta cujo e-mail seja diferente da sua real
+-- (dfsystemsolucoes@gmail.com), não só as de alias "+". Mais abrangente e
+-- mais perigosa que a Variante A acima: se por algum motivo existir uma
+-- conta real de outra pessoa nesse projeto Supabase, ela também seria
+-- apagada aqui. Só use isto se tiver certeza de que TODA conta que não é a
+-- sua é lixo de teste (ex: app pessoal, uso solo).
+-- =========================================================================
+
+-- 1. CONFIRME antes de apagar: rode só este SELECT primeiro e revise a
+--    lista inteira.
+select id, email, created_at
+from auth.users
+where lower(email) <> 'dfsystemsolucoes@gmail.com'
+order by created_at;
+
+-- 2. Só depois de conferir a lista acima, descomente e rode o DELETE.
+-- delete from auth.users
+-- where lower(email) <> 'dfsystemsolucoes@gmail.com';
+
+-- 3. Conferência pós-delete (opcional): deve sobrar só a sua conta real.
+-- select id, email from auth.users;

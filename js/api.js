@@ -310,6 +310,27 @@
     return supabaseClient.from('campaign_clients').insert(rows).select();
   }
 
+  // Inserção manual de 1 cliente (botão "+ Adicionar cliente" no detalhe da
+  // campanha) — molde de insertCampaign: .select().single() porque o
+  // chamador precisa do id real de volta pra substituir a linha otimista.
+  // conexa_id sempre null aqui (cliente não veio do import da planilha).
+  function insertCampaignClientRow(userId, { campaignId, name, phone, plan, notes }) {
+    return supabaseClient
+      .from('campaign_clients')
+      .insert({
+        campaign_id: campaignId,
+        user_id: userId,
+        conexa_id: null,
+        name,
+        phone: phone || null,
+        plan: plan || null,
+        notes: notes || null,
+        status: 'sem_resposta'
+      })
+      .select()
+      .single();
+  }
+
   // Payload condicional (mesmo padrão de updateProfile) — patch é um objeto
   // parcial em camelCase, só os campos presentes viram coluna no update.
   function updateCampaignClientRow(id, patch) {
@@ -446,6 +467,7 @@
     fetchCampaignClients,
     insertCampaign,
     insertCampaignClientsBatch,
+    insertCampaignClientRow,
     updateCampaignClientRow,
     updateCampaignRow,
     deleteCampaignRow,

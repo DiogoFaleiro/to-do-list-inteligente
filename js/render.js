@@ -806,7 +806,10 @@
 
       <div class="campaign-detail-messages">${messagesHtml}</div>
 
-      <div class="campaign-detail-filter">${statusFilterButtons}</div>
+      <div class="campaign-clients-toolbar">
+        <div class="campaign-detail-filter">${statusFilterButtons}</div>
+        <button type="button" class="btn-secondary" data-open-add-client>+ Adicionar cliente</button>
+      </div>
 
       <div class="campaign-clients-table-wrap">
         <table class="campaign-clients-table">

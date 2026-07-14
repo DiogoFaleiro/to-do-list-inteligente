@@ -412,6 +412,53 @@
     }
   }
 
+  // Inserção manual (botão "+ Adicionar cliente" no detalhe da campanha) —
+  // mesmo molde de addSession: linha otimista com id temporário entra na
+  // tabela na hora (métricas recalculam sozinhas via emit -> renderCampaignDetail),
+  // e é substituída pela linha real quando o insert confirma; erro remove a
+  // otimista pelo tempId.
+  function addCampaignClient(campaignId, { name, phone, plan, notes }) {
+    const tempId = `tmp-${utils.uid()}`;
+    const optimistic = {
+      id: tempId,
+      campaignId,
+      conexaId: null,
+      name: name.trim(),
+      phone: phone ? phone.trim() : null,
+      plan: plan ? plan.trim() : null,
+      status: 'sem_resposta',
+      fup1Sent: false,
+      fup2Sent: false,
+      fup3Sent: false,
+      trialStart: null,
+      followupTaskId: null,
+      mrr: 0,
+      notes: notes ? notes.trim() : null
+    };
+    state.campaignClients.push(optimistic);
+    emit();
+
+    api
+      .insertCampaignClientRow(currentUserId, {
+        campaignId,
+        name: optimistic.name,
+        phone: optimistic.phone,
+        plan: optimistic.plan,
+        notes: optimistic.notes
+      })
+      .then(({ data, error }) => {
+        if (error) {
+          state.campaignClients = state.campaignClients.filter((c) => c.id !== tempId);
+          emit();
+          handleMutationError('Falha ao adicionar cliente', error);
+          return;
+        }
+        const idx = state.campaignClients.findIndex((c) => c.id === tempId);
+        if (idx !== -1) state.campaignClients[idx] = mapCampaignClientFromRow(data);
+        emit();
+      });
+  }
+
   // Mutação otimista genérica de 1 patch por vez (nunca mistura campos de
   // fontes diferentes no mesmo patch) — molde de toggleProjectFavorite/
   // updateProject: snapshot, muta, emit, chama API, reverte no erro.
@@ -1451,6 +1498,7 @@
     getCampaignMetrics,
     loadCampaigns,
     createCampaignWithClients,
+    addCampaignClient,
     openCampaignDetail,
     updateCampaignClientField,
     setCampaignStatus,

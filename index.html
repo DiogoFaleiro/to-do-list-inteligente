@@ -542,6 +542,34 @@
     </div>
   </div>
 
+  <!-- Modal "Adicionar cliente" (manual) no detalhe da campanha -->
+  <div id="campaignAddClientModal" class="modal-overlay" hidden>
+    <form id="campaignAddClientForm" class="modal">
+      <h2>Adicionar cliente</h2>
+
+      <label>Nome
+        <input type="text" id="campaignAddClientName" required maxlength="120">
+      </label>
+
+      <label>Celular
+        <input type="text" id="campaignAddClientPhone" maxlength="30">
+      </label>
+
+      <label>Plano
+        <input type="text" id="campaignAddClientPlan" maxlength="60">
+      </label>
+
+      <label>Observações
+        <textarea id="campaignAddClientNotes" maxlength="1000"></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="campaignAddClientCancelBtn" class="btn-secondary">Cancelar</button>
+        <button type="submit" class="btn-primary">Adicionar</button>
+      </div>
+    </form>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/utils.js"></script>
   <script src="js/localPrefs.js"></script>

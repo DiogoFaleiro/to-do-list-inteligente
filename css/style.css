@@ -2013,6 +2013,14 @@ a.btn-danger {
   resize: vertical;
 }
 
+.campaign-clients-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .campaign-detail-filter {
   display: flex;
   flex-wrap: wrap;
