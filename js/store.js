@@ -394,8 +394,7 @@
           user_id: currentUserId,
           conexa_id: c.conexaId || null,
           name: c.name,
-          phone: c.phone || null,
-          plan: c.plan || null
+          phone: c.phone || null
         }));
         const { error: ccErr } = await api.insertCampaignClientsBatch(rows);
         if (ccErr) throw ccErr;

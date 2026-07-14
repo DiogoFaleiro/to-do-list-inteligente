@@ -43,8 +43,7 @@
     id: ['id'],
     razaoSocial: ['razao social', 'razao social/nome', 'razao social / nome', 'nome'],
     nomeFantasia: ['nome fantasia'],
-    celular: ['celular'],
-    plano: ['plano(s)', 'planos', 'plano']
+    celular: ['celular']
   };
 
   function findColumnIndex(headerRow, aliases) {
@@ -69,14 +68,12 @@
     const razaoIdx = findColumnIndex(headerRow, HEADER_ALIASES.razaoSocial);
     const fantasiaIdx = findColumnIndex(headerRow, HEADER_ALIASES.nomeFantasia);
     const celularIdx = findColumnIndex(headerRow, HEADER_ALIASES.celular);
-    const planoIdx = findColumnIndex(headerRow, HEADER_ALIASES.plano);
 
     if (razaoIdx === -1 && fantasiaIdx === -1) {
       warnings.push('Não encontrei nem "Razão Social" nem "Nome Fantasia" no cabeçalho — não é possível identificar os clientes.');
       return { clients: [], warnings, skippedCount: 0 };
     }
     if (celularIdx === -1) warnings.push('Coluna "Celular" não encontrada — os clientes serão importados sem telefone.');
-    if (planoIdx === -1) warnings.push('Coluna "Plano(s)" não encontrada — os clientes serão importados sem plano.');
 
     let skippedCount = 0;
     const clients = [];
@@ -95,8 +92,7 @@
       clients.push({
         conexaId: idIdx !== -1 ? (row[idIdx] ?? '').toString().trim() || null : null,
         name,
-        phone: celularIdx !== -1 ? (row[celularIdx] ?? '').toString().trim() || null : null,
-        plan: planoIdx !== -1 ? (row[planoIdx] ?? '').toString().trim() || null : null
+        phone: celularIdx !== -1 ? (row[celularIdx] ?? '').toString().trim() || null : null
       });
     }
 

@@ -644,7 +644,6 @@
           <td><input type="checkbox" data-campaign-client-check="${i}" checked></td>
           <td>${escapeHtml(c.name)}</td>
           <td>${escapeHtml(c.phone || '')}</td>
-          <td>${escapeHtml(c.plan || '')}</td>
         </tr>`
       )
       .join('');
