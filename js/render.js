@@ -630,7 +630,7 @@
 
   // Preview do import de clientes (planilha .xlsx do Conexa) — todos os
   // checkboxes vêm marcados por padrão; texto de origem externa (nome/
-  // celular/plano vindos da planilha) sempre passa por escapeHtml.
+  // celular vindos da planilha) sempre passa por escapeHtml.
   function renderCampaignImportPreview(parsed) {
     els.campaignImportWarnings.hidden = !parsed.warnings.length;
     els.campaignImportWarnings.innerHTML = parsed.warnings.length
@@ -766,7 +766,6 @@
         <tr data-client-id="${c.id}">
           <td>${escapeHtml(c.name)}</td>
           <td>${escapeHtml(c.phone || '')}</td>
-          <td>${escapeHtml(c.plan || '')}</td>
           <td><select data-client-status-select>${statusOptions}</select></td>
           <td><input type="checkbox" data-client-fup-toggle="1" ${c.fup1Sent ? 'checked' : ''}></td>
           <td><input type="checkbox" data-client-fup-toggle="2" ${c.fup2Sent ? 'checked' : ''}></td>
@@ -815,12 +814,12 @@
         <table class="campaign-clients-table">
           <thead>
             <tr>
-              <th>Nome</th><th>Celular</th><th>Plano</th><th>Status</th>
+              <th>Nome</th><th>Celular</th><th>Status</th>
               <th>FUP1 (${fup1Header})</th><th>FUP2 (${fup2Header})</th><th>FUP3 (${fup3Header})</th>
               <th>Trial início</th><th>Trial fim</th><th>MRR</th><th>Observações</th>
             </tr>
           </thead>
-          <tbody>${tableRows || `<tr><td colspan="11" class="empty-state">Nenhum cliente com esse filtro.</td></tr>`}</tbody>
+          <tbody>${tableRows || `<tr><td colspan="10" class="empty-state">Nenhum cliente com esse filtro.</td></tr>`}</tbody>
         </table>
       </div>
     `;

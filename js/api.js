@@ -314,7 +314,7 @@
   // campanha) — molde de insertCampaign: .select().single() porque o
   // chamador precisa do id real de volta pra substituir a linha otimista.
   // conexa_id sempre null aqui (cliente não veio do import da planilha).
-  function insertCampaignClientRow(userId, { campaignId, name, phone, plan, notes }) {
+  function insertCampaignClientRow(userId, { campaignId, name, phone, notes }) {
     return supabaseClient
       .from('campaign_clients')
       .insert({
@@ -323,7 +323,6 @@
         conexa_id: null,
         name,
         phone: phone || null,
-        plan: plan || null,
         notes: notes || null,
         status: 'sem_resposta'
       })

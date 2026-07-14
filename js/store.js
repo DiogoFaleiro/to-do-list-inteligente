@@ -182,7 +182,6 @@
       conexaId: row.conexa_id,
       name: row.name,
       phone: row.phone,
-      plan: row.plan,
       status: row.status,
       fup1Sent: !!row.fup1_sent,
       fup2Sent: !!row.fup2_sent,
@@ -417,7 +416,7 @@
   // tabela na hora (métricas recalculam sozinhas via emit -> renderCampaignDetail),
   // e é substituída pela linha real quando o insert confirma; erro remove a
   // otimista pelo tempId.
-  function addCampaignClient(campaignId, { name, phone, plan, notes }) {
+  function addCampaignClient(campaignId, { name, phone, notes }) {
     const tempId = `tmp-${utils.uid()}`;
     const optimistic = {
       id: tempId,
@@ -425,7 +424,6 @@
       conexaId: null,
       name: name.trim(),
       phone: phone ? phone.trim() : null,
-      plan: plan ? plan.trim() : null,
       status: 'sem_resposta',
       fup1Sent: false,
       fup2Sent: false,
@@ -443,7 +441,6 @@
         campaignId,
         name: optimistic.name,
         phone: optimistic.phone,
-        plan: optimistic.plan,
         notes: optimistic.notes
       })
       .then(({ data, error }) => {

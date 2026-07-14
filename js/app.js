@@ -58,7 +58,6 @@
   const campaignAddClientForm = document.getElementById('campaignAddClientForm');
   const campaignAddClientName = document.getElementById('campaignAddClientName');
   const campaignAddClientPhone = document.getElementById('campaignAddClientPhone');
-  const campaignAddClientPlan = document.getElementById('campaignAddClientPlan');
   const campaignAddClientNotes = document.getElementById('campaignAddClientNotes');
   const campaignAddClientCancelBtn = document.getElementById('campaignAddClientCancelBtn');
 
@@ -1073,7 +1072,6 @@
     store.addCampaignClient(campaignId, {
       name,
       phone: campaignAddClientPhone.value.trim() || null,
-      plan: campaignAddClientPlan.value.trim() || null,
       notes: campaignAddClientNotes.value.trim() || null
     });
     closeCampaignAddClientModal();
