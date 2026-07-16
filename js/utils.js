@@ -62,6 +62,43 @@
     return 3;
   }
 
+  // Higieniza texto (em geral mensagens de FUP com emoji) antes de mandar
+  // pro WhatsApp ou gravar no banco. Cada remoção resolve um sintoma
+  // específico de "emoji chega quebrado (�)" já visto em produção:
+  // - U+FE0F (Variation Selector-16): força apresentação colorida do
+  //   emoji anterior, mas alguns clientes do WhatsApp não lidam bem com
+  //   ele quando a string passou por normalização/encoding intermediário
+  //   — o emoji já é colorido por padrão nesses code points, então dá
+  //   pra remover sem perder o emoji.
+  // - U+FFFD (replacement character): é o próprio símbolo de "byte que
+  //   não decodificou" — se já está na string de origem, é lixo de uma
+  //   conversão de encoding anterior, nunca conteúdo válido.
+  // - U+FEFF (BOM/zero-width no-break space): sobra de cópia/cola de
+  //   arquivos com BOM; invisível mas quebra o parsing em alguns clientes.
+  // - Surrogates órfãos (metade de um par UTF-16 sem a outra metade):
+  //   acontecem quando um emoji de 2 code units é cortado no meio (ex:
+  //   truncamento por tamanho de campo) — corrompem o UTF-8 gerado por
+  //   encodeURIComponent daí pra frente, então removemos a metade solta.
+  function cleanWhatsAppText(text) {
+    if (!text) return '';
+    return text
+      .normalize('NFC')
+      .replace(/[\uFFFD\uFE0F\uFEFF]/g, '')
+      .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')
+      .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '$1')
+      .replace(/\r\n/g, '\n');
+  }
+
+  // Ponto único de montagem da URL de envio: api.whatsapp.com/send é mais
+  // tolerante que wa.me para URLs longas (mensagens de FUP costumam ser
+  // parágrafos inteiros), e o texto sempre passa por cleanWhatsAppText
+  // antes do encode. Sem mensagem, o parâmetro text nem aparece na URL.
+  function buildWhatsAppUrl(phone, text) {
+    const clean = cleanWhatsAppText(text);
+    const base = `https://api.whatsapp.com/send?phone=${phone}`;
+    return clean ? `${base}&text=${encodeURIComponent(clean)}` : base;
+  }
+
   App.utils = {
     todayISO,
     dateToISO,
@@ -72,6 +109,8 @@
     isOverdue,
     uid,
     escapeHtml,
-    nextCampaignFollowupIndex
+    nextCampaignFollowupIndex,
+    cleanWhatsAppText,
+    buildWhatsAppUrl
   };
 })(window.App = window.App || {});

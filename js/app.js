@@ -1131,9 +1131,9 @@
       fup1Date: campaignFup1Date.value || null,
       fup2Date: campaignFup2Date.value || null,
       fup3Date: campaignFup3Date.value || null,
-      fup1Message: campaignFup1Message.value.trim() || null,
-      fup2Message: campaignFup2Message.value.trim() || null,
-      fup3Message: campaignFup3Message.value.trim() || null
+      fup1Message: utils.cleanWhatsAppText(campaignFup1Message.value.trim()) || null,
+      fup2Message: utils.cleanWhatsAppText(campaignFup2Message.value.trim()) || null,
+      fup3Message: utils.cleanWhatsAppText(campaignFup3Message.value.trim()) || null
     };
 
     const result = await store.createCampaignWithClients(fields, clients);
@@ -1236,10 +1236,11 @@
 
       const idx = utils.nextCampaignFollowupIndex(client);
       const template = campaign[`fup${idx}Message`] || '';
+      // Personalização do [nome] acontece antes da higienização: o nome do
+      // cliente também passa a fazer parte do texto limpo enviado.
       const message = template.replace(/\[nome\]/gi, client.name);
 
-      const url = `https://wa.me/${phone}` + (message ? `?text=${encodeURIComponent(message)}` : '');
-      window.open(url, '_blank');
+      window.open(utils.buildWhatsAppUrl(phone, message), '_blank');
     }
   });
 

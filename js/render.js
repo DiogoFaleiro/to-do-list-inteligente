@@ -742,7 +742,10 @@
 
     const messagesHtml = [1, 2, 3]
       .map((n) => {
-        const msg = campaign[`fup${n}Message`] || '';
+        // Higieniza aqui também (não só na gravação) pra limpar visualmente
+        // templates antigos já corrompidos, sem precisar regravar nada no
+        // banco — o botão "Copiar" abaixo copia esse mesmo valor limpo.
+        const msg = utils.cleanWhatsAppText(campaign[`fup${n}Message`] || '');
         const dateLabel = campaign[`fup${n}Date`] ? ` — ${utils.formatDateBR(campaign[`fup${n}Date`])}` : '';
         return `
         <div class="campaign-detail-message">
