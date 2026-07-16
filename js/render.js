@@ -762,6 +762,7 @@
               `<option value="${s}" ${c.status === s ? 'selected' : ''}>${escapeHtml(CAMPAIGN_CLIENT_STATUS_LABEL[s])}</option>`
           )
           .join('');
+        const nextFupIdx = utils.nextCampaignFollowupIndex(c);
         return `
         <tr data-client-id="${c.id}">
           <td>${escapeHtml(c.name)}</td>
@@ -774,6 +775,7 @@
           <td>${trialEnd}</td>
           <td><input type="number" step="0.01" min="0" data-client-mrr value="${c.mrr}" ${c.status !== 'convertido' ? 'disabled' : ''}></td>
           <td><textarea data-client-notes>${escapeHtml(c.notes || '')}</textarea></td>
+          <td><button type="button" class="btn-secondary" data-client-whatsapp="${c.id}" title="Enviar FUP${nextFupIdx} via WhatsApp">WhatsApp</button></td>
         </tr>`;
       })
       .join('');
@@ -816,10 +818,10 @@
             <tr>
               <th>Nome</th><th>Celular</th><th>Status</th>
               <th>FUP1 (${fup1Header})</th><th>FUP2 (${fup2Header})</th><th>FUP3 (${fup3Header})</th>
-              <th>Trial início</th><th>Trial fim</th><th>MRR</th><th>Observações</th>
+              <th>Trial início</th><th>Trial fim</th><th>MRR</th><th>Observações</th><th>WhatsApp</th>
             </tr>
           </thead>
-          <tbody>${tableRows || `<tr><td colspan="10" class="empty-state">Nenhum cliente com esse filtro.</td></tr>`}</tbody>
+          <tbody>${tableRows || `<tr><td colspan="11" class="empty-state">Nenhum cliente com esse filtro.</td></tr>`}</tbody>
         </table>
       </div>
     `;

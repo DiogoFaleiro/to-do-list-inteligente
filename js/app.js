@@ -1213,6 +1213,33 @@
       if (!client) return;
       const field = `fup${fupToggle.dataset.clientFupToggle}Sent`;
       store.updateCampaignClientField(row.dataset.clientId, { [field]: !client[field] });
+      return;
+    }
+
+    // Abrir o WhatsApp NÃO marca o FUP como enviado — só o usuário sabe se
+    // a mensagem foi de fato mandada, então a marcação continua manual
+    // (checkbox acima). O tooltip do botão (renderCampaignDetail) já avisa
+    // qual FUP vai ser usado antes do clique.
+    const waBtn = e.target.closest('[data-client-whatsapp]');
+    if (waBtn) {
+      const client = store.getState().campaignClients.find((c) => c.id === waBtn.dataset.clientWhatsapp);
+      if (!client) return;
+      const campaign = store.getState().campaigns.find((c) => c.id === client.campaignId);
+      if (!campaign) return;
+
+      const digits = (client.phone || '').replace(/\D/g, '');
+      if (digits.length < 10) {
+        alert('Celular inválido ou vazio para este cliente. Preencha um celular com DDD antes de enviar pelo WhatsApp.');
+        return;
+      }
+      const phone = digits.startsWith('55') ? digits : `55${digits}`;
+
+      const idx = utils.nextCampaignFollowupIndex(client);
+      const template = campaign[`fup${idx}Message`] || '';
+      const message = template.replace(/\[nome\]/gi, client.name);
+
+      const url = `https://wa.me/${phone}` + (message ? `?text=${encodeURIComponent(message)}` : '');
+      window.open(url, '_blank');
     }
   });
 

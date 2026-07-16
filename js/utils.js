@@ -51,6 +51,17 @@
     return div.innerHTML;
   }
 
+  // Qual FUP (1, 2 ou 3) é o próximo a enviar para um cliente de campanha:
+  // o primeiro ainda não marcado como enviado; se os três já foram
+  // marcados, reusa o FUP3 (reenvio). Compartilhado entre render.js
+  // (tooltip do botão) e app.js (mensagem que o botão realmente abre) pra
+  // não haver dois lugares decidindo isso de formas diferentes.
+  function nextCampaignFollowupIndex(client) {
+    if (!client.fup1Sent) return 1;
+    if (!client.fup2Sent) return 2;
+    return 3;
+  }
+
   App.utils = {
     todayISO,
     dateToISO,
@@ -60,6 +71,7 @@
     formatDateBR,
     isOverdue,
     uid,
-    escapeHtml
+    escapeHtml,
+    nextCampaignFollowupIndex
   };
 })(window.App = window.App || {});
