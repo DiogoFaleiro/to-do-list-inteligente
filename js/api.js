@@ -272,9 +272,37 @@
     return supabaseClient.from('campaign_clients').select('*');
   }
 
+  // Fetch dedicado e leve pra automação de boot de aviso de certificados
+  // (store.processCertificateAlerts) — só as colunas necessárias pra
+  // decidir elegibilidade, NUNCA loadCampaigns/state.campaigns (que só
+  // carrega quando a tela Campanhas abre; carregar tudo todo boot cresceria
+  // sem limite e contraria o design lazy da feature).
+  function fetchActiveCertificateCampaigns() {
+    return supabaseClient
+      .from('campaigns')
+      .select('id, alert_days, followup_project_id, followup_session_id')
+      .eq('kind', 'certificados')
+      .eq('status', 'ativa');
+  }
+
+  // A comparação cert_expiry - alert_days <= hoje é feita em JS (quem
+  // chama já tem alert_days da query acima) — aqui só os dois guards que
+  // dependem só desta tabela: status='pendente' e followup_task_id null.
+  function fetchEligibleCertificateClients(campaignIds) {
+    return supabaseClient
+      .from('campaign_clients')
+      .select('id, campaign_id, name, phone, cert_expiry')
+      .in('campaign_id', campaignIds)
+      .eq('status', 'pendente')
+      .is('followup_task_id', null)
+      .not('cert_expiry', 'is', null);
+  }
+
   function insertCampaign(userId, {
     name,
+    kind,
     trialDays,
+    alertDays,
     followupProjectId,
     followupSessionId,
     fup1Date,
@@ -289,7 +317,9 @@
       .insert({
         user_id: userId,
         name,
+        kind: kind || 'vendas',
         trial_days: trialDays,
+        alert_days: alertDays || null,
         followup_project_id: followupProjectId || null,
         followup_session_id: followupSessionId || null,
         fup1_date: fup1Date || null,
@@ -314,7 +344,9 @@
   // campanha) — molde de insertCampaign: .select().single() porque o
   // chamador precisa do id real de volta pra substituir a linha otimista.
   // conexa_id sempre null aqui (cliente não veio do import da planilha).
-  function insertCampaignClientRow(userId, { campaignId, name, phone, notes }) {
+  // status vem de quem chama (store.addCampaignClient decide o default por
+  // kind da campanha) — a api não hardcoda mais 'sem_resposta'.
+  function insertCampaignClientRow(userId, { campaignId, name, phone, notes, status }) {
     return supabaseClient
       .from('campaign_clients')
       .insert({
@@ -324,7 +356,7 @@
         name,
         phone: phone || null,
         notes: notes || null,
-        status: 'sem_resposta'
+        status
       })
       .select()
       .single();
@@ -339,6 +371,7 @@
     if (patch.fup2Sent !== undefined) payload.fup2_sent = patch.fup2Sent;
     if (patch.fup3Sent !== undefined) payload.fup3_sent = patch.fup3Sent;
     if (patch.trialStart !== undefined) payload.trial_start = patch.trialStart;
+    if (patch.certExpiry !== undefined) payload.cert_expiry = patch.certExpiry;
     if (patch.mrr !== undefined) payload.mrr = patch.mrr;
     if (patch.notes !== undefined) payload.notes = patch.notes;
     if (patch.followupTaskId !== undefined) payload.followup_task_id = patch.followupTaskId;
@@ -464,6 +497,8 @@
     insertTasksBatch,
     fetchCampaigns,
     fetchCampaignClients,
+    fetchActiveCertificateCampaigns,
+    fetchEligibleCertificateClients,
     insertCampaign,
     insertCampaignClientsBatch,
     insertCampaignClientRow,

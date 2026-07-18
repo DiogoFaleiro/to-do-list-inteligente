@@ -494,8 +494,11 @@
           <label>Nome da campanha
             <input type="text" id="campaignNameInput" maxlength="60" required>
           </label>
-          <label>Dias de trial
-            <input type="number" id="campaignTrialDaysInput" min="1" max="90" value="7">
+          <label>Tipo de campanha
+            <select id="campaignKindSelect">
+              <option value="vendas">Vendas (FUP)</option>
+              <option value="certificados">Acompanhamento de certificados</option>
+            </select>
           </label>
           <label>Projeto de destino
             <select id="campaignProjectSelect"></select>
@@ -503,24 +506,34 @@
           <label id="campaignSessionRow" hidden>Sessão
             <select id="campaignSessionSelect"></select>
           </label>
-          <label>FUP1 - data
-            <input type="date" id="campaignFup1Date">
-          </label>
-          <label>FUP1 - mensagem
-            <textarea id="campaignFup1Message" maxlength="1000"></textarea>
-          </label>
-          <label>FUP2 - data
-            <input type="date" id="campaignFup2Date">
-          </label>
-          <label>FUP2 - mensagem
-            <textarea id="campaignFup2Message" maxlength="1000"></textarea>
-          </label>
-          <label>FUP3 - data
-            <input type="date" id="campaignFup3Date">
-          </label>
-          <label>FUP3 - mensagem
-            <textarea id="campaignFup3Message" maxlength="1000"></textarea>
-          </label>
+          <div id="campaignVendasFields">
+            <label>Dias de trial
+              <input type="number" id="campaignTrialDaysInput" min="1" max="90" value="7">
+            </label>
+            <label>FUP1 - data
+              <input type="date" id="campaignFup1Date">
+            </label>
+            <label>FUP1 - mensagem
+              <textarea id="campaignFup1Message" maxlength="1000"></textarea>
+            </label>
+            <label>FUP2 - data
+              <input type="date" id="campaignFup2Date">
+            </label>
+            <label>FUP2 - mensagem
+              <textarea id="campaignFup2Message" maxlength="1000"></textarea>
+            </label>
+            <label>FUP3 - data
+              <input type="date" id="campaignFup3Date">
+            </label>
+            <label>FUP3 - mensagem
+              <textarea id="campaignFup3Message" maxlength="1000"></textarea>
+            </label>
+          </div>
+          <div id="campaignCertFields" hidden>
+            <label>Dias de antecedência do aviso
+              <input type="number" id="campaignAlertDaysInput" min="1" max="180" value="45">
+            </label>
+          </div>
           <button type="button" id="campaignChooseFileBtn" class="btn-secondary">Escolher arquivo .xlsx</button>
           <input type="file" id="campaignImportFileInput" accept=".xlsx" hidden>
           <span id="campaignImportFileName" class="campaign-import-filename"></span>

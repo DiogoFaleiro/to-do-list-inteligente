@@ -161,7 +161,9 @@
     return {
       id: row.id,
       name: row.name,
+      kind: row.kind,
       trialDays: row.trial_days,
+      alertDays: row.alert_days,
       followupProjectId: row.followup_project_id,
       followupSessionId: row.followup_session_id,
       fup1Date: row.fup1_date,
@@ -187,6 +189,7 @@
       fup2Sent: !!row.fup2_sent,
       fup3Sent: !!row.fup3_sent,
       trialStart: row.trial_start,
+      certExpiry: row.cert_expiry,
       followupTaskId: row.followup_task_id,
       mrr: row.mrr,
       notes: row.notes
@@ -314,8 +317,19 @@
   // cliente passa por emit() -> renderAll() -> renderCampaignDetail(), as
   // métricas atualizam sozinhas, sem nenhuma assinatura/cache.
   function getCampaignMetrics(campaignId) {
+    const campaign = state.campaigns.find((c) => c.id === campaignId);
     const clients = state.campaignClients.filter((c) => c.campaignId === campaignId);
     const total = clients.length;
+
+    if (campaign && campaign.kind === 'certificados') {
+      const withExpiry = clients.filter((c) => !!c.certExpiry).length;
+      const avisados = clients.filter((c) => c.status === 'avisado').length;
+      const renovados = clients.filter((c) => c.status === 'renovado').length;
+      const perdidos = clients.filter((c) => c.status === 'perdido').length;
+      const renewalRate = renovados + perdidos > 0 ? renovados / (renovados + perdidos) : 0;
+      return { total, withExpiry, avisados, renovados, perdidos, renewalRate };
+    }
+
     const responded = clients.filter((c) => c.status !== 'sem_resposta').length;
     const trial = clients.filter((c) => c.status === 'trial').length;
     const convertido = clients.filter((c) => c.status === 'convertido').length;
@@ -388,12 +402,17 @@
       if (cErr) throw cErr;
 
       if (clients.length > 0) {
+        // Default de status por kind: sem isso, o insert cairia no default
+        // da coluna ('sem_resposta'), que não existe no vocabulário de
+        // certificados e ficaria sem label na tela de detalhe.
+        const defaultStatus = fields.kind === 'certificados' ? 'pendente' : 'sem_resposta';
         const rows = clients.map((c) => ({
           campaign_id: campaignRow.id,
           user_id: currentUserId,
           conexa_id: c.conexaId || null,
           name: c.name,
-          phone: c.phone || null
+          phone: c.phone || null,
+          status: defaultStatus
         }));
         const { error: ccErr } = await api.insertCampaignClientsBatch(rows);
         if (ccErr) throw ccErr;
@@ -417,6 +436,8 @@
   // e é substituída pela linha real quando o insert confirma; erro remove a
   // otimista pelo tempId.
   function addCampaignClient(campaignId, { name, phone, notes }) {
+    const campaign = state.campaigns.find((c) => c.id === campaignId);
+    const defaultStatus = campaign && campaign.kind === 'certificados' ? 'pendente' : 'sem_resposta';
     const tempId = `tmp-${utils.uid()}`;
     const optimistic = {
       id: tempId,
@@ -424,11 +445,12 @@
       conexaId: null,
       name: name.trim(),
       phone: phone ? phone.trim() : null,
-      status: 'sem_resposta',
+      status: defaultStatus,
       fup1Sent: false,
       fup2Sent: false,
       fup3Sent: false,
       trialStart: null,
+      certExpiry: null,
       followupTaskId: null,
       mrr: 0,
       notes: notes ? notes.trim() : null
@@ -441,7 +463,8 @@
         campaignId,
         name: optimistic.name,
         phone: optimistic.phone,
-        notes: optimistic.notes
+        notes: optimistic.notes,
+        status: defaultStatus
       })
       .then(({ data, error }) => {
         if (error) {
@@ -505,6 +528,73 @@
     });
     if (task) {
       updateCampaignClientField(id, { followupTaskId: task.id });
+    }
+  }
+
+  // Automação de boot: aviso de vencimento de certificado. Chamada em todo
+  // boot (js/app.js enterApp, depois de loadInitialData), não em
+  // loadCampaigns/state.campaigns (que só carrega quando a tela Campanhas
+  // abre) — usa fetches dedicados e leves (api.fetchActiveCertificateCampaigns/
+  // fetchEligibleCertificateClients) pra não crescer sem limite todo boot.
+  // Fire-and-forget no chamador; try/catch aqui garante que uma falha de
+  // rede nunca quebra o boot.
+  async function processCertificateAlerts() {
+    try {
+      const { data: campaigns, error: campErr } = await api.fetchActiveCertificateCampaigns();
+      if (campErr) {
+        console.error('Falha ao buscar campanhas de certificados na automação de boot', campErr);
+        return;
+      }
+      if (!campaigns || campaigns.length === 0) return;
+
+      const campaignsById = new Map(campaigns.map((c) => [c.id, c]));
+      const { data: clients, error: clientErr } = await api.fetchEligibleCertificateClients(
+        campaigns.map((c) => c.id)
+      );
+      if (clientErr) {
+        console.error('Falha ao buscar clientes elegíveis pra aviso de certificado', clientErr);
+        return;
+      }
+
+      const today = utils.todayISO();
+      for (const row of clients || []) {
+        const campaign = campaignsById.get(row.campaign_id);
+        const alertDate = utils.addDaysISO(row.cert_expiry, -(campaign.alert_days || 45));
+        if (alertDate > today) continue; // ainda não chegou a data de aviso
+
+        if (!campaign.followup_project_id) {
+          console.warn('Campanha de certificados sem projeto de destino — pulando cliente', row.id, campaign.id);
+          continue;
+        }
+
+        // addTask primeiro: só depois de ter o id real da tarefa é que
+        // consideramos o cliente "processado". Se o app fechar/cair entre
+        // aqui e a gravação abaixo, o pior caso é uma tarefa órfã (sem
+        // followup_task_id apontando pra ela) — nunca duas tarefas pro
+        // mesmo cliente neste boot (mesmo gap teórico que já existe hoje
+        // no fluxo de trial acima — não é uma regressão nova).
+        const task = await addTask({
+          title: `Renovar certificado: ${row.name} (${row.phone || ''}) — vence ${utils.formatDateBR(row.cert_expiry)}`,
+          projectId: campaign.followup_project_id,
+          sessionId: campaign.followup_session_id || null,
+          dueDate: alertDate
+        });
+        if (!task) continue; // addTask já chamou handleMutationError; sem task real, não marca nada
+
+        const { error: updErr } = await api.updateCampaignClientRow(row.id, {
+          followupTaskId: task.id,
+          status: 'avisado'
+        });
+        if (updErr) {
+          console.error(
+            'Tarefa de aviso criada mas falha ao marcar cliente como avisado (tarefa pode ficar órfã)',
+            row.id,
+            updErr
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Falha inesperada na automação de aviso de certificados', err);
     }
   }
 
@@ -1498,6 +1588,7 @@
     addCampaignClient,
     openCampaignDetail,
     updateCampaignClientField,
+    processCertificateAlerts,
     setCampaignStatus,
     deleteCampaign,
     setCampaignClientStatusFilter,

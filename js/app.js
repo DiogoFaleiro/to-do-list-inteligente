@@ -36,6 +36,10 @@
   const campaignsListEl = document.getElementById('campaignsListEl');
   const campaignCreateModal = document.getElementById('campaignCreateModal');
   const campaignNameInput = document.getElementById('campaignNameInput');
+  const campaignKindSelect = document.getElementById('campaignKindSelect');
+  const campaignVendasFields = document.getElementById('campaignVendasFields');
+  const campaignCertFields = document.getElementById('campaignCertFields');
+  const campaignAlertDaysInput = document.getElementById('campaignAlertDaysInput');
   const campaignTrialDaysInput = document.getElementById('campaignTrialDaysInput');
   const campaignProjectSelect = document.getElementById('campaignProjectSelect');
   const campaignSessionSelect = document.getElementById('campaignSessionSelect');
@@ -1014,6 +1018,10 @@
 
   function openCampaignCreateModal() {
     campaignNameInput.value = '';
+    campaignKindSelect.value = 'vendas';
+    campaignVendasFields.hidden = false;
+    campaignCertFields.hidden = true;
+    campaignAlertDaysInput.value = 45;
     campaignTrialDaysInput.value = 7;
     campaignFup1Date.value = '';
     campaignFup2Date.value = '';
@@ -1081,6 +1089,12 @@
     render.renderCampaignSessionOptions(campaignProjectSelect.value || null, null);
   });
 
+  campaignKindSelect.addEventListener('change', () => {
+    const isCert = campaignKindSelect.value === 'certificados';
+    campaignVendasFields.hidden = isCert;
+    campaignCertFields.hidden = !isCert;
+  });
+
   campaignChooseFileBtn.addEventListener('click', () => {
     // Pré-carrega em paralelo com a escolha do arquivo; erro real é tratado
     // no handler de 'change' abaixo (aqui é só uma otimização de tempo).
@@ -1123,9 +1137,12 @@
       .map((cb) => Number(cb.dataset.campaignClientCheck));
     const clients = (pendingCampaignClients || []).filter((_, i) => checkedIdx.includes(i));
 
+    const kind = campaignKindSelect.value;
     const fields = {
       name: campaignNameInput.value.trim(),
+      kind,
       trialDays: Number(campaignTrialDaysInput.value) || 7,
+      alertDays: kind === 'certificados' ? Number(campaignAlertDaysInput.value) || 45 : null,
       followupProjectId: campaignProjectSelect.value || null,
       followupSessionId: campaignSessionSelect.value || null,
       fup1Date: campaignFup1Date.value || null,
@@ -1234,11 +1251,16 @@
       }
       const phone = digits.startsWith('55') ? digits : `55${digits}`;
 
-      const idx = utils.nextCampaignFollowupIndex(client);
-      const template = campaign[`fup${idx}Message`] || '';
-      // Personalização do [nome] acontece antes da higienização: o nome do
-      // cliente também passa a fazer parte do texto limpo enviado.
-      const message = template.replace(/\[nome\]/gi, client.name);
+      // Certificados não tem régua de FUP — o botão só abre o contato, sem
+      // mensagem pré-preenchida.
+      let message = '';
+      if (campaign.kind !== 'certificados') {
+        const idx = utils.nextCampaignFollowupIndex(client);
+        const template = campaign[`fup${idx}Message`] || '';
+        // Personalização do [nome] acontece antes da higienização: o nome do
+        // cliente também passa a fazer parte do texto limpo enviado.
+        message = template.replace(/\[nome\]/gi, client.name);
+      }
 
       window.open(utils.buildWhatsAppUrl(phone, message), '_blank');
     }
@@ -1255,11 +1277,39 @@
     const clientId = row.dataset.clientId;
 
     if (e.target.matches('[data-client-status-select]')) {
-      store.updateCampaignClientField(clientId, { status: e.target.value });
+      const newStatus = e.target.value;
+      const client = store.getState().campaignClients.find((c) => c.id === clientId);
+      const campaign = client && store.getState().campaigns.find((c) => c.id === client.campaignId);
+
+      // Ciclo de renovação (só certificados): ao marcar "Renovado", oferece
+      // reiniciar o ciclo pro próximo ano num patch único (status +
+      // cert_expiry + followup_task_id) — ver updateCampaignClientField
+      // (js/store.js) pro rollback atômico dos 3 campos.
+      if (campaign && campaign.kind === 'certificados' && newStatus === 'renovado') {
+        if (!client.certExpiry) {
+          // Sem vencimento preenchido não há data-base pra somar +12 meses —
+          // fica só o status final, sem oferecer o reinício automático.
+          alert('Cliente marcado como renovado. Para reiniciar o ciclo automaticamente, preencha o vencimento do certificado antes.');
+          store.updateCampaignClientField(clientId, { status: 'renovado' });
+          return;
+        }
+        const renewNow = confirm('Renovado! Já reiniciar o ciclo para o próximo ano?');
+        const patch = renewNow
+          ? { status: 'pendente', certExpiry: utils.addMonthsISO(client.certExpiry, 12), followupTaskId: null }
+          : { status: 'renovado' };
+        store.updateCampaignClientField(clientId, patch);
+        return;
+      }
+
+      store.updateCampaignClientField(clientId, { status: newStatus });
       return;
     }
     if (e.target.matches('[data-client-trial-start]')) {
       store.updateCampaignClientField(clientId, { trialStart: e.target.value || null });
+      return;
+    }
+    if (e.target.matches('[data-client-cert-expiry]')) {
+      store.updateCampaignClientField(clientId, { certExpiry: e.target.value || null });
       return;
     }
     if (e.target.matches('[data-client-mrr]')) {
@@ -2251,6 +2301,16 @@
       await migrate.migrateIfNeeded(user.id);
       ensureSubscribed();
       await store.loadInitialData(user.id);
+
+      // Automação de aviso de vencimento de certificados: precisa rodar
+      // TODO boot, mesmo que o usuário nunca abra a tela Campanhas (por
+      // isso não depende de loadCampaigns/state.campaigns) — mesma âncora
+      // de ordenação do gatilho abaixo (só depois de loadInitialData
+      // concluído). Sem await de propósito: tem try/catch próprio
+      // (js/store.js), então uma falha de rede não atrasa nem quebra o
+      // resto do boot; qualquer tarefa criada aparece sozinha via
+      // emit() -> renderAll() quando a busca terminar.
+      store.processCertificateAlerts();
 
       // Gatilho de boot da tela Campanhas: ancorado aqui de propósito —
       // só depois da sessão restaurada (parâmetro user já veio de uma

@@ -17,6 +17,19 @@
     return dateToISO(d);
   }
 
+  // Clampa no último dia do mês de destino em vez de deixar o overflow do
+  // setMonth rolar pro mês seguinte (ex: 31/01 +1 mês vira 28 ou 29/02,
+  // nunca 03/03).
+  function addMonthsISO(dateStr, months) {
+    const d = parseISO(dateStr);
+    const day = d.getDate();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + months);
+    const lastDayOfTargetMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(day, lastDayOfTargetMonth));
+    return dateToISO(d);
+  }
+
   function parseISO(dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
     return new Date(y, m - 1, d);

@@ -650,12 +650,22 @@
   }
 
   const CAMPAIGN_STATUS_LABEL = { ativa: 'Ativa', encerrada: 'Encerrada' };
-  const CAMPAIGN_CLIENT_STATUS_LABEL = {
-    sem_resposta: 'Sem resposta',
-    respondeu: 'Respondeu',
-    trial: 'Trial ativado',
-    convertido: 'Convertido',
-    recusou: 'Recusou'
+  // Vocabulário de status não se sobrepõe entre os dois kinds — cada
+  // campanha só usa o mapa do seu próprio tipo.
+  const CAMPAIGN_CLIENT_STATUS_LABELS = {
+    vendas: {
+      sem_resposta: 'Sem resposta',
+      respondeu: 'Respondeu',
+      trial: 'Trial ativado',
+      convertido: 'Convertido',
+      recusou: 'Recusou'
+    },
+    certificados: {
+      pendente: 'Pendente',
+      avisado: 'Avisado',
+      renovado: 'Renovado',
+      perdido: 'Perdido'
+    }
   };
 
   function renderCampaignsList() {
@@ -692,6 +702,9 @@
       .map((c) => {
         const counts = store.getCampaignClientCounts(c.id);
         const project = c.followupProjectId ? projectById(c.followupProjectId) : null;
+        const summary = c.kind === 'certificados'
+          ? `· ${counts.avisado || 0} avisados · ${counts.renovado || 0} renovados`
+          : `· ${counts.trial} em trial · ${counts.convertido} convertido${counts.convertido === 1 ? '' : 's'}`;
         return `
         <div class="campaign-row" data-campaign-id="${c.id}">
           <div class="campaign-row-name">${escapeHtml(c.name)}
@@ -699,7 +712,7 @@
           </div>
           <div class="campaign-row-meta">
             ${counts.total} cliente${counts.total === 1 ? '' : 's'}
-            · ${counts.trial} em trial · ${counts.convertido} convertido${counts.convertido === 1 ? '' : 's'}
+            ${summary}
             ${project ? `· ${escapeHtml(project.name)}` : ''}
           </div>
         </div>`;
@@ -727,58 +740,101 @@
     const metrics = store.getCampaignMetrics(campaign.id);
     const project = campaign.followupProjectId ? projectById(campaign.followupProjectId) : null;
     const statusToggleLabel = campaign.status === 'ativa' ? 'Encerrar' : 'Reativar';
+    const isCert = campaign.kind === 'certificados';
+    const statusLabels = CAMPAIGN_CLIENT_STATUS_LABELS[campaign.kind] || CAMPAIGN_CLIENT_STATUS_LABELS.vendas;
+    const today = utils.todayISO();
 
     const clients = state.campaignClients
       .filter((c) => c.campaignId === campaign.id)
       .filter((c) => state.campaignClientStatusFilter === 'all' || c.status === state.campaignClientStatusFilter);
 
-    const statusFilterButtons = ['all', ...Object.keys(CAMPAIGN_CLIENT_STATUS_LABEL)]
+    const statusFilterButtons = ['all', ...Object.keys(statusLabels)]
       .map((status) => {
-        const label = status === 'all' ? 'Todos' : CAMPAIGN_CLIENT_STATUS_LABEL[status];
+        const label = status === 'all' ? 'Todos' : statusLabels[status];
         const active = state.campaignClientStatusFilter === status ? 'active' : '';
         return `<button type="button" class="${active}" data-client-status-filter="${status}">${escapeHtml(label)}</button>`;
       })
       .join('');
 
-    const messagesHtml = [1, 2, 3]
-      .map((n) => {
-        // Higieniza aqui também (não só na gravação) pra limpar visualmente
-        // templates antigos já corrompidos, sem precisar regravar nada no
-        // banco — o botão "Copiar" abaixo copia esse mesmo valor limpo.
-        const msg = utils.cleanWhatsAppText(campaign[`fup${n}Message`] || '');
-        const dateLabel = campaign[`fup${n}Date`] ? ` — ${utils.formatDateBR(campaign[`fup${n}Date`])}` : '';
-        return `
+    // Bloco de mensagens de cadência só existe no fluxo de vendas (FUP por
+    // régua) — certificados não tem mensagem pré-definida por cliente.
+    const messagesHtml = isCert
+      ? ''
+      : [1, 2, 3]
+          .map((n) => {
+            // Higieniza aqui também (não só na gravação) pra limpar visualmente
+            // templates antigos já corrompidos, sem precisar regravar nada no
+            // banco — o botão "Copiar" abaixo copia esse mesmo valor limpo.
+            const msg = utils.cleanWhatsAppText(campaign[`fup${n}Message`] || '');
+            const dateLabel = campaign[`fup${n}Date`] ? ` — ${utils.formatDateBR(campaign[`fup${n}Date`])}` : '';
+            return `
         <div class="campaign-detail-message">
           <label>FUP${n}${dateLabel}</label>
           <textarea readonly data-message-idx="${n}">${escapeHtml(msg)}</textarea>
           <button type="button" class="btn-secondary" data-copy-message="${n}">Copiar</button>
         </div>`;
-      })
+          })
+          .join('');
+
+    const metricTiles = isCert
+      ? [
+          { value: metrics.total, label: 'Clientes' },
+          { value: metrics.withExpiry, label: 'Com vencimento preenchido' },
+          { value: metrics.avisados, label: 'Avisados' },
+          { value: metrics.renovados, label: 'Renovados' },
+          { value: metrics.perdidos, label: 'Perdidos' },
+          { value: `${(metrics.renewalRate * 100).toFixed(1)}%`, label: 'Taxa de renovação' }
+        ]
+      : [
+          { value: metrics.total, label: 'Clientes' },
+          { value: metrics.responded, label: 'Responderam' },
+          { value: metrics.trial, label: 'Trials ativados' },
+          { value: metrics.convertido, label: 'Convertidos' },
+          { value: `R$ ${metrics.mrrAdicional.toFixed(2)}`, label: 'MRR adicional' },
+          { value: `${(metrics.conversionRate * 100).toFixed(1)}%`, label: 'Taxa de conversão' }
+        ];
+    const metricsHtml = metricTiles
+      .map(
+        (t) =>
+          `<div class="campaign-metric-tile"><span class="campaign-metric-value">${t.value}</span><span class="campaign-metric-label">${t.label}</span></div>`
+      )
       .join('');
 
     const tableRows = clients
       .map((c) => {
-        const trialEnd = c.trialStart ? utils.formatDateBR(utils.addDaysISO(c.trialStart, campaign.trialDays)) : '—';
-        const statusOptions = Object.keys(CAMPAIGN_CLIENT_STATUS_LABEL)
-          .map(
-            (s) =>
-              `<option value="${s}" ${c.status === s ? 'selected' : ''}>${escapeHtml(CAMPAIGN_CLIENT_STATUS_LABEL[s])}</option>`
-          )
+        const statusOptions = Object.keys(statusLabels)
+          .map((s) => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${escapeHtml(statusLabels[s])}</option>`)
           .join('');
-        const nextFupIdx = utils.nextCampaignFollowupIndex(c);
-        return `
-        <tr data-client-id="${c.id}">
-          <td>${escapeHtml(c.name)}</td>
-          <td>${escapeHtml(c.phone || '')}</td>
-          <td><select data-client-status-select>${statusOptions}</select></td>
+        const waTitle = isCert ? 'Abrir WhatsApp' : `Enviar FUP${utils.nextCampaignFollowupIndex(c)} via WhatsApp`;
+
+        // Colunas Nome/Celular/Status/Observações/WhatsApp são idênticas nos
+        // dois tipos — só o meio da linha muda (régua de FUP+trial+MRR em
+        // vendas, vencimento+aviso em certificados).
+        let middleCellsHtml;
+        if (isCert) {
+          const alertDate = c.certExpiry ? utils.addDaysISO(c.certExpiry, -(campaign.alertDays || 45)) : null;
+          const alertDue = !!alertDate && alertDate <= today;
+          middleCellsHtml = `
+          <td><input type="date" data-client-cert-expiry value="${c.certExpiry || ''}"></td>
+          <td><span class="${alertDue ? 'tag-overdue' : ''}">${alertDate ? utils.formatDateBR(alertDate) : '—'}</span></td>`;
+        } else {
+          const trialEnd = c.trialStart ? utils.formatDateBR(utils.addDaysISO(c.trialStart, campaign.trialDays)) : '—';
+          middleCellsHtml = `
           <td><input type="checkbox" data-client-fup-toggle="1" ${c.fup1Sent ? 'checked' : ''}></td>
           <td><input type="checkbox" data-client-fup-toggle="2" ${c.fup2Sent ? 'checked' : ''}></td>
           <td><input type="checkbox" data-client-fup-toggle="3" ${c.fup3Sent ? 'checked' : ''}></td>
           <td><input type="date" data-client-trial-start value="${c.trialStart || ''}"></td>
           <td>${trialEnd}</td>
-          <td><input type="number" step="0.01" min="0" data-client-mrr value="${c.mrr}" ${c.status !== 'convertido' ? 'disabled' : ''}></td>
+          <td><input type="number" step="0.01" min="0" data-client-mrr value="${c.mrr}" ${c.status !== 'convertido' ? 'disabled' : ''}></td>`;
+        }
+        return `
+        <tr data-client-id="${c.id}">
+          <td>${escapeHtml(c.name)}</td>
+          <td>${escapeHtml(c.phone || '')}</td>
+          <td><select data-client-status-select>${statusOptions}</select></td>
+          ${middleCellsHtml}
           <td><textarea data-client-notes>${escapeHtml(c.notes || '')}</textarea></td>
-          <td><button type="button" class="btn-secondary" data-client-whatsapp="${c.id}" title="Enviar FUP${nextFupIdx} via WhatsApp">WhatsApp</button></td>
+          <td><button type="button" class="btn-secondary" data-client-whatsapp="${c.id}" title="${waTitle}">WhatsApp</button></td>
         </tr>`;
       })
       .join('');
@@ -786,6 +842,14 @@
     const fup1Header = campaign.fup1Date ? utils.formatDateBR(campaign.fup1Date) : '—';
     const fup2Header = campaign.fup2Date ? utils.formatDateBR(campaign.fup2Date) : '—';
     const fup3Header = campaign.fup3Date ? utils.formatDateBR(campaign.fup3Date) : '—';
+    const theadHtml = isCert
+      ? `<tr><th>Nome</th><th>Celular</th><th>Status</th><th>Vencimento do certificado</th><th>Aviso em</th><th>Observações</th><th>WhatsApp</th></tr>`
+      : `<tr>
+          <th>Nome</th><th>Celular</th><th>Status</th>
+          <th>FUP1 (${fup1Header})</th><th>FUP2 (${fup2Header})</th><th>FUP3 (${fup3Header})</th>
+          <th>Trial início</th><th>Trial fim</th><th>MRR</th><th>Observações</th><th>WhatsApp</th>
+        </tr>`;
+    const colspan = isCert ? 7 : 11;
 
     els.campaignDetailView.innerHTML = `
       <header class="campaign-detail-header">
@@ -798,17 +862,10 @@
         </div>
       </header>
 
-      <div class="campaign-detail-metrics">
-        <div class="campaign-metric-tile"><span class="campaign-metric-value">${metrics.total}</span><span class="campaign-metric-label">Clientes</span></div>
-        <div class="campaign-metric-tile"><span class="campaign-metric-value">${metrics.responded}</span><span class="campaign-metric-label">Responderam</span></div>
-        <div class="campaign-metric-tile"><span class="campaign-metric-value">${metrics.trial}</span><span class="campaign-metric-label">Trials ativados</span></div>
-        <div class="campaign-metric-tile"><span class="campaign-metric-value">${metrics.convertido}</span><span class="campaign-metric-label">Convertidos</span></div>
-        <div class="campaign-metric-tile"><span class="campaign-metric-value">R$ ${metrics.mrrAdicional.toFixed(2)}</span><span class="campaign-metric-label">MRR adicional</span></div>
-        <div class="campaign-metric-tile"><span class="campaign-metric-value">${(metrics.conversionRate * 100).toFixed(1)}%</span><span class="campaign-metric-label">Taxa de conversão</span></div>
-      </div>
+      <div class="campaign-detail-metrics">${metricsHtml}</div>
       ${project ? `<p class="campaign-detail-project">Projeto de destino: ${escapeHtml(project.name)}</p>` : ''}
 
-      <div class="campaign-detail-messages">${messagesHtml}</div>
+      ${messagesHtml ? `<div class="campaign-detail-messages">${messagesHtml}</div>` : ''}
 
       <div class="campaign-clients-toolbar">
         <div class="campaign-detail-filter">${statusFilterButtons}</div>
@@ -817,14 +874,8 @@
 
       <div class="campaign-clients-table-wrap">
         <table class="campaign-clients-table">
-          <thead>
-            <tr>
-              <th>Nome</th><th>Celular</th><th>Status</th>
-              <th>FUP1 (${fup1Header})</th><th>FUP2 (${fup2Header})</th><th>FUP3 (${fup3Header})</th>
-              <th>Trial início</th><th>Trial fim</th><th>MRR</th><th>Observações</th><th>WhatsApp</th>
-            </tr>
-          </thead>
-          <tbody>${tableRows || `<tr><td colspan="11" class="empty-state">Nenhum cliente com esse filtro.</td></tr>`}</tbody>
+          <thead>${theadHtml}</thead>
+          <tbody>${tableRows || `<tr><td colspan="${colspan}" class="empty-state">Nenhum cliente com esse filtro.</td></tr>`}</tbody>
         </table>
       </div>
     `;
