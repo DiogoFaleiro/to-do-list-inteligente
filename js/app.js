@@ -1198,6 +1198,15 @@
       return;
     }
 
+    const clientDeleteBtn = e.target.closest('[data-client-delete]');
+    if (clientDeleteBtn) {
+      const id = clientDeleteBtn.dataset.clientDelete;
+      const client = store.getState().campaignClients.find((c) => c.id === id);
+      const ok = confirm(`Excluir o cliente "${client ? client.name : ''}" desta campanha?`);
+      if (ok) store.deleteCampaignClient(id);
+      return;
+    }
+
     const copyBtn = e.target.closest('[data-copy-message]');
     if (copyBtn) {
       const idx = copyBtn.dataset.copyMessage;
@@ -1272,6 +1281,16 @@
   // recalculam sozinhas), então salvar em cada tecla destruiria o próprio
   // campo em edição no meio da digitação (perda de foco/cursor).
   campaignDetailView.addEventListener('change', (e) => {
+    // Fica fora de uma linha de cliente (é campo do cabeçalho da campanha),
+    // então é tratado antes do lookup de [data-client-id] abaixo.
+    if (e.target.matches('[data-campaign-alert-days]')) {
+      const campaignId = store.getState().ui.campaignDetailId;
+      if (!campaignId) return;
+      const clamped = Math.min(180, Math.max(1, Number(e.target.value) || 45));
+      store.updateCampaignAlertDays(campaignId, clamped);
+      return;
+    }
+
     const row = e.target.closest('[data-client-id]');
     if (!row) return;
     const clientId = row.dataset.clientId;
@@ -1318,6 +1337,15 @@
     }
     if (e.target.matches('[data-client-notes]')) {
       store.updateCampaignClientField(clientId, { notes: e.target.value.trim() || null });
+    }
+  });
+
+  // Busca por nome: input (não change) pra filtrar enquanto digita. O
+  // re-render preserva foco/cursor do campo sozinho (ver renderCampaignDetail
+  // em js/render.js), então é seguro atualizar a cada tecla aqui.
+  campaignDetailView.addEventListener('input', (e) => {
+    if (e.target.matches('[data-client-search]')) {
+      store.setCampaignClientSearch(e.target.value);
     }
   });
 

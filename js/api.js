@@ -378,11 +378,12 @@
     return supabaseClient.from('campaign_clients').update(payload).eq('id', id).select().single();
   }
 
-  // Mesmo formato condicional — só status é usado nesta fase, mas escrito
-  // genérico pra reaproveitar se outros campos de campanha virarem editáveis.
+  // Mesmo formato condicional — status e alert_days são os campos editáveis
+  // hoje; escrito genérico pra reaproveitar se outros campos virarem editáveis.
   function updateCampaignRow(id, patch) {
     const payload = {};
     if (patch.status !== undefined) payload.status = patch.status;
+    if (patch.alertDays !== undefined) payload.alert_days = patch.alertDays;
     return supabaseClient.from('campaigns').update(payload).eq('id', id).select().single();
   }
 
@@ -390,6 +391,12 @@
   // (migration 0015), então o banco já cuida dos clientes sozinho, sem RPC.
   function deleteCampaignRow(id) {
     return supabaseClient.from('campaigns').delete().eq('id', id);
+  }
+
+  // DELETE de 1 cliente isolado — RLS de campaign_clients já restringe por
+  // user_id = auth.uid() (migration 0015), sem precisar de RPC.
+  function deleteCampaignClientRow(id) {
+    return supabaseClient.from('campaign_clients').delete().eq('id', id);
   }
 
   async function fetchAdminStats() {
@@ -505,6 +512,7 @@
     updateCampaignClientRow,
     updateCampaignRow,
     deleteCampaignRow,
+    deleteCampaignClientRow,
     fetchAdminStats,
     fetchAdminTasksByWeekday,
     fetchAdminUserList,

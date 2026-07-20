@@ -1955,6 +1955,18 @@ a.btn-danger {
   margin-right: 0;
 }
 
+.campaign-alert-days-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.campaign-alert-days-field input {
+  width: 60px;
+}
+
 .campaign-detail-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -2041,6 +2053,17 @@ a.btn-danger {
   background: var(--primary-tint);
   color: var(--primary);
   border-color: var(--primary);
+}
+
+.campaign-client-search {
+  flex: 1 1 200px;
+  max-width: 280px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--text);
+  font-size: 0.85rem;
 }
 
 /* Único container de scroll da tabela (nunca aninhar dois) — mesma

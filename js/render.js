@@ -728,6 +728,14 @@
   function renderCampaignDetail() {
     const state = store.getState();
     const campaign = state.campaigns.find((c) => c.id === state.ui.campaignDetailId);
+
+    // Preserva foco/cursor do campo de busca: o innerHTML inteiro é
+    // reescrito a cada tecla (setCampaignClientSearch -> emit), o que
+    // destruiria e recriaria o <input>, perdendo o foco a cada caractere.
+    const searchInputBefore = els.campaignDetailView.querySelector('[data-client-search]');
+    const searchHadFocus = document.activeElement === searchInputBefore;
+    const searchCaret = searchHadFocus ? searchInputBefore.selectionStart : null;
+
     if (!campaign) {
       els.campaignDetailView.innerHTML = `
         <div class="empty-state">
@@ -744,9 +752,11 @@
     const statusLabels = CAMPAIGN_CLIENT_STATUS_LABELS[campaign.kind] || CAMPAIGN_CLIENT_STATUS_LABELS.vendas;
     const today = utils.todayISO();
 
+    const clientSearchQuery = state.campaignClientSearch.trim().toLowerCase();
     const clients = state.campaignClients
       .filter((c) => c.campaignId === campaign.id)
-      .filter((c) => state.campaignClientStatusFilter === 'all' || c.status === state.campaignClientStatusFilter);
+      .filter((c) => state.campaignClientStatusFilter === 'all' || c.status === state.campaignClientStatusFilter)
+      .filter((c) => !clientSearchQuery || c.name.toLowerCase().includes(clientSearchQuery));
 
     const statusFilterButtons = ['all', ...Object.keys(statusLabels)]
       .map((status) => {
@@ -835,6 +845,7 @@
           ${middleCellsHtml}
           <td><textarea data-client-notes>${escapeHtml(c.notes || '')}</textarea></td>
           <td><button type="button" class="btn-secondary" data-client-whatsapp="${c.id}" title="${waTitle}">WhatsApp</button></td>
+          <td><button type="button" class="btn-danger" data-client-delete="${c.id}" title="Excluir cliente">Excluir</button></td>
         </tr>`;
       })
       .join('');
@@ -843,19 +854,28 @@
     const fup2Header = campaign.fup2Date ? utils.formatDateBR(campaign.fup2Date) : '—';
     const fup3Header = campaign.fup3Date ? utils.formatDateBR(campaign.fup3Date) : '—';
     const theadHtml = isCert
-      ? `<tr><th>Nome</th><th>Celular</th><th>Status</th><th>Vencimento do certificado</th><th>Aviso em</th><th>Observações</th><th>WhatsApp</th></tr>`
+      ? `<tr><th>Nome</th><th>Celular</th><th>Status</th><th>Vencimento do certificado</th><th>Aviso em</th><th>Observações</th><th>WhatsApp</th><th></th></tr>`
       : `<tr>
           <th>Nome</th><th>Celular</th><th>Status</th>
           <th>FUP1 (${fup1Header})</th><th>FUP2 (${fup2Header})</th><th>FUP3 (${fup3Header})</th>
-          <th>Trial início</th><th>Trial fim</th><th>MRR</th><th>Observações</th><th>WhatsApp</th>
+          <th>Trial início</th><th>Trial fim</th><th>MRR</th><th>Observações</th><th>WhatsApp</th><th></th>
         </tr>`;
-    const colspan = isCert ? 7 : 11;
+    const colspan = isCert ? 8 : 12;
+
+    // Só certificados tem alert_days — vendas usa a régua de FUP, sem
+    // dias de antecedência configurável.
+    const alertDaysFieldHtml = isCert
+      ? `<label class="campaign-alert-days-field">Avisar com
+          <input type="number" min="1" max="180" data-campaign-alert-days value="${campaign.alertDays || 45}">
+          dias de antecedência</label>`
+      : '';
 
     els.campaignDetailView.innerHTML = `
       <header class="campaign-detail-header">
         <button type="button" class="btn-secondary" data-back-to-campaigns>← Campanhas</button>
         <h2 class="campaign-detail-name">${escapeHtml(campaign.name)}</h2>
         <span class="campaign-status-badge campaign-status-${campaign.status}">${escapeHtml(CAMPAIGN_STATUS_LABEL[campaign.status] || campaign.status)}</span>
+        ${alertDaysFieldHtml}
         <div class="campaign-detail-header-actions">
           <button type="button" class="btn-secondary" data-campaign-status-toggle="${campaign.id}">${statusToggleLabel}</button>
           <button type="button" class="btn-danger" data-campaign-delete="${campaign.id}">Excluir campanha</button>
@@ -869,6 +889,7 @@
 
       <div class="campaign-clients-toolbar">
         <div class="campaign-detail-filter">${statusFilterButtons}</div>
+        <input type="text" class="campaign-client-search" data-client-search placeholder="Buscar cliente..." value="${escapeHtml(state.campaignClientSearch)}">
         <button type="button" class="btn-secondary" data-open-add-client>+ Adicionar cliente</button>
       </div>
 
@@ -879,6 +900,14 @@
         </table>
       </div>
     `;
+
+    if (searchHadFocus) {
+      const searchInputAfter = els.campaignDetailView.querySelector('[data-client-search]');
+      if (searchInputAfter) {
+        searchInputAfter.focus();
+        searchInputAfter.setSelectionRange(searchCaret, searchCaret);
+      }
+    }
   }
 
   function renderToolbarState() {

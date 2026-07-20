@@ -34,6 +34,9 @@
     // Filtro rápido de status na tela de detalhe da campanha — efêmero,
     // igual "search" acima: não persiste, reseta a cada openCampaignDetail.
     campaignClientStatusFilter: 'all',
+    // Busca por nome na tela de detalhe da campanha — mesmo caráter efêmero
+    // do filtro de status acima.
+    campaignClientSearch: '',
     // Estado do import do Todoist (sem otimismo — a UI só mostra loading).
     importStatus: { loading: false, error: null },
     ui: localPrefs.load()
@@ -347,12 +350,18 @@
     state.ui.screen = 'campaignDetail';
     state.ui.campaignDetailId = campaignId;
     state.campaignClientStatusFilter = 'all';
+    state.campaignClientSearch = '';
     persistUi();
     emit();
   }
 
   function setCampaignClientStatusFilter(status) {
     state.campaignClientStatusFilter = status;
+    emit();
+  }
+
+  function setCampaignClientSearch(query) {
+    state.campaignClientSearch = query;
     emit();
   }
 
@@ -614,6 +623,23 @@
     });
   }
 
+  // Dias de antecedência do aviso (só campanhas kind='certificados') — só
+  // editável depois da criação, mesmo molde otimista de setCampaignStatus.
+  function updateCampaignAlertDays(id, alertDays) {
+    const camp = state.campaigns.find((x) => x.id === id);
+    if (!camp) return;
+    const previous = camp.alertDays;
+    camp.alertDays = alertDays;
+    emit();
+    api.updateCampaignRow(id, { alertDays }).then(({ error }) => {
+      if (error) {
+        camp.alertDays = previous;
+        emit();
+        handleMutationError('Falha ao atualizar dias de antecedência', error);
+      }
+    });
+  }
+
   // Sem RPC: campaign_clients.campaign_id já tem "on delete cascade" (ver
   // migration 0015), então o DELETE simples já cascateia no banco sozinho.
   // O strip local de campaignClients é só o espelho otimista, mesmo padrão
@@ -634,6 +660,21 @@
         state.campaignClients = state.campaignClients.concat(removedClients);
         emit();
         handleMutationError('Falha ao excluir campanha', error);
+      }
+    });
+  }
+
+  // Exclusão de 1 cliente da lista (mantendo a campanha) — mesmo molde
+  // otimista de deleteCampaign, mas removendo só o cliente do array.
+  function deleteCampaignClient(id) {
+    const removed = state.campaignClients.find((c) => c.id === id);
+    state.campaignClients = state.campaignClients.filter((c) => c.id !== id);
+    emit();
+    api.deleteCampaignClientRow(id).then(({ error }) => {
+      if (error) {
+        if (removed) state.campaignClients.push(removed);
+        emit();
+        handleMutationError('Falha ao excluir cliente', error);
       }
     });
   }
@@ -700,6 +741,7 @@
     state.campaignsError = null;
     state.campaignImportStatus = { loading: false, error: null };
     state.campaignClientStatusFilter = 'all';
+    state.campaignClientSearch = '';
     emit();
   }
 
@@ -1590,8 +1632,11 @@
     updateCampaignClientField,
     processCertificateAlerts,
     setCampaignStatus,
+    updateCampaignAlertDays,
     deleteCampaign,
+    deleteCampaignClient,
     setCampaignClientStatusFilter,
+    setCampaignClientSearch,
     subscribe,
     setAuthErrorHandler,
     loadInitialData,
