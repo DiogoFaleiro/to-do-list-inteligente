@@ -94,8 +94,13 @@
   const accountMenuBtn = document.getElementById('accountMenuBtn');
   const accountMenu = document.getElementById('accountMenu');
   const accountThemeBtn = document.getElementById('accountThemeBtn');
+  const accountStatsBtn = document.getElementById('accountStatsBtn');
   const accountAdminBtn = document.getElementById('accountAdminBtn');
   const accountLogoutBtn = document.getElementById('accountLogoutBtn');
+
+  // Tela "Minhas estatísticas"
+  const statsBody = document.getElementById('statsBody');
+  const statsRefreshBtn = document.getElementById('statsRefreshBtn');
 
   // Modal "Minha conta" (nome, foto, senha)
   const accountModal = document.getElementById('accountModal');
@@ -932,6 +937,26 @@
     if (row) store.openCampaignDetail(row.dataset.campaignId);
   });
 
+  // Dois retries distintos na tela de estatísticas: [data-stats-retry] é a
+  // busca de dados (mesmo padrão de [data-campaigns-retry] acima); já
+  // [data-stats-charts-retry] só reaparece quando o CDN do Chart.js falhou
+  // com os dados já carregados — não precisa refazer o fetch, só tentar
+  // carregar a biblioteca de novo (force: true ignora a assinatura cacheada,
+  // já que os canvases podem estar vazios).
+  statsBody.addEventListener('click', (e) => {
+    if (e.target.closest('[data-stats-retry]')) {
+      store.loadStats(true);
+      return;
+    }
+    if (e.target.closest('[data-stats-charts-retry]')) {
+      App.stats.renderCharts(store.getState(), { force: true });
+    }
+  });
+
+  statsRefreshBtn.addEventListener('click', () => {
+    store.loadStats(true);
+  });
+
   const showEncerradasToggle = document.getElementById('showEncerradasToggle');
   showEncerradasToggle.addEventListener('change', () => {
     store.setShowEncerradas(showEncerradasToggle.checked);
@@ -1409,6 +1434,15 @@
   accountThemeBtn.addEventListener('click', () => {
     toggleTheme();
     accountMenu.hidden = true;
+  });
+
+  // Sem render.renderAll() explícito aqui: store.setScreen já chama emit(),
+  // e store.subscribe(render.renderAll) (ver mais abaixo) redesenha sozinho
+  // — mesmo padrão do clique em [data-quick-screen] da sidebar (Campanhas).
+  accountStatsBtn.addEventListener('click', () => {
+    store.setScreen('stats');
+    accountMenu.hidden = true;
+    if (!store.getState().statsLoaded) store.loadStats();
   });
 
   accountLogoutBtn.addEventListener('click', () => {
@@ -2352,6 +2386,11 @@
       const bootScreen = store.getState().ui.screen;
       if ((bootScreen === 'campaigns' || bootScreen === 'campaignDetail') && !store.getState().campaignsLoaded) {
         store.loadCampaigns();
+      }
+      // Mesma âncora/mesma lógica de não-bloqueio do gatilho de Campanhas
+      // acima: refresh direto na tela "Minhas estatísticas" cai aqui.
+      if (bootScreen === 'stats' && !store.getState().statsLoaded) {
+        store.loadStats();
       }
 
       authLoadingScreen.hidden = true;

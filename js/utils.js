@@ -116,6 +116,7 @@
     todayISO,
     dateToISO,
     addDaysISO,
+    addMonthsISO,
     parseISO,
     isDateInRange,
     formatDateBR,

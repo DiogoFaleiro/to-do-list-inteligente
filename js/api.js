@@ -214,6 +214,38 @@
     return supabaseClient.from('task_completions').insert({ user_id: userId, task_id: taskId, completed_on: dateISO });
   }
 
+  // Fetches dedicados da tela "Minhas estatísticas" (js/stats.js) — nunca
+  // tocam state.tasks nem passam pelo corte de 60 dias de fetchTasks:
+  // aqui o objetivo é histórico completo, não a lista de trabalho do dia a dia.
+  // done + completed_date/project_id é tudo que a agregação por semana/mês/
+  // projeto precisa; sem título/descrição etc. (payload mínimo).
+  function fetchAllDoneTasks() {
+    return supabaseClient
+      .from('tasks')
+      .select('id,project_id,completed_date')
+      .eq('status', 'done')
+      .order('completed_date', { ascending: true });
+  }
+
+  // Histórico de conclusões de recorrentes (ver insertTaskCompletion acima).
+  // Cada linha soma no total de conclusões, independente do status atual da
+  // tarefa (que pode já ter rolado pra uma due_date futura).
+  function fetchTaskCompletions() {
+    return supabaseClient
+      .from('task_completions')
+      .select('id,task_id,completed_on')
+      .order('completed_on', { ascending: true });
+  }
+
+  // Mapa task_id -> project_id de TODAS as tarefas do usuário, sem filtro de
+  // status: uma linha de task_completions pode apontar pra uma recorrente
+  // que já rolou pra 'todo'/'doing' (não está mais em fetchAllDoneTasks), e
+  // sem esse mapa a conclusão dela ficaria sem projeto no agrupamento
+  // "por projeto". Query mínima (2 colunas, sem filtro) — custo desprezível.
+  function fetchTaskProjectMap() {
+    return supabaseClient.from('tasks').select('id,project_id');
+  }
+
   // Update mínimo só de due_date — usado quando setTaskStatus avança uma
   // tarefa recorrente pra próxima ocorrência (sem mexer em status/completed_date).
   function updateTaskDueDate(id, dueDateISO) {
@@ -417,6 +449,16 @@
     return data || [];
   }
 
+  // Métricas detalhadas de UM usuário (drill-down no painel admin) —
+  // migration 0018_metricas_usuarios.sql. Retorna já agregado por semana/mês/
+  // projeto (mesma definição canônica de conclusão do resto do app: done +
+  // cada linha de task_completions) — o client nunca re-agrega, só exibe.
+  async function fetchAdminUserMetrics(userId) {
+    const { data, error } = await supabaseClient.rpc('admin_user_metrics', { p_user_id: userId });
+    if (error) throw error;
+    return data;
+  }
+
   function updateProfile(userId, { displayName, avatarUrl }) {
     const payload = {};
     if (displayName !== undefined) payload.display_name = displayName;
@@ -495,6 +537,9 @@
     updateTaskStatusRow,
     reopenTasksBatch,
     insertTaskCompletion,
+    fetchAllDoneTasks,
+    fetchTaskCompletions,
+    fetchTaskProjectMap,
     updateTaskDueDate,
     fetchComments,
     insertComment,
@@ -516,6 +561,7 @@
     fetchAdminStats,
     fetchAdminTasksByWeekday,
     fetchAdminUserList,
+    fetchAdminUserMetrics,
     updateProfile,
     uploadAvatar,
     fetchApiTokens,

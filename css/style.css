@@ -1932,6 +1932,128 @@ a.btn-danger {
   display: none;
 }
 
+/* Tela "Minhas estatísticas" — mesmo padrão de fluxo normal das telas
+   acima (sem position:fixed/z-index). */
+.stats-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.stats-view[hidden] {
+  display: none;
+}
+
+.stats-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stats-view-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+#statsBody {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.stats-karma-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.stats-karma-emoji {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.stats-karma-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.stats-karma-level {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.stats-karma-total {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 4px 0 8px;
+}
+
+.stats-karma-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.stats-karma-progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 999px;
+}
+
+.stats-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+/* Altura fixa no card (não no <canvas> diretamente) + flex com min-height:0
+   no filho: é o jeito confiável de dar altura fixa/largura fluida pro
+   Chart.js com responsive:true — deixar o canvas "adivinhar" a própria
+   altura (ou forçar height nele via CSS) briga com o resize interno da
+   biblioteca. */
+.stats-chart-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  min-width: 0;
+  height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.stats-chart-card h3 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  flex: none;
+}
+
+.stats-chart-card canvas {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .stats-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-chart-card {
+    height: 220px;
+  }
+}
+
 .campaign-detail-header {
   display: flex;
   align-items: center;

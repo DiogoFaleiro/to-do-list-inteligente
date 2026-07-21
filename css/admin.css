@@ -101,6 +101,14 @@
   font-weight: 600;
 }
 
+.admin-table-row-clickable {
+  cursor: pointer;
+}
+
+.admin-table-row-clickable:hover {
+  background: var(--bg);
+}
+
 @media (max-width: 760px) {
   .admin-header {
     padding: 14px 16px;

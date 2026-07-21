@@ -98,6 +98,7 @@
           <button id="accountMenuBtn" class="mobile-icon-btn" type="button" aria-label="Configurações da conta" title="Configurações">⚙️</button>
           <div id="accountMenu" class="period-menu" hidden>
             <button type="button" id="accountThemeBtn"><span id="accountThemeIcon" aria-hidden="true">🌙</span> Alternar tema</button>
+            <button type="button" id="accountStatsBtn">📈 Minhas estatísticas</button>
             <button type="button" id="importTodoistBtn">📥 Importar CSV</button>
             <a id="accountAdminBtn" href="admin/index.html" hidden>📊 Painel Admin</a>
             <button type="button" id="accountLogoutBtn">Sair</button>
@@ -204,6 +205,14 @@
     </section>
 
     <section id="campaignDetailView" class="campaign-detail-view" hidden></section>
+
+    <section id="statsView" class="stats-view" hidden>
+      <header class="stats-view-header">
+        <h2>Minhas estatísticas</h2>
+        <button type="button" id="statsRefreshBtn" class="btn-secondary" title="Atualizar">🔄 Atualizar</button>
+      </header>
+      <div id="statsBody"></div>
+    </section>
     </main>
 
     <!-- Rodapé de navegação, só visível no mobile (≤480px) -->
@@ -589,6 +598,8 @@
   <script src="js/nlDate.js"></script>
   <script src="js/store.js"></script>
   <script src="js/render.js"></script>
+  <script src="js/statsCharts.js"></script>
+  <script src="js/stats.js"></script>
   <script src="js/importTodoist.js"></script>
   <script src="js/importCampaigns.js"></script>
   <script src="js/app.js"></script>

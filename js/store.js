@@ -22,6 +22,18 @@
     // estado de erro com botão "Tentar de novo" em vez de loading eterno.
     campaignsError: null,
     campaignImportStatus: { loading: false, error: null },
+    // Carregados sob demanda (loadStats), só quando a tela "Minhas
+    // estatísticas" abre — mesmo padrão de campaignsLoaded acima, incluindo
+    // o guard de chamada concorrente (statsLoading) e o estado de erro com
+    // retry (statsError). statsLoaded é invalidado (volta a false) direto em
+    // setTaskStatus/deleteTask/deleteProject, pontos únicos por onde toda
+    // mutação que muda os totais agregados passa — ver comentários lá.
+    statsLoaded: false,
+    statsLoading: false,
+    statsError: null,
+    statsDoneTasks: [], // [{ id, projectId, completedDate }]
+    statsCompletions: [], // [{ id, taskId, completedOn }]
+    statsTaskProjectMap: {}, // { [taskId]: projectId }, TODAS as tarefas do usuário
     // Mapa taskId -> [tagId, ...]. Não é persistido: reconstruído a cada
     // loadInitialData a partir das linhas de task_tags.
     taskTags: {},
@@ -197,6 +209,16 @@
       mrr: row.mrr,
       notes: row.notes
     };
+  }
+
+  // Mappers da tela "Minhas estatísticas" (js/stats.js) — rows mínimas dos
+  // fetches dedicados de js/api.js, nunca as rows completas de mapTaskFromRow.
+  function mapStatsDoneTaskFromRow(row) {
+    return { id: row.id, projectId: row.project_id, completedDate: row.completed_date };
+  }
+
+  function mapStatsCompletionFromRow(row) {
+    return { id: row.id, taskId: row.task_id, completedOn: row.completed_on };
   }
 
   function mapTaskFromRow(row) {
@@ -394,6 +416,47 @@
       // Erro de autenticação (ex: JWT expirado) força logout, igual ao
       // resto do app — sem alert() aqui: a UI já mostra o estado de erro
       // com "Tentar de novo", um alert bloqueante seria redundante.
+      if (isAuthError(error) && onAuthError) onAuthError();
+    }
+  }
+
+  // Carregado sob demanda (só quando a tela "Minhas estatísticas" abre), não
+  // no loadInitialData geral — mesmo padrão de loadCampaigns acima, incluindo
+  // o guard de chamada concorrente e o tratamento de erro (sem alert(): é
+  // leitura, não mutação, a UI mostra o estado de erro com "Tentar de novo").
+  // `force` (chamado pelo botão "Atualizar" da tela) ignora o cache e refaz
+  // a busca mesmo com statsLoaded já true — cobre conclusões feitas em outro
+  // dispositivo/aba, que não passam pela invalidação local de statsLoaded.
+  async function loadStats(force) {
+    if (state.statsLoading) return;
+    if (state.statsLoaded && !force) return;
+    state.statsLoading = true;
+    state.statsError = null;
+    emit();
+    try {
+      const [doneRes, complRes, mapRes] = await Promise.all([
+        api.fetchAllDoneTasks(),
+        api.fetchTaskCompletions(),
+        api.fetchTaskProjectMap()
+      ]);
+      const error = doneRes.error || complRes.error || mapRes.error;
+      if (error) throw error;
+      state.statsDoneTasks = (doneRes.data || []).map(mapStatsDoneTaskFromRow);
+      state.statsCompletions = (complRes.data || []).map(mapStatsCompletionFromRow);
+      const taskProjectMap = {};
+      (mapRes.data || []).forEach((row) => {
+        taskProjectMap[row.id] = row.project_id;
+      });
+      state.statsTaskProjectMap = taskProjectMap;
+      state.statsLoaded = true;
+      state.statsLoading = false;
+      state.statsError = null;
+      emit();
+    } catch (error) {
+      console.error('Falha ao carregar estatísticas', error);
+      state.statsLoading = false;
+      state.statsError = error;
+      emit();
       if (isAuthError(error) && onAuthError) onAuthError();
     }
   }
@@ -742,6 +805,12 @@
     state.campaignImportStatus = { loading: false, error: null };
     state.campaignClientStatusFilter = 'all';
     state.campaignClientSearch = '';
+    state.statsLoaded = false;
+    state.statsLoading = false;
+    state.statsError = null;
+    state.statsDoneTasks = [];
+    state.statsCompletions = [];
+    state.statsTaskProjectMap = {};
     emit();
   }
 
@@ -790,6 +859,9 @@
   }
 
   function deleteProject(id) {
+    // Apaga (via cascade) tarefas done do projeto junto — muda os totais
+    // agregados de "Minhas estatísticas", então invalida o cache.
+    state.statsLoaded = false;
     const removedProject = state.projects.find((p) => p.id === id);
     const removedTasks = state.tasks.filter((t) => t.projectId === id);
     // As sessões do projeto somem junto (o banco já faz isso via cascade;
@@ -1275,6 +1347,9 @@
   }
 
   function deleteTask(id) {
+    // Apagar uma tarefa done (ou uma mãe com subtarefas done) muda os totais
+    // agregados de "Minhas estatísticas" — invalida o cache.
+    state.statsLoaded = false;
     const removedIndex = state.tasks.findIndex((t) => t.id === id);
     const removed = state.tasks[removedIndex];
     // Espelha o "on delete cascade" do banco: apagar a tarefa mãe também
@@ -1296,6 +1371,11 @@
   function setTaskStatus(id, status) {
     const t = state.tasks.find((t) => t.id === id);
     if (!t) return;
+
+    // Ponto único de invalidação do cache de "Minhas estatísticas": cobre
+    // concluir, desmarcar/reabrir, recorrente e subtarefa (todas passam por
+    // aqui), sem precisar espalhar isso pelos vários handlers de UI.
+    state.statsLoaded = false;
 
     // Tarefa com regra de recorrência: concluir nunca marca 'done' de
     // verdade — grava a conclusão no histórico (task_completions) e avança
@@ -1575,8 +1655,9 @@
   // preserva o filtro que estava ativo antes. Os 4 setters acima já voltam
   // pra 'tasks' de graça (são o ponto de entrada de toda navegação de
   // filtro); a exceção manual é a aba mobile "Buscar" (ver js/app.js).
+  // "stats" (Minhas estatísticas) segue a mesma regra de "campaigns".
   function setScreen(screen) {
-    state.ui.screen = screen === 'campaigns' ? 'campaigns' : 'tasks';
+    state.ui.screen = ['campaigns', 'stats'].includes(screen) ? screen : 'tasks';
     persistUi();
     emit();
   }
@@ -1626,6 +1707,7 @@
     getCampaignClientCounts,
     getCampaignMetrics,
     loadCampaigns,
+    loadStats,
     createCampaignWithClients,
     addCampaignClient,
     openCampaignDetail,

@@ -42,7 +42,9 @@
     campaignImportTableBody: document.getElementById('campaignImportTableBody'),
     campaignImportWarnings: document.getElementById('campaignImportWarnings'),
     showEncerradasToggle: document.getElementById('showEncerradasToggle'),
-    campaignDetailView: document.getElementById('campaignDetailView')
+    campaignDetailView: document.getElementById('campaignDetailView'),
+    statsView: document.getElementById('statsView'),
+    statsBody: document.getElementById('statsBody')
   };
 
   const PERIOD_TITLES = { today: 'Hoje', week: 'Em breve', month: 'Mês', all: 'Todas as tarefas' };
@@ -1092,6 +1094,68 @@
     renderImportTagsSection(tagMatches || []);
   }
 
+  // Três estados possíveis, mesmo formato de renderCampaignsList: erro (com
+  // retry), carregando (ainda não carregou com sucesso nenhuma vez) e
+  // carregado (cards de resumo + karma + gráficos). Nunca "loading eterno":
+  // loadStats sempre sai de statsLoading pra um dos outros dois (ver
+  // js/store.js).
+  function renderStatsView() {
+    const state = store.getState();
+    if (state.statsError) {
+      els.statsBody.innerHTML = `
+        <div class="empty-state">
+          <p>Não foi possível carregar suas estatísticas.</p>
+          <button type="button" class="btn-secondary" data-stats-retry>Tentar de novo</button>
+        </div>`;
+      return;
+    }
+    if (!state.statsLoaded) {
+      els.statsBody.innerHTML = `<p class="empty-state">Carregando estatísticas...</p>`;
+      return;
+    }
+
+    // O skeleton (canvases + container dos cards) só é (re)montado quando
+    // ainda não existe no DOM — ex.: primeira vez que os dados carregam, ou
+    // voltando de um estado de erro. renderStatsView roda a cada emit() do
+    // store inteiro (qualquer mutação em qualquer tela, não só aqui);
+    // recriar os <canvas> a cada chamada destruiria e recriaria os elementos
+    // por baixo das instâncias de Chart que js/stats.js mantém vivas,
+    // vazando-as (ver App.stats.resetCharts/renderCharts).
+    let summaryEl = document.getElementById('statsSummaryEl');
+    if (!summaryEl) {
+      App.stats.resetCharts();
+      els.statsBody.innerHTML = `
+        <div id="statsSummaryEl" class="admin-stats"></div>
+        <div id="statsKarmaEl"></div>
+        <div id="statsChartsError" class="empty-state" hidden>
+          <p>Não foi possível carregar os gráficos. Verifique sua conexão.</p>
+          <button type="button" class="btn-secondary" data-stats-charts-retry>Tentar novamente</button>
+        </div>
+        <div class="stats-charts-grid">
+          <div class="stats-chart-card"><h3>Conclusões por semana</h3><canvas id="statsWeekChart"></canvas></div>
+          <div class="stats-chart-card"><h3>Conclusões por mês</h3><canvas id="statsMonthChart"></canvas></div>
+          <div class="stats-chart-card"><h3>Por projeto</h3><canvas id="statsProjectChart"></canvas></div>
+        </div>`;
+      summaryEl = document.getElementById('statsSummaryEl');
+    }
+
+    const events = App.stats.buildCompletionEvents(state.statsDoneTasks, state.statsCompletions, state.statsTaskProjectMap);
+    const summary = App.stats.computeSummary(events);
+    const karma = App.statsCharts.computeKarmaLevel(summary.total);
+    const topProject = summary.topProjectId ? projectById(summary.topProjectId) : null;
+
+    summaryEl.innerHTML = App.statsCharts.buildSummaryCardsHtml({
+      total: summary.total,
+      thisWeek: summary.thisWeek,
+      thisMonth: summary.thisMonth,
+      topProjectName: topProject ? topProject.name : null
+    });
+
+    document.getElementById('statsKarmaEl').innerHTML = App.statsCharts.buildKarmaCardHtml(karma, summary.total);
+
+    App.stats.renderCharts(state);
+  }
+
   function renderAll() {
     renderSidebar();
     renderToolbarState();
@@ -1101,10 +1165,13 @@
     els.tasksScreen.hidden = screen !== 'tasks';
     els.campaignsView.hidden = screen !== 'campaigns';
     els.campaignDetailView.hidden = screen !== 'campaignDetail';
+    els.statsView.hidden = screen !== 'stats';
     if (screen === 'campaigns') {
       renderCampaignsList();
     } else if (screen === 'campaignDetail') {
       renderCampaignDetail();
+    } else if (screen === 'stats') {
+      renderStatsView();
     } else if (state.ui.view === 'list') {
       renderList();
     } else {
@@ -1127,6 +1194,7 @@
     renderCampaignSessionOptions,
     renderCampaignImportPreview,
     renderCampaignsList,
-    renderCampaignDetail
+    renderCampaignDetail,
+    renderStatsView
   };
 })(window.App = window.App || {});

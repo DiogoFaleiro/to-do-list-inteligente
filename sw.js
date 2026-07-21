@@ -1,4 +1,4 @@
-const CACHE_NAME = 'todolist-cache-v73';
+const CACHE_NAME = 'todolist-cache-v75';
 const APP_SHELL = [
   './',
   './index.html',
@@ -13,6 +13,8 @@ const APP_SHELL = [
   './js/nlDate.js',
   './js/store.js',
   './js/render.js',
+  './js/statsCharts.js',
+  './js/stats.js',
   './js/importTodoist.js',
   './js/importCampaigns.js',
   './js/app.js',
