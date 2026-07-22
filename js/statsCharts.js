@@ -102,14 +102,21 @@
       </div>`;
   }
 
-  function formatWeekLabel(weekStart) {
+  // isCurrent marca a última barra (semana/mês em andamento, ainda somando)
+  // — sem isso, o rótulo "20/07" da última barra parece uma data fixa onde
+  // a contagem "parou", quando na verdade é só o início da semana atual e o
+  // total dela já inclui tudo até hoje (relatado como bug de dados, mas era
+  // só falta de clareza no rótulo).
+  function formatWeekLabel(weekStart, isCurrent) {
     const [, m, d] = weekStart.split('-');
-    return `${d}/${m}`;
+    const base = `${d}/${m}`;
+    return isCurrent ? `${base} (atual)` : base;
   }
 
-  function formatMonthLabel(monthStart) {
+  function formatMonthLabel(monthStart, isCurrent) {
     const [y, m] = monthStart.split('-');
-    return `${MONTH_LABELS[Number(m) - 1]}/${y.slice(2)}`;
+    const base = `${MONTH_LABELS[Number(m) - 1]}/${y.slice(2)}`;
+    return isCurrent ? `${base} (atual)` : base;
   }
 
   function currentThemeName() {
@@ -214,7 +221,7 @@
         handle.weekChart = new Chart(weekCanvas, {
           type: 'bar',
           data: {
-            labels: weekData.map((w) => formatWeekLabel(w.weekStart)),
+            labels: weekData.map((w, i) => formatWeekLabel(w.weekStart, i === weekData.length - 1)),
             datasets: [
               { label: 'Conclusões', data: weekData.map((w) => w.count), backgroundColor: primary, borderRadius: 6, maxBarThickness: 32 }
             ]
@@ -231,7 +238,7 @@
         handle.monthChart = new Chart(monthCanvas, {
           type: 'bar',
           data: {
-            labels: monthData.map((m) => formatMonthLabel(m.monthStart)),
+            labels: monthData.map((m, i) => formatMonthLabel(m.monthStart, i === monthData.length - 1)),
             datasets: [
               { label: 'Conclusões', data: monthData.map((m) => m.count), backgroundColor: primary, borderRadius: 6, maxBarThickness: 32 }
             ]
