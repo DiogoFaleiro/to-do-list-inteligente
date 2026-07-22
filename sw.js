@@ -1,4 +1,4 @@
-const CACHE_NAME = 'todolist-cache-v75';
+const CACHE_NAME = 'todolist-cache-v76';
 const APP_SHELL = [
   './',
   './index.html',
@@ -42,8 +42,21 @@ self.addEventListener('activate', (event) => {
 // Rede primeiro (sempre busca a versão mais nova quando online), com o
 // cache como reserva só quando a rede falhar (uso offline do PWA). Evita
 // que o app fique preso servindo uma versão antiga em cache indefinidamente.
+//
+// Só intercepta requisições same-origin (o app shell: HTML/CSS/JS/ícones).
+// Chamadas cross-origin (API do Supabase, CDN do Chart.js/SheetJS) NUNCA
+// passam por aqui — bug real encontrado: como fetchAllDoneTasks/
+// fetchTaskCompletions/fetchTaskProjectMap (js/api.js) sempre montam a
+// mesma URL, uma falha de rede pontual fazia o catch() abaixo cair pro
+// cache e servir pra sempre a primeira resposta bem-sucedida daquela URL —
+// "Minhas estatísticas" ficou travada numa data fixa e o botão Atualizar
+// não tinha efeito algum, porque a "atualização" vinha do próprio cache do
+// Service Worker, não da rede. Dados de API nunca devem ser cacheados aqui;
+// erros de rede na API já são tratados pelos handlers de erro do próprio
+// app (estado de erro + retry), não precisam de fallback do SW.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  if (new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {
