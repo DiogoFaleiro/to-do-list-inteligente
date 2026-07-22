@@ -102,14 +102,31 @@
       </div>`;
   }
 
-  // isCurrent marca a última barra (semana/mês em andamento, ainda somando)
-  // — sem isso, o rótulo "20/07" da última barra parece uma data fixa onde
-  // a contagem "parou", quando na verdade é só o início da semana atual e o
-  // total dela já inclui tudo até hoje (relatado como bug de dados, mas era
-  // só falta de clareza no rótulo).
+  // Soma dias a uma data ISO (YYYY-MM-DD) sem depender de App.utils — este
+  // módulo é carregado também por admin/index.html, que não inclui
+  // js/utils.js (ver header do arquivo: "sem dependência de App.store" —
+  // o mesmo vale aqui, propositalmente, pra não exigir mais scripts na
+  // página do admin).
+  function addDaysToISO(dateISO, days) {
+    const [y, m, d] = dateISO.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + days);
+    const yy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  }
+
+  // Mostra o intervalo inteiro da semana (início-fim), não só o dia de
+  // início — só "20/07" na última barra gerava a leitura errada de que a
+  // contagem "parava" naquele dia (ver "(atual)" abaixo), quando na
+  // verdade a semana vai até 6 dias depois e já soma tudo até hoje.
+  // isCurrent marca a última barra (semana em andamento, ainda somando).
   function formatWeekLabel(weekStart, isCurrent) {
-    const [, m, d] = weekStart.split('-');
-    const base = `${d}/${m}`;
+    const weekEnd = addDaysToISO(weekStart, 6);
+    const [, sm, sd] = weekStart.split('-');
+    const [, em, ed] = weekEnd.split('-');
+    const base = sm === em ? `${sd}-${ed}/${sm}` : `${sd}/${sm}-${ed}/${em}`;
     return isCurrent ? `${base} (atual)` : base;
   }
 
