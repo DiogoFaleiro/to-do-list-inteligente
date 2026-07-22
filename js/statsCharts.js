@@ -119,21 +119,18 @@
 
   // Mostra o intervalo inteiro da semana (início-fim), não só o dia de
   // início — só "20/07" na última barra gerava a leitura errada de que a
-  // contagem "parava" naquele dia (ver "(atual)" abaixo), quando na
-  // verdade a semana vai até 6 dias depois e já soma tudo até hoje.
-  // isCurrent marca a última barra (semana em andamento, ainda somando).
-  function formatWeekLabel(weekStart, isCurrent) {
+  // contagem "parava" naquele dia, quando na verdade a semana vai até 6
+  // dias depois e já soma tudo até hoje.
+  function formatWeekLabel(weekStart) {
     const weekEnd = addDaysToISO(weekStart, 6);
     const [, sm, sd] = weekStart.split('-');
     const [, em, ed] = weekEnd.split('-');
-    const base = sm === em ? `${sd}-${ed}/${sm}` : `${sd}/${sm}-${ed}/${em}`;
-    return isCurrent ? `${base} (atual)` : base;
+    return sm === em ? `${sd}-${ed}/${sm}` : `${sd}/${sm}-${ed}/${em}`;
   }
 
-  function formatMonthLabel(monthStart, isCurrent) {
+  function formatMonthLabel(monthStart) {
     const [y, m] = monthStart.split('-');
-    const base = `${MONTH_LABELS[Number(m) - 1]}/${y.slice(2)}`;
-    return isCurrent ? `${base} (atual)` : base;
+    return `${MONTH_LABELS[Number(m) - 1]}/${y.slice(2)}`;
   }
 
   function currentThemeName() {
@@ -238,7 +235,7 @@
         handle.weekChart = new Chart(weekCanvas, {
           type: 'bar',
           data: {
-            labels: weekData.map((w, i) => formatWeekLabel(w.weekStart, i === weekData.length - 1)),
+            labels: weekData.map((w) => formatWeekLabel(w.weekStart)),
             datasets: [
               { label: 'Conclusões', data: weekData.map((w) => w.count), backgroundColor: primary, borderRadius: 6, maxBarThickness: 32 }
             ]
@@ -255,7 +252,7 @@
         handle.monthChart = new Chart(monthCanvas, {
           type: 'bar',
           data: {
-            labels: monthData.map((m, i) => formatMonthLabel(m.monthStart, i === monthData.length - 1)),
+            labels: monthData.map((m) => formatMonthLabel(m.monthStart)),
             datasets: [
               { label: 'Conclusões', data: monthData.map((m) => m.count), backgroundColor: primary, borderRadius: 6, maxBarThickness: 32 }
             ]
