@@ -43,6 +43,14 @@
     campaignImportWarnings: document.getElementById('campaignImportWarnings'),
     showEncerradasToggle: document.getElementById('showEncerradasToggle'),
     campaignDetailView: document.getElementById('campaignDetailView'),
+    vouchersView: document.getElementById('vouchersView'),
+    voucherBatchesListEl: document.getElementById('voucherBatchesListEl'),
+    quickFilterVouchers: document.getElementById('quickFilterVouchers'),
+    voucherBatchImportTable: document.getElementById('voucherBatchImportTable'),
+    voucherBatchImportTableBody: document.getElementById('voucherBatchImportTableBody'),
+    voucherBatchImportWarnings: document.getElementById('voucherBatchImportWarnings'),
+    showVoucherBatchesEncerradosToggle: document.getElementById('showVoucherBatchesEncerradosToggle'),
+    voucherBatchDetailView: document.getElementById('voucherBatchDetailView'),
     statsView: document.getElementById('statsView'),
     statsBody: document.getElementById('statsBody')
   };
@@ -651,6 +659,29 @@
       .join('');
   }
 
+  const VOUCHER_IMPORT_STATUS_LABEL = { disponivel: 'Disponível', vendido: 'Vendido' };
+
+  // Preview do import de vouchers (CSV/xlsx do Conexa) — mesmo molde de
+  // renderCampaignImportPreview: checkboxes marcados por padrão, texto de
+  // origem externa (código) sempre passa por escapeHtml.
+  function renderVoucherImportPreview(parsed) {
+    els.voucherBatchImportWarnings.hidden = !parsed.warnings.length;
+    els.voucherBatchImportWarnings.innerHTML = parsed.warnings.length
+      ? `<ul>${parsed.warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join('')}</ul>`
+      : '';
+    els.voucherBatchImportTable.hidden = parsed.vouchers.length === 0;
+    els.voucherBatchImportTableBody.innerHTML = parsed.vouchers
+      .map(
+        (v, i) => `
+        <tr>
+          <td><input type="checkbox" data-voucher-row-check="${i}" checked></td>
+          <td>${escapeHtml(v.code)}</td>
+          <td>${escapeHtml(VOUCHER_IMPORT_STATUS_LABEL[v.status] || v.status)}</td>
+        </tr>`
+      )
+      .join('');
+  }
+
   const CAMPAIGN_STATUS_LABEL = { ativa: 'Ativa', encerrada: 'Encerrada' };
   // Vocabulário de status não se sobrepõe entre os dois kinds — cada
   // campanha só usa o mapa do seu próprio tipo.
@@ -912,12 +943,198 @@
     }
   }
 
+  const VOUCHER_BATCH_STATUS_LABEL = { ativo: 'Ativo', encerrado: 'Encerrado' };
+  const VOUCHER_STATUS_LABEL = {
+    disponivel: 'Disponível',
+    reservado: 'Reservado',
+    vendido: 'Vendido',
+    expirado: 'Expirado'
+  };
+
+  function renderVoucherBatchesList() {
+    const state = store.getState();
+    if (els.showVoucherBatchesEncerradosToggle) {
+      els.showVoucherBatchesEncerradosToggle.checked = !!state.ui.showVoucherBatchesEncerrados;
+    }
+    // Mesmos três estados de renderCampaignsList: erro (com retry),
+    // carregando, carregado — loadVoucherBatches sempre sai de
+    // voucherBatchesLoading pra um dos outros dois (ver js/store.js).
+    if (state.voucherBatchesError) {
+      els.voucherBatchesListEl.innerHTML = `
+        <div class="empty-state">
+          <p>Não foi possível carregar os vouchers.</p>
+          <button type="button" class="btn-secondary" data-voucher-batches-retry>Tentar de novo</button>
+        </div>`;
+      return;
+    }
+    if (!state.voucherBatchesLoaded) {
+      els.voucherBatchesListEl.innerHTML = `<p class="empty-state">Carregando vouchers...</p>`;
+      return;
+    }
+    // "Encerrar" tira o lote da lista padrão, mas ele continua acessível
+    // via este toggle (nunca é escondido de vez) — mesmo padrão de Campanhas.
+    const visibleBatches = state.voucherBatches.filter(
+      (b) => state.ui.showVoucherBatchesEncerrados || b.status === 'ativo'
+    );
+    if (!visibleBatches.length) {
+      els.voucherBatchesListEl.innerHTML = `<p class="empty-state">Nenhum lote ainda. Crie o primeiro acima.</p>`;
+      return;
+    }
+    els.voucherBatchesListEl.innerHTML = visibleBatches
+      .map((b) => {
+        const metrics = store.getVoucherBatchMetrics(b.id);
+        const restantes = metrics.total - metrics.vendidos;
+        // % de aproveitamento = vendidos/total (0 se lote vazio, nunca NaN
+        // no width da barra).
+        const pctVendidos = metrics.total > 0 ? (metrics.vendidos / metrics.total) * 100 : 0;
+        return `
+        <div class="voucher-batch-row" data-voucher-batch-id="${b.id}">
+          <div class="voucher-batch-row-name">${escapeHtml(b.name)}
+            <span class="voucher-batch-status-badge voucher-batch-status-${b.status}">${escapeHtml(VOUCHER_BATCH_STATUS_LABEL[b.status] || b.status)}</span>
+          </div>
+          <div class="voucher-batch-row-meta">
+            ${metrics.total} voucher${metrics.total === 1 ? '' : 's'}
+            · ${metrics.vendidos} vendido${metrics.vendidos === 1 ? '' : 's'}
+            · Lucro: R$ ${metrics.lucro.toFixed(2)}
+          </div>
+          <div class="voucher-batch-row-progress">
+            <div class="voucher-batch-progress-bar"><div class="voucher-batch-progress-fill" style="width: ${pctVendidos}%"></div></div>
+            <span class="voucher-batch-progress-remaining">${restantes} restante${restantes === 1 ? '' : 's'}</span>
+          </div>
+        </div>`;
+      })
+      .join('');
+  }
+
+  // Tela de detalhe: mesmo padrão de renderCampaignDetail — controla o
+  // próprio conteúdo inteiro via innerHTML, voucherBatchDetailId pode ficar
+  // stale (lote excluído em outra aba), tratado como estado vazio.
+  function renderVoucherBatchDetail() {
+    const state = store.getState();
+    const batch = state.voucherBatches.find((b) => b.id === state.ui.voucherBatchDetailId);
+
+    if (!batch) {
+      els.voucherBatchDetailView.innerHTML = `
+        <div class="empty-state">
+          <p>Lote não encontrado.</p>
+          <button type="button" class="btn-secondary" data-back-to-vouchers>← Vouchers</button>
+        </div>`;
+      return;
+    }
+
+    // Preserva foco/cursor do campo de busca: o innerHTML inteiro é
+    // reescrito a cada tecla (setVoucherCodeSearch -> emit), o que
+    // destruiria e recriaria o <input>, perdendo o foco a cada caractere —
+    // mesmo padrão de renderCampaignDetail (data-client-search).
+    const searchInputBefore = els.voucherBatchDetailView.querySelector('[data-voucher-code-search]');
+    const searchHadFocus = document.activeElement === searchInputBefore;
+    const searchCaret = searchHadFocus ? searchInputBefore.selectionStart : null;
+
+    const metrics = store.getVoucherBatchMetrics(batch.id);
+    const statusToggleLabel = batch.status === 'ativo' ? 'Encerrar' : 'Reativar';
+
+    const codeSearchQuery = state.voucherCodeSearch.trim().toLowerCase();
+    const vouchers = state.vouchers
+      .filter((v) => v.batchId === batch.id)
+      .filter((v) => state.voucherStatusFilter === 'all' || v.status === state.voucherStatusFilter)
+      .filter((v) => !codeSearchQuery || v.code.toLowerCase().includes(codeSearchQuery));
+
+    const statusFilterButtons = ['all', ...Object.keys(VOUCHER_STATUS_LABEL)]
+      .map((status) => {
+        const label = status === 'all' ? 'Todos' : VOUCHER_STATUS_LABEL[status];
+        const active = state.voucherStatusFilter === status ? 'active' : '';
+        return `<button type="button" class="${active}" data-voucher-status-filter="${status}">${escapeHtml(label)}</button>`;
+      })
+      .join('');
+
+    const metricTiles = [
+      { value: metrics.total, label: 'Total' },
+      { value: metrics.disponiveis, label: 'Disponíveis' },
+      { value: metrics.reservados, label: 'Reservados' },
+      { value: metrics.vendidos, label: 'Vendidos' },
+      { value: metrics.expirados, label: 'Expirados' },
+      { value: `R$ ${metrics.receita.toFixed(2)}`, label: 'Receita realizada' },
+      { value: `R$ ${metrics.custoTotal.toFixed(2)}`, label: 'Custo total' },
+      { value: `R$ ${metrics.lucro.toFixed(2)}`, label: 'Lucro' },
+      { value: `${(metrics.margem * 100).toFixed(1)}%`, label: 'Margem' },
+      { value: `R$ ${metrics.ticketMedio.toFixed(2)}`, label: 'Ticket médio' }
+    ];
+    const metricsHtml = metricTiles
+      .map(
+        (t) =>
+          `<div class="voucher-batch-metric-tile"><span class="voucher-batch-metric-value">${t.value}</span><span class="voucher-batch-metric-label">${t.label}</span></div>`
+      )
+      .join('');
+
+    const tableRows = vouchers
+      .map((v) => {
+        const statusOptions = Object.keys(VOUCHER_STATUS_LABEL)
+          .map((s) => `<option value="${s}" ${v.status === s ? 'selected' : ''}>${escapeHtml(VOUCHER_STATUS_LABEL[s])}</option>`)
+          .join('');
+        return `
+        <tr data-voucher-id="${v.id}">
+          <td>
+            <span data-voucher-code>${escapeHtml(v.code)}</span>
+            <button type="button" class="btn-secondary" data-voucher-copy="${v.id}" title="Copiar código">📋</button>
+          </td>
+          <td><select data-voucher-status-select>${statusOptions}</select></td>
+          <td><input type="number" step="0.01" min="0" data-voucher-cost value="${v.costPrice}"></td>
+          <td><input type="number" step="0.01" min="0" data-voucher-sale value="${v.salePrice}"></td>
+          <td><input type="date" data-voucher-valid-until value="${v.validUntil || ''}"></td>
+          <td><input type="text" data-voucher-notes value="${escapeHtml(v.notes || '')}"></td>
+        </tr>`;
+      })
+      .join('');
+
+    els.voucherBatchDetailView.innerHTML = `
+      <header class="voucher-batch-detail-header">
+        <button type="button" class="btn-secondary" data-back-to-vouchers>← Vouchers</button>
+        <h2 class="voucher-batch-detail-name">${escapeHtml(batch.name)}</h2>
+        <span class="voucher-batch-status-badge voucher-batch-status-${batch.status}">${escapeHtml(VOUCHER_BATCH_STATUS_LABEL[batch.status] || batch.status)}</span>
+        <div class="voucher-batch-detail-header-actions">
+          <button type="button" class="btn-secondary" data-voucher-batch-status-toggle="${batch.id}">${statusToggleLabel}</button>
+          <button type="button" class="btn-danger" data-voucher-batch-delete="${batch.id}">Excluir lote</button>
+        </div>
+      </header>
+
+      <div class="voucher-batch-detail-metrics">${metricsHtml}</div>
+
+      <div class="voucher-batch-toolbar">
+        <div class="voucher-batch-detail-filter">${statusFilterButtons}</div>
+        <input type="text" class="voucher-code-search" data-voucher-code-search placeholder="Buscar código..." value="${escapeHtml(state.voucherCodeSearch)}">
+        <button type="button" class="btn-secondary" data-copy-filtered-codes ${vouchers.length === 0 ? 'disabled' : ''}>📋 Copiar códigos filtrados</button>
+        <button type="button" class="btn-secondary" data-open-add-voucher>+ Adicionar voucher</button>
+      </div>
+
+      <div class="voucher-batch-table-wrap">
+        <table class="voucher-batch-table">
+          <thead><tr><th>Código</th><th>Status</th><th>Custo</th><th>Venda</th><th>Válido até</th><th>Notas</th></tr></thead>
+          <tbody>${tableRows || `<tr><td colspan="6" class="empty-state">Nenhum voucher com esse filtro.</td></tr>`}</tbody>
+        </table>
+      </div>
+    `;
+
+    if (searchHadFocus) {
+      const searchInputAfter = els.voucherBatchDetailView.querySelector('[data-voucher-code-search]');
+      if (searchInputAfter) {
+        searchInputAfter.focus();
+        searchInputAfter.setSelectionRange(searchCaret, searchCaret);
+      }
+    }
+  }
+
   function renderToolbarState() {
     const state = store.getState();
     if (els.quickFilterCampaigns) {
       els.quickFilterCampaigns.classList.toggle(
         'active',
         state.ui.screen === 'campaigns' || state.ui.screen === 'campaignDetail'
+      );
+    }
+    if (els.quickFilterVouchers) {
+      els.quickFilterVouchers.classList.toggle(
+        'active',
+        state.ui.screen === 'vouchers' || state.ui.screen === 'voucherBatchDetail'
       );
     }
     els.periodTabs.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.period === state.ui.period));
@@ -1166,12 +1383,18 @@
     els.campaignsView.hidden = screen !== 'campaigns';
     els.campaignDetailView.hidden = screen !== 'campaignDetail';
     els.statsView.hidden = screen !== 'stats';
+    els.vouchersView.hidden = screen !== 'vouchers';
+    els.voucherBatchDetailView.hidden = screen !== 'voucherBatchDetail';
     if (screen === 'campaigns') {
       renderCampaignsList();
     } else if (screen === 'campaignDetail') {
       renderCampaignDetail();
     } else if (screen === 'stats') {
       renderStatsView();
+    } else if (screen === 'vouchers') {
+      renderVoucherBatchesList();
+    } else if (screen === 'voucherBatchDetail') {
+      renderVoucherBatchDetail();
     } else if (state.ui.view === 'list') {
       renderList();
     } else {
@@ -1195,6 +1418,9 @@
     renderCampaignImportPreview,
     renderCampaignsList,
     renderCampaignDetail,
+    renderVoucherImportPreview,
+    renderVoucherBatchesList,
+    renderVoucherBatchDetail,
     renderStatsView
   };
 })(window.App = window.App || {});

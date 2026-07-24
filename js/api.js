@@ -431,6 +431,85 @@
     return supabaseClient.from('campaign_clients').delete().eq('id', id);
   }
 
+  function fetchVoucherBatches() {
+    return supabaseClient.from('voucher_batches').select('*').order('created_at', { ascending: false });
+  }
+
+  // Sem filtro por batch_id aqui — RLS já restringe ao dono; a filtragem por
+  // lote acontece em memória no store (mesmo padrão de fetchCampaignClients).
+  function fetchVouchers() {
+    return supabaseClient.from('vouchers').select('*');
+  }
+
+  function insertVoucherBatch(userId, { name, description, defaultCostPrice, defaultSalePrice }) {
+    return supabaseClient
+      .from('voucher_batches')
+      .insert({
+        user_id: userId,
+        name,
+        description: description || null,
+        default_cost_price: defaultCostPrice,
+        default_sale_price: defaultSalePrice
+      })
+      .select()
+      .single();
+  }
+
+  // Insere vários vouchers de uma vez (usado pela criação de lote via
+  // import) — o chamador monta as linhas prontas (snake_case), mesmo padrão
+  // de insertCampaignClientsBatch/insertSessionsBatch.
+  function insertVouchersBatch(rows) {
+    return supabaseClient.from('vouchers').insert(rows).select();
+  }
+
+  // Inserção manual de 1 voucher (botão "+ Adicionar voucher" no detalhe do
+  // lote) — mesmo molde de insertCampaignClientRow: .select().single()
+  // porque o chamador precisa do id real de volta pra substituir a linha
+  // otimista.
+  function insertVoucherRow(userId, { batchId, code, costPrice, salePrice, validUntil, notes }) {
+    return supabaseClient
+      .from('vouchers')
+      .insert({
+        batch_id: batchId,
+        user_id: userId,
+        code,
+        cost_price: costPrice,
+        sale_price: salePrice,
+        valid_until: validUntil || null,
+        notes: notes || null
+      })
+      .select()
+      .single();
+  }
+
+  // Payload condicional (mesmo padrão de updateCampaignClientRow) — patch é
+  // um objeto parcial em camelCase, só os campos presentes viram coluna.
+  function updateVoucherBatchRow(id, patch) {
+    const payload = {};
+    if (patch.name !== undefined) payload.name = patch.name;
+    if (patch.description !== undefined) payload.description = patch.description;
+    if (patch.status !== undefined) payload.status = patch.status;
+    if (patch.defaultCostPrice !== undefined) payload.default_cost_price = patch.defaultCostPrice;
+    if (patch.defaultSalePrice !== undefined) payload.default_sale_price = patch.defaultSalePrice;
+    return supabaseClient.from('voucher_batches').update(payload).eq('id', id).select().single();
+  }
+
+  function updateVoucherRow(id, patch) {
+    const payload = {};
+    if (patch.status !== undefined) payload.status = patch.status;
+    if (patch.costPrice !== undefined) payload.cost_price = patch.costPrice;
+    if (patch.salePrice !== undefined) payload.sale_price = patch.salePrice;
+    if (patch.validUntil !== undefined) payload.valid_until = patch.validUntil;
+    if (patch.notes !== undefined) payload.notes = patch.notes;
+    return supabaseClient.from('vouchers').update(payload).eq('id', id).select().single();
+  }
+
+  // DELETE simples — vouchers.batch_id tem "on delete cascade" (migration
+  // 0019), então o banco já cuida dos vouchers sozinho, sem RPC.
+  function deleteVoucherBatchRow(id) {
+    return supabaseClient.from('voucher_batches').delete().eq('id', id);
+  }
+
   async function fetchAdminStats() {
     const { data, error } = await supabaseClient.rpc('admin_dashboard_stats');
     if (error) throw error;
@@ -558,6 +637,14 @@
     updateCampaignRow,
     deleteCampaignRow,
     deleteCampaignClientRow,
+    fetchVoucherBatches,
+    fetchVouchers,
+    insertVoucherBatch,
+    insertVouchersBatch,
+    insertVoucherRow,
+    updateVoucherBatchRow,
+    updateVoucherRow,
+    deleteVoucherBatchRow,
     fetchAdminStats,
     fetchAdminTasksByWeekday,
     fetchAdminUserList,

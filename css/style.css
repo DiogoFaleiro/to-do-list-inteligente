@@ -2220,6 +2220,300 @@ a.btn-danger {
   width: 90px;
 }
 
+/* Tela "Vouchers" — bloco modelado 1:1 em cima do de Campanhas acima
+   (mesmo formato lista + detalhe), com prefixo próprio: o código não tem
+   classes de componente genéricas reaproveitáveis entre features, cada
+   tela de "lista + detalhe" já duplica o próprio CSS (ver .campaigns-view
+   acima), então segue o mesmo padrão em vez de introduzir uma abstração
+   nova. .modal-wide/.import-warnings/.campaign-import-table/
+   .campaign-import-filename continuam reaproveitados (já são genéricos,
+   usados também pelo import do Todoist).*/
+.voucher-batches-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.voucher-batches-view[hidden] {
+  display: none;
+}
+
+.voucher-batches-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.voucher-batches-view-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.voucher-batches-view-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.voucher-batches-show-ended-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.voucher-batches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.voucher-batch-row {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.voucher-batch-row:hover {
+  border-color: var(--primary);
+}
+
+.voucher-batch-row-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.voucher-batch-row-meta {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.voucher-batch-row-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.voucher-batch-progress-bar {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.voucher-batch-progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 999px;
+}
+
+.voucher-batch-progress-remaining {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.voucher-batch-status-badge {
+  font-size: 0.75rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+  background: var(--border);
+  color: var(--text-muted);
+}
+
+.voucher-batch-status-ativo {
+  background: var(--success-tint);
+  color: var(--success);
+}
+
+.voucher-batch-status-encerrado {
+  background: var(--border);
+  color: var(--text-muted);
+}
+
+.voucher-batch-create-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) 1fr;
+  gap: 20px;
+}
+
+.voucher-batch-create-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.voucher-batch-create-fields textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+.voucher-batch-create-preview {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+@media (max-width: 940px) {
+  .voucher-batch-create-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Mesmo motivo de .campaign-detail-view: conteúdo normal de fluxo (sem
+   position:fixed/z-index), pra não conflitar com o drawer mobile nem o
+   bottom nav. */
+.voucher-batch-detail-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.voucher-batch-detail-view[hidden] {
+  display: none;
+}
+
+.voucher-batch-detail-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.voucher-batch-detail-name {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.voucher-batch-detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.voucher-batch-detail-header-actions .btn-danger {
+  margin-right: 0;
+}
+
+.voucher-batch-detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.voucher-batch-metric-tile {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.voucher-batch-metric-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.voucher-batch-metric-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.voucher-batch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Mesmo formato de .campaign-client-search — campo de busca genérico das
+   telas de detalhe "lista + toolbar + tabela". */
+.voucher-code-search {
+  flex: 1 1 200px;
+  max-width: 280px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.voucher-batch-detail-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.voucher-batch-detail-filter button {
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.voucher-batch-detail-filter button.active {
+  background: var(--primary-tint);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* Único container de scroll da tabela (nunca aninhar dois) — mesma
+   filosofia de .campaign-clients-table-wrap. */
+.voucher-batch-table-wrap {
+  overflow-x: auto;
+}
+
+.voucher-batch-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.voucher-batch-table th,
+.voucher-batch-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.voucher-batch-table input[type='number'],
+.voucher-batch-table input[type='date'] {
+  width: 100px;
+}
+
+.voucher-batch-table input[type='text'] {
+  min-width: 140px;
+}
+
 .import-tags-label {
   font-size: 0.8rem;
   color: var(--text-muted);

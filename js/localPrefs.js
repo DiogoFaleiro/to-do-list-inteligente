@@ -11,7 +11,9 @@
     showCompleted: true,
     screen: 'tasks',
     campaignDetailId: null,
-    showEncerradas: false
+    showEncerradas: false,
+    voucherBatchDetailId: null,
+    showVoucherBatchesEncerrados: false
   };
 
   function load() {

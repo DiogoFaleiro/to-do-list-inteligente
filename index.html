@@ -111,6 +111,7 @@
         <button type="button" class="project-item" id="quickFilterUpcoming" data-quick-period="week">📅 Em breve</button>
         <button type="button" class="project-item" id="quickFilterRecurring" data-quick-recurring="true">🔁 Recorrentes</button>
         <button type="button" class="project-item" id="quickFilterCampaigns" data-quick-screen="campaigns">📣 Campanhas</button>
+        <button type="button" class="project-item" id="quickFilterVouchers" data-quick-screen="vouchers">🎟️ Vouchers</button>
       </nav>
 
       <div id="favoritesSection" hidden>
@@ -205,6 +206,21 @@
     </section>
 
     <section id="campaignDetailView" class="campaign-detail-view" hidden></section>
+
+    <section id="vouchersView" class="voucher-batches-view" hidden>
+      <header class="voucher-batches-view-header">
+        <h2>Vouchers</h2>
+        <div class="voucher-batches-view-header-actions">
+          <label class="voucher-batches-show-ended-toggle">
+            <input type="checkbox" id="showVoucherBatchesEncerradosToggle"> Mostrar encerrados
+          </label>
+          <button type="button" id="newVoucherBatchBtn" class="btn-primary">+ Novo lote</button>
+        </div>
+      </header>
+      <div id="voucherBatchesListEl" class="voucher-batches-list"></div>
+    </section>
+
+    <section id="voucherBatchDetailView" class="voucher-batch-detail-view" hidden></section>
 
     <section id="statsView" class="stats-view" hidden>
       <header class="stats-view-header">
@@ -588,6 +604,77 @@
     </form>
   </div>
 
+  <!-- Modal de criação de lote de vouchers (com import de vouchers via csv/xlsx) -->
+  <div id="voucherBatchCreateModal" class="modal-overlay" hidden>
+    <div class="modal modal-wide">
+      <h2>Novo lote de vouchers</h2>
+      <div class="voucher-batch-create-body">
+        <div class="voucher-batch-create-fields">
+          <label>Nome do lote
+            <input type="text" id="voucherBatchNameInput" maxlength="120" required>
+          </label>
+          <label>Descrição
+            <textarea id="voucherBatchDescriptionInput" maxlength="1000" readonly></textarea>
+          </label>
+          <label>Custo padrão (por voucher)
+            <input type="number" id="voucherBatchDefaultCostInput" min="0" step="0.01" required>
+          </label>
+          <label>Venda padrão (por voucher)
+            <input type="number" id="voucherBatchDefaultSaleInput" min="0" step="0.01" required>
+          </label>
+          <button type="button" id="voucherBatchChooseFileBtn" class="btn-secondary">Escolher arquivo .csv ou .xlsx</button>
+          <input type="file" id="voucherBatchImportFileInput" accept=".csv,.xlsx" hidden>
+          <span id="voucherBatchImportFileName" class="campaign-import-filename"></span>
+        </div>
+        <div class="voucher-batch-create-preview">
+          <div id="voucherBatchImportWarnings" class="import-warnings" hidden></div>
+          <table id="voucherBatchImportTable" class="campaign-import-table" hidden>
+            <thead>
+              <tr><th></th><th>Código</th><th>Status inicial</th></tr>
+            </thead>
+            <tbody id="voucherBatchImportTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="voucherBatchCreateCancelBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="voucherBatchCreateConfirmBtn" class="btn-primary">Criar lote</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal "Adicionar voucher" (manual) no detalhe do lote -->
+  <div id="voucherAddModal" class="modal-overlay" hidden>
+    <form id="voucherAddForm" class="modal">
+      <h2>Adicionar voucher</h2>
+
+      <label>Código
+        <input type="text" id="voucherAddCode" required maxlength="120">
+      </label>
+
+      <label>Custo
+        <input type="number" id="voucherAddCost" min="0" step="0.01" required>
+      </label>
+
+      <label>Venda
+        <input type="number" id="voucherAddSale" min="0" step="0.01" required>
+      </label>
+
+      <label>Válido até
+        <input type="date" id="voucherAddValidUntil">
+      </label>
+
+      <label>Notas
+        <textarea id="voucherAddNotes" maxlength="1000"></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="voucherAddCancelBtn" class="btn-secondary">Cancelar</button>
+        <button type="submit" class="btn-primary">Adicionar</button>
+      </div>
+    </form>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/utils.js"></script>
   <script src="js/localPrefs.js"></script>
@@ -602,6 +689,7 @@
   <script src="js/stats.js"></script>
   <script src="js/importTodoist.js"></script>
   <script src="js/importCampaigns.js"></script>
+  <script src="js/importVouchers.js"></script>
   <script src="js/app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

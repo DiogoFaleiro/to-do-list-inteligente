@@ -65,6 +65,31 @@
   const campaignAddClientNotes = document.getElementById('campaignAddClientNotes');
   const campaignAddClientCancelBtn = document.getElementById('campaignAddClientCancelBtn');
 
+  // Tela "Vouchers" e modal de criação de lote (com import via csv/xlsx)
+  const newVoucherBatchBtn = document.getElementById('newVoucherBatchBtn');
+  const voucherBatchesListEl = document.getElementById('voucherBatchesListEl');
+  const showVoucherBatchesEncerradosToggle = document.getElementById('showVoucherBatchesEncerradosToggle');
+  const voucherBatchCreateModal = document.getElementById('voucherBatchCreateModal');
+  const voucherBatchNameInput = document.getElementById('voucherBatchNameInput');
+  const voucherBatchDescriptionInput = document.getElementById('voucherBatchDescriptionInput');
+  const voucherBatchDefaultCostInput = document.getElementById('voucherBatchDefaultCostInput');
+  const voucherBatchDefaultSaleInput = document.getElementById('voucherBatchDefaultSaleInput');
+  const voucherBatchChooseFileBtn = document.getElementById('voucherBatchChooseFileBtn');
+  const voucherBatchImportFileInput = document.getElementById('voucherBatchImportFileInput');
+  const voucherBatchImportFileName = document.getElementById('voucherBatchImportFileName');
+  const voucherBatchImportTableBody = document.getElementById('voucherBatchImportTableBody');
+  const voucherBatchCreateCancelBtn = document.getElementById('voucherBatchCreateCancelBtn');
+  const voucherBatchCreateConfirmBtn = document.getElementById('voucherBatchCreateConfirmBtn');
+  const voucherBatchDetailView = document.getElementById('voucherBatchDetailView');
+  const voucherAddModal = document.getElementById('voucherAddModal');
+  const voucherAddForm = document.getElementById('voucherAddForm');
+  const voucherAddCode = document.getElementById('voucherAddCode');
+  const voucherAddCost = document.getElementById('voucherAddCost');
+  const voucherAddSale = document.getElementById('voucherAddSale');
+  const voucherAddValidUntil = document.getElementById('voucherAddValidUntil');
+  const voucherAddNotes = document.getElementById('voucherAddNotes');
+  const voucherAddCancelBtn = document.getElementById('voucherAddCancelBtn');
+
   const listView = document.getElementById('listView');
   const boardView = document.getElementById('boardView');
   const groupByProjectToggleBtn = document.getElementById('groupByProjectToggleBtn');
@@ -136,6 +161,9 @@
   // campanha — a seleção via checkbox é lida direto do DOM na confirmação
   // (mesmo padrão de pendingImportParsed/data-import-tag-name).
   let pendingCampaignClients = null;
+  // Vouchers parseados do .csv/.xlsx escolhido no modal de criação de lote
+  // — mesmo padrão de pendingCampaignClients.
+  let pendingVouchers = null;
 
   // Modal de tarefa
   const taskModal = document.getElementById('taskModal');
@@ -916,11 +944,13 @@
     }
     const screenBtn = e.target.closest('[data-quick-screen]');
     if (screenBtn) {
-      store.setScreen(screenBtn.dataset.quickScreen);
+      const screen = screenBtn.dataset.quickScreen;
+      store.setScreen(screen);
       closeAllSearch();
       setMobileNavActive(null);
       closeMobileSidebar();
-      if (!store.getState().campaignsLoaded) store.loadCampaigns();
+      if (screen === 'campaigns' && !store.getState().campaignsLoaded) store.loadCampaigns();
+      if (screen === 'vouchers' && !store.getState().voucherBatchesLoaded) store.loadVoucherBatches();
     }
   });
 
@@ -935,6 +965,16 @@
     }
     const row = e.target.closest('[data-campaign-id]');
     if (row) store.openCampaignDetail(row.dataset.campaignId);
+  });
+
+  // Mesmo padrão de campaignsListEl acima, pra tela Vouchers.
+  voucherBatchesListEl.addEventListener('click', (e) => {
+    if (e.target.closest('[data-voucher-batches-retry]')) {
+      store.loadVoucherBatches();
+      return;
+    }
+    const row = e.target.closest('[data-voucher-batch-id]');
+    if (row) store.openVoucherBatchDetail(row.dataset.voucherBatchId);
   });
 
   // Dois retries distintos na tela de estatísticas: [data-stats-retry] é a
@@ -960,6 +1000,10 @@
   const showEncerradasToggle = document.getElementById('showEncerradasToggle');
   showEncerradasToggle.addEventListener('change', () => {
     store.setShowEncerradas(showEncerradasToggle.checked);
+  });
+
+  showVoucherBatchesEncerradosToggle.addEventListener('change', () => {
+    store.setShowVoucherBatchesEncerrados(showVoucherBatchesEncerradosToggle.checked);
   });
 
   viewToggle.addEventListener('click', (e) => {
@@ -1186,6 +1230,150 @@
     // pra o usuário tentar de novo sem perder os campos preenchidos.
   });
 
+  function openVoucherBatchCreateModal() {
+    voucherBatchNameInput.value = '';
+    voucherBatchDescriptionInput.value = '';
+    voucherBatchDefaultCostInput.value = '';
+    voucherBatchDefaultSaleInput.value = '';
+    voucherBatchImportFileName.textContent = '';
+    voucherBatchImportTableBody.innerHTML = '';
+    voucherBatchImportTable.hidden = true;
+    voucherBatchImportWarnings.hidden = true;
+    pendingVouchers = null;
+    voucherBatchCreateModal.hidden = false;
+  }
+
+  function closeVoucherBatchCreateModal() {
+    voucherBatchCreateModal.hidden = true;
+    pendingVouchers = null;
+  }
+
+  // Modal simples de inserção manual de 1 voucher, aberto a partir do
+  // botão no cabeçalho da tabela do detalhe do lote — molde de
+  // openCampaignAddClientModal.
+  function openVoucherAddModal() {
+    voucherAddForm.reset();
+    voucherAddModal.hidden = false;
+    voucherAddCode.focus();
+  }
+
+  function closeVoucherAddModal() {
+    voucherAddModal.hidden = true;
+  }
+
+  newVoucherBatchBtn.addEventListener('click', openVoucherBatchCreateModal);
+  voucherBatchCreateCancelBtn.addEventListener('click', closeVoucherBatchCreateModal);
+  voucherBatchCreateModal.addEventListener('click', (e) => {
+    if (e.target === voucherBatchCreateModal) closeVoucherBatchCreateModal();
+  });
+
+  voucherAddCancelBtn.addEventListener('click', closeVoucherAddModal);
+  voucherAddModal.addEventListener('click', (e) => {
+    if (e.target === voucherAddModal) closeVoucherAddModal();
+  });
+
+  voucherAddForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const code = voucherAddCode.value.trim();
+    if (!code) {
+      voucherAddCode.focus();
+      return;
+    }
+    const batchId = store.getState().ui.voucherBatchDetailId;
+    if (!batchId) return;
+    store.addVoucher(batchId, {
+      code,
+      costPrice: Number(voucherAddCost.value) || 0,
+      salePrice: Number(voucherAddSale.value) || 0,
+      validUntil: voucherAddValidUntil.value || null,
+      notes: voucherAddNotes.value.trim() || null
+    });
+    closeVoucherAddModal();
+  });
+
+  voucherBatchChooseFileBtn.addEventListener('click', () => {
+    // Pré-carrega em paralelo com a escolha do arquivo (só útil se o
+    // usuário escolher .xlsx; erro real é tratado no handler de 'change'
+    // abaixo, aqui é só uma otimização de tempo) — mesmo padrão de
+    // campaignChooseFileBtn.
+    App.importCampaigns.loadSheetJs().catch(() => {});
+    voucherBatchImportFileInput.click();
+  });
+
+  voucherBatchImportFileInput.addEventListener('change', async () => {
+    const file = voucherBatchImportFileInput.files[0];
+    voucherBatchImportFileInput.value = '';
+    if (!file) return;
+    voucherBatchImportFileName.textContent = 'Carregando...';
+    try {
+      const isXlsx = file.name.toLowerCase().endsWith('.xlsx');
+      let parsed;
+      if (isXlsx) {
+        await App.importCampaigns.loadSheetJs();
+        const buffer = await file.arrayBuffer();
+        parsed = App.importVouchers.parseVoucherWorkbook(buffer);
+      } else {
+        const text = await file.text();
+        parsed = App.importVouchers.parseVoucherCsv(text);
+      }
+      pendingVouchers = parsed.vouchers;
+      voucherBatchImportFileName.textContent = file.name;
+      if (!voucherBatchNameInput.value.trim() && parsed.batchName) {
+        voucherBatchNameInput.value = parsed.batchName;
+      }
+      voucherBatchDescriptionInput.value = parsed.batchDescription || '';
+      render.renderVoucherImportPreview(parsed);
+    } catch (err) {
+      console.error('Falha ao importar arquivo de vouchers', err);
+      voucherBatchImportFileName.textContent = '';
+      pendingVouchers = null;
+      alert('Não foi possível ler o arquivo. Verifique sua conexão com a internet (a leitura de .xlsx depende de uma biblioteca carregada por CDN) e se o arquivo é um .csv ou .xlsx válido.');
+    }
+  });
+
+  voucherBatchCreateConfirmBtn.addEventListener('click', async () => {
+    if (!voucherBatchNameInput.value.trim()) {
+      voucherBatchNameInput.focus();
+      return;
+    }
+    const defaultCostPrice = Number(voucherBatchDefaultCostInput.value);
+    const defaultSalePrice = Number(voucherBatchDefaultSaleInput.value);
+    if (voucherBatchDefaultCostInput.value.trim() === '' || Number.isNaN(defaultCostPrice)) {
+      voucherBatchDefaultCostInput.focus();
+      return;
+    }
+    if (voucherBatchDefaultSaleInput.value.trim() === '' || Number.isNaN(defaultSalePrice)) {
+      voucherBatchDefaultSaleInput.focus();
+      return;
+    }
+
+    voucherBatchCreateConfirmBtn.disabled = true;
+    voucherBatchCreateConfirmBtn.textContent = 'Criando...';
+
+    // Seleção via checkbox é lida direto do DOM na confirmação, não
+    // espelhada em array JS paralelo — mesmo padrão do import de Campanhas/
+    // Todoist, incluindo o guard de tipo: dataset é sempre string, Number()
+    // converte antes do .includes(i) comparar com o índice numérico.
+    const checkedIdx = [...voucherBatchImportTableBody.querySelectorAll('[data-voucher-row-check]')]
+      .filter((cb) => cb.checked)
+      .map((cb) => Number(cb.dataset.voucherRowCheck));
+    const vouchers = (pendingVouchers || []).filter((_, i) => checkedIdx.includes(i));
+
+    const fields = {
+      name: voucherBatchNameInput.value.trim(),
+      description: voucherBatchDescriptionInput.value.trim() || null,
+      defaultCostPrice,
+      defaultSalePrice
+    };
+
+    const result = await store.createVoucherBatchWithVouchers(fields, vouchers);
+    voucherBatchCreateConfirmBtn.disabled = false;
+    voucherBatchCreateConfirmBtn.textContent = 'Criar lote';
+    if (result.ok) closeVoucherBatchCreateModal();
+    // Erro: handleMutationError (store.js) já alertou; modal fica aberto
+    // pra o usuário tentar de novo sem perder os campos preenchidos.
+  });
+
   // Tela de detalhe da campanha: todo o conteúdo é re-renderizado via
   // innerHTML a cada mutação (renderCampaignDetail), então os listeners
   // ficam no container estático (nunca nos elementos internos, que são
@@ -1371,6 +1559,161 @@
   campaignDetailView.addEventListener('input', (e) => {
     if (e.target.matches('[data-client-search]')) {
       store.setCampaignClientSearch(e.target.value);
+    }
+  });
+
+  // Tela de detalhe do lote de vouchers: mesmo padrão de campaignDetailView
+  // acima — todo o conteúdo é re-renderizado via innerHTML a cada mutação
+  // (renderVoucherBatchDetail), então os listeners ficam no container
+  // estático, nunca nos elementos internos.
+  voucherBatchDetailView.addEventListener('click', (e) => {
+    if (e.target.closest('[data-back-to-vouchers]')) {
+      store.setScreen('vouchers');
+      return;
+    }
+
+    if (e.target.closest('[data-open-add-voucher]')) {
+      openVoucherAddModal();
+      return;
+    }
+
+    const statusToggleBtn = e.target.closest('[data-voucher-batch-status-toggle]');
+    if (statusToggleBtn) {
+      const id = statusToggleBtn.dataset.voucherBatchStatusToggle;
+      const batch = store.getState().voucherBatches.find((b) => b.id === id);
+      if (batch) store.setVoucherBatchStatus(id, batch.status === 'ativo' ? 'encerrado' : 'ativo');
+      return;
+    }
+
+    const deleteBtn = e.target.closest('[data-voucher-batch-delete]');
+    if (deleteBtn) {
+      const id = deleteBtn.dataset.voucherBatchDelete;
+      const batch = store.getState().voucherBatches.find((b) => b.id === id);
+      const ok = confirm(`Excluir o lote "${batch ? batch.name : ''}"? Os vouchers dele também serão excluídos.`);
+      if (ok) {
+        store.deleteVoucherBatch(id);
+        store.setScreen('vouchers');
+      }
+      return;
+    }
+
+    const filterBtn = e.target.closest('[data-voucher-status-filter]');
+    if (filterBtn) {
+      store.setVoucherStatusFilter(filterBtn.dataset.voucherStatusFilter);
+      return;
+    }
+
+    // Mesmo padrão do botão "Copiar" de mensagem de Campanhas
+    // (data-copy-message): tenta a Clipboard API, cai pro execCommand como
+    // fallback, feedback "Copiado!" por 1.5s.
+    const copyBtn = e.target.closest('[data-voucher-copy]');
+    if (copyBtn) {
+      const row = copyBtn.closest('[data-voucher-id]');
+      const codeEl = row ? row.querySelector('[data-voucher-code]') : null;
+      const code = codeEl ? codeEl.textContent : '';
+      if (code) {
+        navigator.clipboard.writeText(code).catch(() => {
+          const tmp = document.createElement('textarea');
+          tmp.value = code;
+          document.body.appendChild(tmp);
+          tmp.select();
+          document.execCommand('copy');
+          document.body.removeChild(tmp);
+        });
+        const originalLabel = copyBtn.textContent;
+        copyBtn.textContent = 'Copiado!';
+        setTimeout(() => {
+          copyBtn.textContent = originalLabel;
+        }, 1500);
+      }
+      return;
+    }
+
+    // Junta o código de cada linha atualmente visível na tabela (já
+    // filtrada por status + busca de código em renderVoucherBatchDetail —
+    // lê do DOM em vez de refazer o filtro aqui, então nunca diverge do que
+    // a tabela está mostrando), um por linha, mesmo padrão de clipboard do
+    // botão de copiar individual acima.
+    const copyFilteredBtn = e.target.closest('[data-copy-filtered-codes]');
+    if (copyFilteredBtn) {
+      const codes = [...voucherBatchDetailView.querySelectorAll('[data-voucher-code]')].map((el) => el.textContent);
+      if (!codes.length) return;
+      const text = codes.join('\n');
+      navigator.clipboard.writeText(text).catch(() => {
+        const tmp = document.createElement('textarea');
+        tmp.value = text;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand('copy');
+        document.body.removeChild(tmp);
+      });
+      const originalLabel = copyFilteredBtn.textContent;
+      copyFilteredBtn.textContent = 'Copiado!';
+      setTimeout(() => {
+        copyFilteredBtn.textContent = originalLabel;
+      }, 1500);
+    }
+  });
+
+  // change (não input): status/custo/venda/válido-até/notas só salvam ao
+  // sair do campo — nunca durante a digitação. Mesmo motivo de
+  // campaignDetailView acima (re-render via innerHTML a cada mutação
+  // destruiria o campo em edição se salvasse a cada tecla).
+  voucherBatchDetailView.addEventListener('change', (e) => {
+    const row = e.target.closest('[data-voucher-id]');
+    if (!row) return;
+    const id = row.dataset.voucherId;
+    const voucher = store.getState().vouchers.find((v) => v.id === id);
+
+    if (e.target.matches('[data-voucher-status-select]')) {
+      // Reverter de "vendido" pra outro status afeta direto receita/lucro
+      // do lote — confirm() curto evita que um clique acidental no <select>
+      // derrube a métrica sem querer. Demais transições (incluindo pra
+      // "vendido") seguem direto.
+      if (voucher && voucher.status === 'vendido' && e.target.value !== 'vendido') {
+        const ok = confirm('Este voucher está contado como venda; deseja mesmo reverter o status?');
+        if (!ok) {
+          e.target.value = voucher.status;
+          return;
+        }
+      }
+      store.updateVoucherField(id, { status: e.target.value });
+      return;
+    }
+
+    if (e.target.matches('[data-voucher-cost]') || e.target.matches('[data-voucher-sale]')) {
+      const field = e.target.matches('[data-voucher-cost]') ? 'costPrice' : 'salePrice';
+      const raw = e.target.value.trim();
+      // Number('') é 0 (zero explícito, válido); Number('R$ 50')/Number('abc')
+      // é NaN (colar lixo, ou apagar por engano) — só o segundo caso é
+      // rejeitado, porque custo/venda alimentam direto o cálculo de lucro
+      // (getVoucherBatchMetrics, js/store.js): gravar um NaN->0 silencioso
+      // corromperia a métrica sem o usuário perceber.
+      const parsed = Number(raw);
+      if (Number.isNaN(parsed)) {
+        e.target.value = voucher ? voucher[field] : '';
+        return;
+      }
+      store.updateVoucherField(id, { [field]: parsed });
+      return;
+    }
+
+    if (e.target.matches('[data-voucher-valid-until]')) {
+      store.updateVoucherField(id, { validUntil: e.target.value || null });
+      return;
+    }
+    if (e.target.matches('[data-voucher-notes]')) {
+      store.updateVoucherField(id, { notes: e.target.value.trim() || null });
+    }
+  });
+
+  // Busca por código: input (não change) pra filtrar enquanto digita. O
+  // re-render preserva foco/cursor do campo sozinho (ver renderVoucherBatchDetail
+  // em js/render.js), então é seguro atualizar a cada tecla aqui — mesmo
+  // padrão de campaignDetailView/data-client-search.
+  voucherBatchDetailView.addEventListener('input', (e) => {
+    if (e.target.matches('[data-voucher-code-search]')) {
+      store.setVoucherCodeSearch(e.target.value);
     }
   });
 
@@ -2391,6 +2734,11 @@
       // acima: refresh direto na tela "Minhas estatísticas" cai aqui.
       if (bootScreen === 'stats' && !store.getState().statsLoaded) {
         store.loadStats();
+      }
+      // Mesma âncora/mesma lógica de não-bloqueio dos gatilhos acima:
+      // refresh direto na tela Vouchers ou no detalhe de um lote cai aqui.
+      if ((bootScreen === 'vouchers' || bootScreen === 'voucherBatchDetail') && !store.getState().voucherBatchesLoaded) {
+        store.loadVoucherBatches();
       }
 
       authLoadingScreen.hidden = true;

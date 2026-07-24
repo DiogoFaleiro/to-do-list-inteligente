@@ -22,6 +22,23 @@
     // estado de erro com botão "Tentar de novo" em vez de loading eterno.
     campaignsError: null,
     campaignImportStatus: { loading: false, error: null },
+    voucherBatches: [],
+    vouchers: [],
+    // Carregados sob demanda (loadVoucherBatches), só quando a tela Vouchers
+    // abre — mesmo padrão de campaignsLoaded/campaignsLoading/campaignsError
+    // acima, incluindo o guard de chamada concorrente.
+    voucherBatchesLoaded: false,
+    voucherBatchesLoading: false,
+    voucherBatchesError: null,
+    voucherImportStatus: { loading: false, error: null },
+    // Filtro rápido de status na tela de detalhe do lote — efêmero, mesmo
+    // caráter de campaignClientStatusFilter: não persiste, reseta a cada
+    // openVoucherBatchDetail.
+    voucherStatusFilter: 'all',
+    // Busca por substring de código na tela de detalhe do lote — mesmo
+    // caráter efêmero de campaignClientSearch: não persiste, reseta a cada
+    // openVoucherBatchDetail.
+    voucherCodeSearch: '',
     // Carregados sob demanda (loadStats), só quando a tela "Minhas
     // estatísticas" abre — mesmo padrão de campaignsLoaded acima, incluindo
     // o guard de chamada concorrente (statsLoading) e o estado de erro com
@@ -211,6 +228,32 @@
     };
   }
 
+  function mapVoucherBatchFromRow(row) {
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      defaultCostPrice: row.default_cost_price,
+      defaultSalePrice: row.default_sale_price,
+      status: row.status,
+      createdAt: row.created_at
+    };
+  }
+
+  function mapVoucherFromRow(row) {
+    return {
+      id: row.id,
+      batchId: row.batch_id,
+      code: row.code,
+      costPrice: row.cost_price,
+      salePrice: row.sale_price,
+      status: row.status,
+      validUntil: row.valid_until,
+      notes: row.notes,
+      createdAt: row.created_at
+    };
+  }
+
   // Mappers da tela "Minhas estatísticas" (js/stats.js) — rows mínimas dos
   // fetches dedicados de js/api.js, nunca as rows completas de mapTaskFromRow.
   function mapStatsDoneTaskFromRow(row) {
@@ -365,6 +408,34 @@
     return { total, responded, trial, convertido, mrrAdicional, conversionRate };
   }
 
+  // Métricas do lote de vouchers — nunca persistidas como coluna agregada
+  // (mesma razão de getCampaignMetrics: evita duas fontes de verdade
+  // dessincronizando). Recalculada do zero a cada chamada; usada tanto nos
+  // cards da tela de detalhe (todos os campos) quanto no resumo dos cards da
+  // lista (subconjunto Total/Vendidos/Lucro) — uma função só, sem duplicar
+  // em duas versões como Campanhas faz (lá se justifica por ter dois
+  // "kinds" de campanha; aqui não há essa divergência).
+  function getVoucherBatchMetrics(batchId) {
+    const list = state.vouchers.filter((v) => v.batchId === batchId);
+    const byStatus = (s) => list.filter((v) => v.status === s);
+    const vendidos = byStatus('vendido');
+    const receita = vendidos.reduce((sum, v) => sum + (Number(v.salePrice) || 0), 0);
+    const custoTotal = vendidos.reduce((sum, v) => sum + (Number(v.costPrice) || 0), 0);
+    const lucro = receita - custoTotal;
+    return {
+      total: list.length,
+      disponiveis: byStatus('disponivel').length,
+      reservados: byStatus('reservado').length,
+      vendidos: vendidos.length,
+      expirados: byStatus('expirado').length,
+      receita,
+      custoTotal,
+      lucro,
+      margem: receita > 0 ? lucro / receita : 0,
+      ticketMedio: vendidos.length > 0 ? receita / vendidos.length : 0
+    };
+  }
+
   // Navegação pra tela de detalhe — screen/campaignDetailId persistem
   // (mesmo mecanismo de projectFilter/tagFilter), então F5 dentro do
   // detalhe reabre na mesma campanha.
@@ -384,6 +455,28 @@
 
   function setCampaignClientSearch(query) {
     state.campaignClientSearch = query;
+    emit();
+  }
+
+  // Navegação pra tela de detalhe do lote — mesmo molde de
+  // openCampaignDetail: screen/voucherBatchDetailId persistem juntos
+  // (localPrefs), então F5 dentro do detalhe reabre no mesmo lote.
+  function openVoucherBatchDetail(batchId) {
+    state.ui.screen = 'voucherBatchDetail';
+    state.ui.voucherBatchDetailId = batchId;
+    state.voucherStatusFilter = 'all';
+    state.voucherCodeSearch = '';
+    persistUi();
+    emit();
+  }
+
+  function setVoucherStatusFilter(status) {
+    state.voucherStatusFilter = status;
+    emit();
+  }
+
+  function setVoucherCodeSearch(query) {
+    state.voucherCodeSearch = query || '';
     emit();
   }
 
@@ -461,6 +554,34 @@
     }
   }
 
+  // Carregado sob demanda (só quando a tela Vouchers abre), não no
+  // loadInitialData geral — mesmo padrão de loadCampaigns, incluindo o
+  // guard de chamada concorrente (voucherBatchesLoading sempre volta a
+  // false no fim, sucesso ou erro, então um retry nunca fica bloqueado).
+  async function loadVoucherBatches() {
+    if (state.voucherBatchesLoading) return;
+    state.voucherBatchesLoading = true;
+    state.voucherBatchesError = null;
+    emit();
+    try {
+      const [batchesRes, vouchersRes] = await Promise.all([api.fetchVoucherBatches(), api.fetchVouchers()]);
+      const error = batchesRes.error || vouchersRes.error;
+      if (error) throw error;
+      state.voucherBatches = (batchesRes.data || []).map(mapVoucherBatchFromRow);
+      state.vouchers = (vouchersRes.data || []).map(mapVoucherFromRow);
+      state.voucherBatchesLoaded = true;
+      state.voucherBatchesLoading = false;
+      state.voucherBatchesError = null;
+      emit();
+    } catch (error) {
+      console.error('Falha ao carregar vouchers', error);
+      state.voucherBatchesLoading = false;
+      state.voucherBatchesError = error;
+      emit();
+      if (isAuthError(error) && onAuthError) onAuthError();
+    }
+  }
+
   // Criação de campanha: sem update otimista (é uma inserção em lote de
   // campanha + clientes, não uma mutação isolada) — mesma exceção do import
   // do Todoist. Se o insert de campaign_clients falhar, a campanha já
@@ -498,6 +619,44 @@
       state.campaignImportStatus = { loading: false, error: err };
       emit();
       handleMutationError('Falha ao criar campanha (import ficou incompleto)', err);
+      return { ok: false, error: err };
+    }
+  }
+
+  // Criação de lote de vouchers: sem update otimista, mesma exceção
+  // documentada de createCampaignWithClients (inserção em lote, não mutação
+  // isolada). Se o insert de vouchers falhar, o lote já inserido fica
+  // inserido (sem rollback parcial); o estado real é recarregado via
+  // loadVoucherBatches no final.
+  async function createVoucherBatchWithVouchers(fields, vouchers) {
+    state.voucherImportStatus = { loading: true, error: null };
+    emit();
+    try {
+      const { data: batchRow, error: bErr } = await api.insertVoucherBatch(currentUserId, fields);
+      if (bErr) throw bErr;
+
+      if (vouchers.length > 0) {
+        const rows = vouchers.map((v) => ({
+          batch_id: batchRow.id,
+          user_id: currentUserId,
+          code: v.code,
+          cost_price: fields.defaultCostPrice,
+          sale_price: fields.defaultSalePrice,
+          status: v.status,
+          valid_until: v.validUntil || null
+        }));
+        const { error: vErr } = await api.insertVouchersBatch(rows);
+        if (vErr) throw vErr;
+      }
+
+      await loadVoucherBatches();
+      state.voucherImportStatus = { loading: false, error: null };
+      emit();
+      return { ok: true, batchId: batchRow.id };
+    } catch (err) {
+      state.voucherImportStatus = { loading: false, error: err };
+      emit();
+      handleMutationError('Falha ao criar lote de vouchers (import ficou incompleto)', err);
       return { ok: false, error: err };
     }
   }
@@ -547,6 +706,50 @@
         }
         const idx = state.campaignClients.findIndex((c) => c.id === tempId);
         if (idx !== -1) state.campaignClients[idx] = mapCampaignClientFromRow(data);
+        emit();
+      });
+  }
+
+  // Inserção manual (botão "+ Adicionar voucher" no detalhe do lote) —
+  // mesmo molde de addCampaignClient: linha otimista com id temporário
+  // entra na tabela na hora (métricas recalculam sozinhas via emit ->
+  // renderVoucherBatchDetail), substituída pela linha real quando o insert
+  // confirma; erro remove a otimista pelo tempId. Sem lógica de default por
+  // "kind" (isso é específico de campanha) — status sempre nasce
+  // 'disponivel' aqui.
+  function addVoucher(batchId, { code, costPrice, salePrice, validUntil, notes }) {
+    const tempId = `tmp-${utils.uid()}`;
+    const optimistic = {
+      id: tempId,
+      batchId,
+      code: code.trim(),
+      costPrice,
+      salePrice,
+      status: 'disponivel',
+      validUntil: validUntil || null,
+      notes: notes ? notes.trim() : null
+    };
+    state.vouchers.push(optimistic);
+    emit();
+
+    api
+      .insertVoucherRow(currentUserId, {
+        batchId,
+        code: optimistic.code,
+        costPrice: optimistic.costPrice,
+        salePrice: optimistic.salePrice,
+        validUntil: optimistic.validUntil,
+        notes: optimistic.notes
+      })
+      .then(({ data, error }) => {
+        if (error) {
+          state.vouchers = state.vouchers.filter((v) => v.id !== tempId);
+          emit();
+          handleMutationError('Falha ao adicionar voucher', error);
+          return;
+        }
+        const idx = state.vouchers.findIndex((v) => v.id === tempId);
+        if (idx !== -1) state.vouchers[idx] = mapVoucherFromRow(data);
         emit();
       });
   }
@@ -601,6 +804,27 @@
     if (task) {
       updateCampaignClientField(id, { followupTaskId: task.id });
     }
+  }
+
+  // Mutação otimista genérica de 1 patch por vez — cópia direta do molde
+  // snapshot/restore de updateCampaignClientField/updateSession, sem o
+  // efeito colateral de criar tarefa (isso é específico de trial de
+  // campanha). O guard de validação de custo/venda (não gravar entrada não
+  // numérica) e o confirm() de reversão de "vendido" ficam no listener em
+  // js/app.js, antes de chamar esta função — aqui já chega um patch válido.
+  function updateVoucherField(id, patch) {
+    const v = state.vouchers.find((x) => x.id === id);
+    if (!v) return;
+    const previous = { ...v };
+    Object.assign(v, patch);
+    emit();
+    api.updateVoucherRow(id, patch).then(({ error }) => {
+      if (error) {
+        Object.assign(v, previous);
+        emit();
+        handleMutationError('Falha ao atualizar voucher', error);
+      }
+    });
   }
 
   // Automação de boot: aviso de vencimento de certificado. Chamada em todo
@@ -686,6 +910,23 @@
     });
   }
 
+  // Encerrar/reativar lote de vouchers — mesma função nos dois sentidos,
+  // cópia de setCampaignStatus.
+  function setVoucherBatchStatus(id, status) {
+    const batch = state.voucherBatches.find((x) => x.id === id);
+    if (!batch) return;
+    const previous = batch.status;
+    batch.status = status;
+    emit();
+    api.updateVoucherBatchRow(id, { status }).then(({ error }) => {
+      if (error) {
+        batch.status = previous;
+        emit();
+        handleMutationError('Falha ao atualizar status do lote', error);
+      }
+    });
+  }
+
   // Dias de antecedência do aviso (só campanhas kind='certificados') — só
   // editável depois da criação, mesmo molde otimista de setCampaignStatus.
   function updateCampaignAlertDays(id, alertDays) {
@@ -738,6 +979,25 @@
         if (removed) state.campaignClients.push(removed);
         emit();
         handleMutationError('Falha ao excluir cliente', error);
+      }
+    });
+  }
+
+  // Sem RPC: vouchers.batch_id já tem "on delete cascade" (migration 0019),
+  // então o DELETE simples já cascateia no banco sozinho. O strip local de
+  // state.vouchers é só o espelho otimista, mesmo padrão de deleteCampaign.
+  function deleteVoucherBatch(id) {
+    const removedBatch = state.voucherBatches.find((b) => b.id === id);
+    const removedVouchers = state.vouchers.filter((v) => v.batchId === id);
+    state.voucherBatches = state.voucherBatches.filter((b) => b.id !== id);
+    state.vouchers = state.vouchers.filter((v) => v.batchId !== id);
+    emit();
+    api.deleteVoucherBatchRow(id).then(({ error }) => {
+      if (error) {
+        if (removedBatch) state.voucherBatches.push(removedBatch);
+        state.vouchers = state.vouchers.concat(removedVouchers);
+        emit();
+        handleMutationError('Falha ao excluir lote de vouchers', error);
       }
     });
   }
@@ -805,6 +1065,14 @@
     state.campaignImportStatus = { loading: false, error: null };
     state.campaignClientStatusFilter = 'all';
     state.campaignClientSearch = '';
+    state.voucherBatches = [];
+    state.vouchers = [];
+    state.voucherBatchesLoaded = false;
+    state.voucherBatchesLoading = false;
+    state.voucherBatchesError = null;
+    state.voucherImportStatus = { loading: false, error: null };
+    state.voucherStatusFilter = 'all';
+    state.voucherCodeSearch = '';
     state.statsLoaded = false;
     state.statsLoading = false;
     state.statsError = null;
@@ -1655,9 +1923,10 @@
   // preserva o filtro que estava ativo antes. Os 4 setters acima já voltam
   // pra 'tasks' de graça (são o ponto de entrada de toda navegação de
   // filtro); a exceção manual é a aba mobile "Buscar" (ver js/app.js).
-  // "stats" (Minhas estatísticas) segue a mesma regra de "campaigns".
+  // "stats" (Minhas estatísticas) e "vouchers" seguem a mesma regra de
+  // "campaigns".
   function setScreen(screen) {
-    state.ui.screen = ['campaigns', 'stats'].includes(screen) ? screen : 'tasks';
+    state.ui.screen = ['campaigns', 'stats', 'vouchers'].includes(screen) ? screen : 'tasks';
     persistUi();
     emit();
   }
@@ -1693,6 +1962,14 @@
     emit();
   }
 
+  // Mesmo papel de setShowEncerradas, chave dedicada pra não colidir com a
+  // de Campanhas (telas independentes, cada uma com seu próprio toggle).
+  function setShowVoucherBatchesEncerrados(show) {
+    state.ui.showVoucherBatchesEncerrados = !!show;
+    persistUi();
+    emit();
+  }
+
   App.store = {
     getState,
     getFilteredTasks,
@@ -1719,6 +1996,17 @@
     deleteCampaignClient,
     setCampaignClientStatusFilter,
     setCampaignClientSearch,
+    getVoucherBatchMetrics,
+    loadVoucherBatches,
+    createVoucherBatchWithVouchers,
+    addVoucher,
+    openVoucherBatchDetail,
+    updateVoucherField,
+    setVoucherBatchStatus,
+    deleteVoucherBatch,
+    setVoucherStatusFilter,
+    setVoucherCodeSearch,
+    setShowVoucherBatchesEncerrados,
     subscribe,
     setAuthErrorHandler,
     loadInitialData,
