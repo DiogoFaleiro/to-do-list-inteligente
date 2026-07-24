@@ -112,6 +112,24 @@
     return clean ? `${base}&text=${encodeURIComponent(clean)}` : base;
   }
 
+  // Exports de sistemas brasileiros nem sempre são UTF-8 — é comum vir em
+  // Windows-1252/Latin-1 (ex: CSV exportado pelo Conexa: o "ç" de
+  // "Descrição" é o byte 0xE7, que não é UTF-8 válido sozinho). Tenta
+  // decodificar como UTF-8 primeiro (fatal:true faz lançar em vez de trocar
+  // silenciosamente cada byte inválido por U+FFFD, o que corromperia o
+  // texto sem avisar); se lançar, refaz como windows-1252 — suportado
+  // nativamente pelo TextDecoder dos navegadores e cobre Latin-1 na
+  // prática. Ponto único usado por todo caminho de import que lê um
+  // arquivo local como texto (Todoist, Vouchers), pra não duplicar esse
+  // try/catch em cada um.
+  function decodeFileText(arrayBuffer) {
+    try {
+      return new TextDecoder('utf-8', { fatal: true }).decode(arrayBuffer);
+    } catch (err) {
+      return new TextDecoder('windows-1252').decode(arrayBuffer);
+    }
+  }
+
   App.utils = {
     todayISO,
     dateToISO,
@@ -125,6 +143,7 @@
     escapeHtml,
     nextCampaignFollowupIndex,
     cleanWhatsAppText,
-    buildWhatsAppUrl
+    buildWhatsAppUrl,
+    decodeFileText
   };
 })(window.App = window.App || {});

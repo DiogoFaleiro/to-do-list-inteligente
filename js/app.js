@@ -1040,7 +1040,12 @@
     const file = importTodoistFileInput.files[0];
     importTodoistFileInput.value = '';
     if (!file) return;
-    const text = await file.text();
+    // file.text() assume UTF-8; exports de sistemas brasileiros (Todoist
+    // inclusive, dependendo de como o usuário salvou) às vezes vêm em
+    // Windows-1252/Latin-1 — decodeFileText detecta e corrige (ver
+    // js/utils.js).
+    const buffer = await file.arrayBuffer();
+    const text = utils.decodeFileText(buffer);
     pendingImportParsed = App.importTodoist.parseTodoistExport(App.importTodoist.parseCsv(text));
     importProjectNameInput.value = file.name.replace(/\.csv$/i, '').replace(/_/g, ' ');
     const tagMatches = App.importTodoist.collectImportTagNames(pendingImportParsed, store.getState().tags);
@@ -1313,7 +1318,11 @@
         const buffer = await file.arrayBuffer();
         parsed = App.importVouchers.parseVoucherWorkbook(buffer);
       } else {
-        const text = await file.text();
+        // file.text() assume UTF-8; o export do Conexa vem em
+        // Windows-1252/Latin-1 (confirmado: "ç" quebra a decodificação
+        // UTF-8) — decodeFileText detecta e corrige (ver js/utils.js).
+        const buffer = await file.arrayBuffer();
+        const text = utils.decodeFileText(buffer);
         parsed = App.importVouchers.parseVoucherCsv(text);
       }
       pendingVouchers = parsed.vouchers;
