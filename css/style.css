@@ -2505,8 +2505,7 @@ a.btn-danger {
   white-space: nowrap;
 }
 
-.voucher-batch-table input[type='number'],
-.voucher-batch-table input[type='date'] {
+.voucher-batch-table input[type='number'] {
   width: 100px;
 }
 

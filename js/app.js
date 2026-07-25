@@ -86,7 +86,6 @@
   const voucherAddCode = document.getElementById('voucherAddCode');
   const voucherAddCost = document.getElementById('voucherAddCost');
   const voucherAddSale = document.getElementById('voucherAddSale');
-  const voucherAddValidUntil = document.getElementById('voucherAddValidUntil');
   const voucherAddNotes = document.getElementById('voucherAddNotes');
   const voucherAddCancelBtn = document.getElementById('voucherAddCancelBtn');
 
@@ -1290,7 +1289,6 @@
       code,
       costPrice: Number(voucherAddCost.value) || 0,
       salePrice: Number(voucherAddSale.value) || 0,
-      validUntil: voucherAddValidUntil.value || null,
       notes: voucherAddNotes.value.trim() || null
     });
     closeVoucherAddModal();
@@ -1664,8 +1662,8 @@
     }
   });
 
-  // change (não input): status/custo/venda/válido-até/notas só salvam ao
-  // sair do campo — nunca durante a digitação. Mesmo motivo de
+  // change (não input): status/custo/venda/notas só salvam ao sair do
+  // campo — nunca durante a digitação. Mesmo motivo de
   // campaignDetailView acima (re-render via innerHTML a cada mutação
   // destruiria o campo em edição se salvasse a cada tecla).
   voucherBatchDetailView.addEventListener('change', (e) => {
@@ -1707,10 +1705,6 @@
       return;
     }
 
-    if (e.target.matches('[data-voucher-valid-until]')) {
-      store.updateVoucherField(id, { validUntil: e.target.value || null });
-      return;
-    }
     if (e.target.matches('[data-voucher-notes]')) {
       store.updateVoucherField(id, { notes: e.target.value.trim() || null });
     }

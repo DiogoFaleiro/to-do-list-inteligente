@@ -947,8 +947,7 @@
   const VOUCHER_STATUS_LABEL = {
     disponivel: 'Disponível',
     reservado: 'Reservado',
-    vendido: 'Vendido',
-    expirado: 'Expirado'
+    vendido: 'Vendido'
   };
 
   function renderVoucherBatchesList() {
@@ -1052,7 +1051,6 @@
       { value: metrics.disponiveis, label: 'Disponíveis' },
       { value: metrics.reservados, label: 'Reservados' },
       { value: metrics.vendidos, label: 'Vendidos' },
-      { value: metrics.expirados, label: 'Expirados' },
       { value: `R$ ${metrics.receita.toFixed(2)}`, label: 'Receita realizada' },
       { value: `R$ ${metrics.custoTotal.toFixed(2)}`, label: 'Custo total' },
       { value: `R$ ${metrics.lucro.toFixed(2)}`, label: 'Lucro' },
@@ -1080,7 +1078,6 @@
           <td><select data-voucher-status-select>${statusOptions}</select></td>
           <td><input type="number" step="0.01" min="0" data-voucher-cost value="${v.costPrice}"></td>
           <td><input type="number" step="0.01" min="0" data-voucher-sale value="${v.salePrice}"></td>
-          <td><input type="date" data-voucher-valid-until value="${v.validUntil || ''}"></td>
           <td><input type="text" data-voucher-notes value="${escapeHtml(v.notes || '')}"></td>
         </tr>`;
       })
@@ -1108,8 +1105,8 @@
 
       <div class="voucher-batch-table-wrap">
         <table class="voucher-batch-table">
-          <thead><tr><th>Código</th><th>Status</th><th>Custo</th><th>Venda</th><th>Válido até</th><th>Notas</th></tr></thead>
-          <tbody>${tableRows || `<tr><td colspan="6" class="empty-state">Nenhum voucher com esse filtro.</td></tr>`}</tbody>
+          <thead><tr><th>Código</th><th>Status</th><th>Custo</th><th>Venda</th><th>Notas</th></tr></thead>
+          <tbody>${tableRows || `<tr><td colspan="5" class="empty-state">Nenhum voucher com esse filtro.</td></tr>`}</tbody>
         </table>
       </div>
     `;

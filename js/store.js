@@ -248,7 +248,6 @@
       costPrice: row.cost_price,
       salePrice: row.sale_price,
       status: row.status,
-      validUntil: row.valid_until,
       notes: row.notes,
       createdAt: row.created_at
     };
@@ -427,7 +426,6 @@
       disponiveis: byStatus('disponivel').length,
       reservados: byStatus('reservado').length,
       vendidos: vendidos.length,
-      expirados: byStatus('expirado').length,
       receita,
       custoTotal,
       lucro,
@@ -642,8 +640,7 @@
           code: v.code,
           cost_price: fields.defaultCostPrice,
           sale_price: fields.defaultSalePrice,
-          status: v.status,
-          valid_until: v.validUntil || null
+          status: v.status
         }));
         const { error: vErr } = await api.insertVouchersBatch(rows);
         if (vErr) throw vErr;
@@ -717,7 +714,7 @@
   // confirma; erro remove a otimista pelo tempId. Sem lógica de default por
   // "kind" (isso é específico de campanha) — status sempre nasce
   // 'disponivel' aqui.
-  function addVoucher(batchId, { code, costPrice, salePrice, validUntil, notes }) {
+  function addVoucher(batchId, { code, costPrice, salePrice, notes }) {
     const tempId = `tmp-${utils.uid()}`;
     const optimistic = {
       id: tempId,
@@ -726,7 +723,6 @@
       costPrice,
       salePrice,
       status: 'disponivel',
-      validUntil: validUntil || null,
       notes: notes ? notes.trim() : null
     };
     state.vouchers.push(optimistic);
@@ -738,7 +734,6 @@
         code: optimistic.code,
         costPrice: optimistic.costPrice,
         salePrice: optimistic.salePrice,
-        validUntil: optimistic.validUntil,
         notes: optimistic.notes
       })
       .then(({ data, error }) => {

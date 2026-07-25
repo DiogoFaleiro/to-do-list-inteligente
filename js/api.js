@@ -466,7 +466,7 @@
   // lote) — mesmo molde de insertCampaignClientRow: .select().single()
   // porque o chamador precisa do id real de volta pra substituir a linha
   // otimista.
-  function insertVoucherRow(userId, { batchId, code, costPrice, salePrice, validUntil, notes }) {
+  function insertVoucherRow(userId, { batchId, code, costPrice, salePrice, notes }) {
     return supabaseClient
       .from('vouchers')
       .insert({
@@ -475,7 +475,6 @@
         code,
         cost_price: costPrice,
         sale_price: salePrice,
-        valid_until: validUntil || null,
         notes: notes || null
       })
       .select()
@@ -499,7 +498,6 @@
     if (patch.status !== undefined) payload.status = patch.status;
     if (patch.costPrice !== undefined) payload.cost_price = patch.costPrice;
     if (patch.salePrice !== undefined) payload.sale_price = patch.salePrice;
-    if (patch.validUntil !== undefined) payload.valid_until = patch.validUntil;
     if (patch.notes !== undefined) payload.notes = patch.notes;
     return supabaseClient.from('vouchers').update(payload).eq('id', id).select().single();
   }
