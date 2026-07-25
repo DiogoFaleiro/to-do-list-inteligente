@@ -653,7 +653,20 @@
     } catch (err) {
       state.voucherImportStatus = { loading: false, error: err };
       emit();
-      handleMutationError('Falha ao criar lote de vouchers (import ficou incompleto)', err);
+      // Mensagem específica pros códigos de erro mais prováveis aqui (em vez
+      // do texto genérico de handleMutationError) — sem isso, uma violação
+      // de unique(user_id, code) (código já importado antes) ou do check de
+      // status/preço fica indistinguível de qualquer outra falha pro
+      // usuário, que só vê "tente novamente" sem saber o motivo real.
+      // Códigos padrão do Postgres, repassados pelo Supabase/PostgREST em
+      // error.code — mesmo padrão já usado por isAuthError acima.
+      let context = 'Falha ao criar lote de vouchers (import ficou incompleto)';
+      if (err && err.code === '23505') {
+        context = 'Falha ao criar lote: um ou mais códigos deste arquivo já foram importados antes por você (código repetido não é permitido)';
+      } else if (err && err.code === '23514') {
+        context = 'Falha ao criar lote: algum valor não passou pelas regras do banco (status/preço inválido)';
+      }
+      handleMutationError(context, err);
       return { ok: false, error: err };
     }
   }
