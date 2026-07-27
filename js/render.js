@@ -785,15 +785,50 @@
     const statusLabels = CAMPAIGN_CLIENT_STATUS_LABELS[campaign.kind] || CAMPAIGN_CLIENT_STATUS_LABELS.vendas;
     const today = utils.todayISO();
 
+    // Calculado aqui (antes do filtro de clientes) porque os filtros
+    // "Renovado"/"Perdido" abaixo passam a depender do ano escolhido — ver
+    // outcomeFilterActive.
+    const outcomeYear = isCert ? state.campaignOutcomeYear || utils.todayISO().slice(0, 4) : null;
+
+    // "Renovado"/"Perdido" (só certificados) filtram por EVENTO em
+    // certificate_outcomes no ano selecionado, não por status atual: o ciclo
+    // devolve o cliente pra 'pendente' depois de renovar, então filtrar por
+    // status faria o filtro "Renovado" quase sempre voltar vazio (mesmo
+    // motivo de getCampaignOutcomeMetrics vs. getCampaignMetrics). "Todos"/
+    // "Pendente"/"Avisado" continuam sendo Pipeline (estado atual, ignora o
+    // seletor de ano).
+    const outcomeFilterActive =
+      isCert && (state.campaignClientStatusFilter === 'renovado' || state.campaignClientStatusFilter === 'perdido');
+    const outcomeFilterClientIds = outcomeFilterActive
+      ? store.getCampaignClientIdsByOutcome(campaign.id, state.campaignClientStatusFilter, outcomeYear)
+      : null;
+
     const clientSearchQuery = state.campaignClientSearch.trim().toLowerCase();
     const clients = state.campaignClients
       .filter((c) => c.campaignId === campaign.id)
-      .filter((c) => state.campaignClientStatusFilter === 'all' || c.status === state.campaignClientStatusFilter)
+      .filter((c) =>
+        outcomeFilterActive
+          ? outcomeFilterClientIds.has(c.id)
+          : state.campaignClientStatusFilter === 'all' || c.status === state.campaignClientStatusFilter
+      )
       .filter((c) => !clientSearchQuery || c.name.toLowerCase().includes(clientSearchQuery));
 
+    // Rótulo dos botões "Renovado"/"Perdido" ganha o ano junto (ex:
+    // "Renovados em 2026") quando um ano específico está selecionado, sem
+    // sufixo em "Todos os anos" — deixa explícito que o filtro é sobre
+    // eventos daquele ano, não sobre o status atual.
+    const outcomeFilterLabels = {
+      renovado: outcomeYear === 'all' ? 'Renovados' : `Renovados em ${outcomeYear}`,
+      perdido: outcomeYear === 'all' ? 'Perdidos' : `Perdidos em ${outcomeYear}`
+    };
     const statusFilterButtons = ['all', ...Object.keys(statusLabels)]
       .map((status) => {
-        const label = status === 'all' ? 'Todos' : statusLabels[status];
+        const label =
+          status === 'all'
+            ? 'Todos'
+            : isCert && (status === 'renovado' || status === 'perdido')
+              ? outcomeFilterLabels[status]
+              : statusLabels[status];
         const active = state.campaignClientStatusFilter === status ? 'active' : '';
         return `<button type="button" class="${active}" data-client-status-filter="${status}">${escapeHtml(label)}</button>`;
       })
@@ -847,7 +882,7 @@
         ];
     const metricsHtml = renderMetricTiles(metricTiles);
 
-    const outcomeYear = isCert ? state.campaignOutcomeYear || utils.todayISO().slice(0, 4) : null;
+    // outcomeYear já foi calculado acima (usado pelos filtros Renovado/Perdido).
     const outcomeMetrics = isCert ? store.getCampaignOutcomeMetrics(campaign.id, outcomeYear) : null;
     const outcomeYearsHtml = isCert
       ? [

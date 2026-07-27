@@ -468,6 +468,21 @@
     return { count: renewals.length, years };
   }
 
+  // IDs de campaign_clients com pelo menos 1 evento `outcome` no `year` dado
+  // — usado pelos filtros "Renovado"/"Perdido" da tela de detalhe
+  // (js/render.js), que (só pra certificados) filtram por EVENTO em
+  // certificate_outcomes, não por status atual (mesmo motivo de
+  // getCampaignOutcomeMetrics vs. getCampaignMetrics). year é 'YYYY' ou 'all'.
+  function getCampaignClientIdsByOutcome(campaignId, outcome, year) {
+    const ids = new Set();
+    state.certificateOutcomes.forEach((o) => {
+      if (o.campaignId !== campaignId || o.outcome !== outcome) return;
+      if (year !== 'all' && o.occurredOn.slice(0, 4) !== year) return;
+      ids.add(o.campaignClientId);
+    });
+    return ids;
+  }
+
   // Métricas do lote de vouchers — nunca persistidas como coluna agregada
   // (mesma razão de getCampaignMetrics: evita duas fontes de verdade
   // dessincronizando). Recalculada do zero a cada chamada; usada tanto nos
@@ -2151,6 +2166,7 @@
     getCampaignOutcomeMetrics,
     getCertificateOutcomeYears,
     getClientRenewalHistory,
+    getCampaignClientIdsByOutcome,
     loadCampaigns,
     loadStats,
     createCampaignWithClients,
