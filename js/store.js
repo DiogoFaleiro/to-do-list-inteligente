@@ -10,6 +10,10 @@
     apiTokens: [],
     campaigns: [],
     campaignClients: [],
+    // Log de desfechos de certificado (0021_certificate_outcomes.sql),
+    // carregado junto de campaigns/campaignClients em loadCampaigns — ver
+    // getCampaignOutcomeMetrics/getClientRenewalHistory abaixo.
+    certificateOutcomes: [],
     // Carregadas sob demanda (loadCampaigns), só quando a tela Campanhas
     // abre — não fazem parte de loadInitialData, mesmo padrão de apiTokens.
     campaignsLoaded: false,
@@ -66,6 +70,10 @@
     // Busca por nome na tela de detalhe da campanha — mesmo caráter efêmero
     // do filtro de status acima.
     campaignClientSearch: '',
+    // Ano selecionado no bloco "Resultado" (renovados/perdidos) da tela de
+    // detalhe — mesmo caráter efêmero acima: não persiste, reseta a cada
+    // openCampaignDetail pro ano corrente. 'all' = todos os anos.
+    campaignOutcomeYear: '',
     // Estado do import do Todoist (sem otimismo — a UI só mostra loading).
     importStatus: { loading: false, error: null },
     ui: localPrefs.load()
@@ -225,6 +233,19 @@
       followupTaskId: row.followup_task_id,
       mrr: row.mrr,
       notes: row.notes
+    };
+  }
+
+  function mapCertificateOutcomeFromRow(row) {
+    return {
+      id: row.id,
+      campaignClientId: row.campaign_client_id,
+      campaignId: row.campaign_id,
+      outcome: row.outcome,
+      occurredOn: row.occurred_on,
+      previousExpiry: row.previous_expiry,
+      newExpiry: row.new_expiry,
+      createdAt: row.created_at
     };
   }
 
@@ -389,12 +410,14 @@
     const total = clients.length;
 
     if (campaign && campaign.kind === 'certificados') {
+      // Só Pipeline (estado atual) — Resultado (renovados/perdidos/taxa) vem
+      // de certificate_outcomes via getCampaignOutcomeMetrics, não daqui:
+      // status atual perde o histórico assim que o ciclo reinicia pra
+      // 'pendente' (ver comentário no topo de 0021_certificate_outcomes.sql).
       const withExpiry = clients.filter((c) => !!c.certExpiry).length;
+      const pendentes = clients.filter((c) => c.status === 'pendente').length;
       const avisados = clients.filter((c) => c.status === 'avisado').length;
-      const renovados = clients.filter((c) => c.status === 'renovado').length;
-      const perdidos = clients.filter((c) => c.status === 'perdido').length;
-      const renewalRate = renovados + perdidos > 0 ? renovados / (renovados + perdidos) : 0;
-      return { total, withExpiry, avisados, renovados, perdidos, renewalRate };
+      return { total, withExpiry, pendentes, avisados };
     }
 
     const responded = clients.filter((c) => c.status !== 'sem_resposta').length;
@@ -405,6 +428,44 @@
       .reduce((sum, c) => sum + (Number(c.mrr) || 0), 0);
     const conversionRate = total > 0 ? convertido / total : 0;
     return { total, responded, trial, convertido, mrrAdicional, conversionRate };
+  }
+
+  // Bloco "Resultado" da tela de detalhe (certificados) — de
+  // certificate_outcomes, nunca de campaign_clients.status (essa é a
+  // diferença deliberada com getCampaignMetrics acima). year é uma string
+  // ('YYYY') ou 'all'. Pipeline (getCampaignMetrics) nunca é filtrado por
+  // ano — só este bloco.
+  function getCampaignOutcomeMetrics(campaignId, year) {
+    const outcomes = state.certificateOutcomes.filter((o) => {
+      if (o.campaignId !== campaignId) return false;
+      return year === 'all' || o.occurredOn.slice(0, 4) === year;
+    });
+    const renovados = outcomes.filter((o) => o.outcome === 'renovado').length;
+    const perdidos = outcomes.filter((o) => o.outcome === 'perdido').length;
+    const renewalRate = renovados + perdidos > 0 ? renovados / (renovados + perdidos) : 0;
+    return { renovados, perdidos, renewalRate };
+  }
+
+  // Anos disponíveis pro seletor do bloco Resultado — o ano corrente sempre
+  // entra, mesmo sem nenhum evento ainda, pra garantir uma opção válida
+  // selecionável no primeiro acesso da campanha.
+  function getCertificateOutcomeYears(campaignId) {
+    const years = new Set(
+      state.certificateOutcomes.filter((o) => o.campaignId === campaignId).map((o) => o.occurredOn.slice(0, 4))
+    );
+    years.add(utils.todayISO().slice(0, 4));
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }
+
+  // Histórico de renovações de 1 cliente — badge "3×" na linha da tabela
+  // (js/render.js). Só conta outcome 'renovado' (perdido não entra na
+  // contagem "quantas vezes já renovou").
+  function getClientRenewalHistory(clientId) {
+    const renewals = state.certificateOutcomes.filter(
+      (o) => o.campaignClientId === clientId && o.outcome === 'renovado'
+    );
+    const years = renewals.map((o) => o.occurredOn.slice(0, 4)).sort();
+    return { count: renewals.length, years };
   }
 
   // Métricas do lote de vouchers — nunca persistidas como coluna agregada
@@ -442,6 +503,7 @@
     state.ui.campaignDetailId = campaignId;
     state.campaignClientStatusFilter = 'all';
     state.campaignClientSearch = '';
+    state.campaignOutcomeYear = utils.todayISO().slice(0, 4);
     persistUi();
     emit();
   }
@@ -453,6 +515,11 @@
 
   function setCampaignClientSearch(query) {
     state.campaignClientSearch = query;
+    emit();
+  }
+
+  function setCampaignOutcomeYear(year) {
+    state.campaignOutcomeYear = year;
     emit();
   }
 
@@ -490,11 +557,16 @@
     state.campaignsError = null;
     emit();
     try {
-      const [campaignsRes, clientsRes] = await Promise.all([api.fetchCampaigns(), api.fetchCampaignClients()]);
-      const error = campaignsRes.error || clientsRes.error;
+      const [campaignsRes, clientsRes, outcomesRes] = await Promise.all([
+        api.fetchCampaigns(),
+        api.fetchCampaignClients(),
+        api.fetchCertificateOutcomes()
+      ]);
+      const error = campaignsRes.error || clientsRes.error || outcomesRes.error;
       if (error) throw error;
       state.campaigns = (campaignsRes.data || []).map(mapCampaignFromRow);
       state.campaignClients = (clientsRes.data || []).map(mapCampaignClientFromRow);
+      state.certificateOutcomes = (outcomesRes.data || []).map(mapCertificateOutcomeFromRow);
       state.campaignsLoaded = true;
       state.campaignsLoading = false;
       state.campaignsError = null;
@@ -772,12 +844,20 @@
   // Idempotente por followupTaskId (não por status): sair e voltar pra
   // trial não duplica a tarefa. 'convertido'/'recusou' não tocam nisso —
   // são só o patch genérico normal, encerramento da tarefa é manual.
+  // certificateOutcome ('renovado'|'perdido', opcional, ver js/app.js) NÃO é
+  // coluna de campaign_clients — é um sinalizador do chamador dizendo "isto
+  // foi uma renovação/perda de certificado", removido do patch antes de ir
+  // pra API. Não dá pra inferir isso só do patch.status final: o reinício
+  // imediato do ciclo manda status:'pendente' direto, pulando por cima de
+  // 'renovado' (ver 0021_certificate_outcomes.sql) — só quem capturou a
+  // escolha do usuário no <select> (app.js) sabe que isso foi um desfecho.
   async function updateCampaignClientField(id, patch) {
     const c = state.campaignClients.find((x) => x.id === id);
     if (!c) return;
     const previous = { ...c };
-    const isActivatingTrial = patch.status === 'trial';
-    const effectivePatch = { ...patch };
+    const { certificateOutcome, ...rest } = patch;
+    const isActivatingTrial = rest.status === 'trial';
+    const effectivePatch = { ...rest };
     if (isActivatingTrial && !c.trialStart) {
       effectivePatch.trialStart = utils.todayISO();
     }
@@ -791,6 +871,16 @@
         handleMutationError('Falha ao atualizar cliente da campanha', error);
       }
     });
+
+    // Guarda de idempotência: só registra se o status realmente mudou (nunca
+    // em reenvio do mesmo patch) — ver comentário acima sobre por que o
+    // gatilho é o sinalizador explícito, não o valor final de status.
+    if (certificateOutcome && previous.status !== c.status) {
+      recordCertificateOutcome(c.campaignId, id, certificateOutcome, {
+        previousExpiry: previous.certExpiry,
+        newExpiry: effectivePatch.certExpiry !== undefined ? effectivePatch.certExpiry : null
+      });
+    }
 
     if (!isActivatingTrial || previous.followupTaskId) return;
 
@@ -812,6 +902,72 @@
     if (task) {
       updateCampaignClientField(id, { followupTaskId: task.id });
     }
+  }
+
+  // Grava 1 evento de desfecho de certificado (0021_certificate_outcomes.sql)
+  // — chamado só por updateCampaignClientField, nunca direto. Otimista com
+  // rollback (molde de addCampaignClient/addVoucher: id temporário, troca
+  // pelo real no sucesso, remove no erro) — diferente do fire-and-forget de
+  // insertTaskCompletion porque, ao contrário de task_completions, este
+  // array É espelhado em state e consumido ao vivo pela UI (badge de
+  // renovações, métricas do bloco Resultado).
+  function recordCertificateOutcome(campaignId, campaignClientId, outcome, { previousExpiry, newExpiry }) {
+    const tempId = `tmp-${utils.uid()}`;
+    const optimistic = {
+      id: tempId,
+      campaignClientId,
+      campaignId,
+      outcome,
+      occurredOn: utils.todayISO(),
+      previousExpiry: previousExpiry || null,
+      newExpiry: newExpiry || null
+    };
+    state.certificateOutcomes.push(optimistic);
+    emit();
+
+    api
+      .insertCertificateOutcome(currentUserId, {
+        campaignClientId,
+        campaignId,
+        outcome,
+        occurredOn: optimistic.occurredOn,
+        previousExpiry: optimistic.previousExpiry,
+        newExpiry: optimistic.newExpiry
+      })
+      .then(({ data, error }) => {
+        if (error) {
+          state.certificateOutcomes = state.certificateOutcomes.filter((o) => o.id !== tempId);
+          emit();
+          handleMutationError('Falha ao registrar desfecho do certificado', error);
+          return;
+        }
+        const idx = state.certificateOutcomes.findIndex((o) => o.id === tempId);
+        if (idx !== -1) state.certificateOutcomes[idx] = mapCertificateOutcomeFromRow(data);
+        emit();
+      });
+  }
+
+  // Desfaz (apaga) só o registro de histórico mais recente deste cliente —
+  // NUNCA reverte campaign_clients.status/cert_expiry junto (o registro é
+  // avulso do estado atual, mesmo espírito do comentário de correção na
+  // migration 0021: apagar e, se preciso, deixar o fluxo normal recriar).
+  // Uso: corrigir um clique errado no select de status.
+  function undoLastCertificateOutcome(clientId) {
+    const clientOutcomes = state.certificateOutcomes
+      .filter((o) => o.campaignClientId === clientId)
+      .sort((a, b) => (a.occurredOn < b.occurredOn ? 1 : a.occurredOn > b.occurredOn ? -1 : 0));
+    const last = clientOutcomes[0];
+    if (!last) return;
+
+    state.certificateOutcomes = state.certificateOutcomes.filter((o) => o.id !== last.id);
+    emit();
+    api.deleteCertificateOutcomeRow(last.id).then(({ error }) => {
+      if (error) {
+        state.certificateOutcomes.push(last);
+        emit();
+        handleMutationError('Falha ao desfazer registro de desfecho', error);
+      }
+    });
   }
 
   // Mutação otimista genérica de 1 patch por vez — cópia direta do molde
@@ -1067,6 +1223,7 @@
     state.importStatus = { loading: false, error: null };
     state.campaigns = [];
     state.campaignClients = [];
+    state.certificateOutcomes = [];
     state.campaignsLoaded = false;
     state.campaignsLoading = false;
     state.campaignsError = null;
@@ -1991,12 +2148,16 @@
     deleteApiToken,
     getCampaignClientCounts,
     getCampaignMetrics,
+    getCampaignOutcomeMetrics,
+    getCertificateOutcomeYears,
+    getClientRenewalHistory,
     loadCampaigns,
     loadStats,
     createCampaignWithClients,
     addCampaignClient,
     openCampaignDetail,
     updateCampaignClientField,
+    undoLastCertificateOutcome,
     processCertificateAlerts,
     setCampaignStatus,
     updateCampaignAlertDays,
@@ -2004,6 +2165,7 @@
     deleteCampaignClient,
     setCampaignClientStatusFilter,
     setCampaignClientSearch,
+    setCampaignOutcomeYear,
     getVoucherBatchMetrics,
     loadVoucherBatches,
     createVoucherBatchWithVouchers,

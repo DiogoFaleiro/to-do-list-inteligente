@@ -819,14 +819,23 @@
           })
           .join('');
 
+    const renderMetricTiles = (tiles) =>
+      tiles
+        .map(
+          (t) =>
+            `<div class="campaign-metric-tile"><span class="campaign-metric-value">${t.value}</span><span class="campaign-metric-label">${t.label}</span></div>`
+        )
+        .join('');
+
+    // Pipeline (estado atual, nunca afetado pelo seletor de ano) vs.
+    // Resultado (de certificate_outcomes, filtrado por ano) — só certificados
+    // tem essa separação; vendas continua com 1 bloco só de sempre.
     const metricTiles = isCert
       ? [
           { value: metrics.total, label: 'Clientes' },
           { value: metrics.withExpiry, label: 'Com vencimento preenchido' },
-          { value: metrics.avisados, label: 'Avisados' },
-          { value: metrics.renovados, label: 'Renovados' },
-          { value: metrics.perdidos, label: 'Perdidos' },
-          { value: `${(metrics.renewalRate * 100).toFixed(1)}%`, label: 'Taxa de renovação' }
+          { value: metrics.pendentes, label: 'Pendentes' },
+          { value: metrics.avisados, label: 'Avisados' }
         ]
       : [
           { value: metrics.total, label: 'Clientes' },
@@ -836,12 +845,25 @@
           { value: `R$ ${metrics.mrrAdicional.toFixed(2)}`, label: 'MRR adicional' },
           { value: `${(metrics.conversionRate * 100).toFixed(1)}%`, label: 'Taxa de conversão' }
         ];
-    const metricsHtml = metricTiles
-      .map(
-        (t) =>
-          `<div class="campaign-metric-tile"><span class="campaign-metric-value">${t.value}</span><span class="campaign-metric-label">${t.label}</span></div>`
-      )
-      .join('');
+    const metricsHtml = renderMetricTiles(metricTiles);
+
+    const outcomeYear = isCert ? state.campaignOutcomeYear || utils.todayISO().slice(0, 4) : null;
+    const outcomeMetrics = isCert ? store.getCampaignOutcomeMetrics(campaign.id, outcomeYear) : null;
+    const outcomeYearsHtml = isCert
+      ? [
+          ...store.getCertificateOutcomeYears(campaign.id).map(
+            (y) => `<option value="${y}" ${outcomeYear === y ? 'selected' : ''}>${y}</option>`
+          ),
+          `<option value="all" ${outcomeYear === 'all' ? 'selected' : ''}>Todos os anos</option>`
+        ].join('')
+      : '';
+    const outcomeTilesHtml = isCert
+      ? renderMetricTiles([
+          { value: outcomeMetrics.renovados, label: 'Renovados' },
+          { value: outcomeMetrics.perdidos, label: 'Perdidos' },
+          { value: `${(outcomeMetrics.renewalRate * 100).toFixed(1)}%`, label: 'Taxa de renovação' }
+        ])
+      : '';
 
     const tableRows = clients
       .map((c) => {
@@ -849,6 +871,21 @@
           .map((s) => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${escapeHtml(statusLabels[s])}</option>`)
           .join('');
         const waTitle = isCert ? 'Abrir WhatsApp' : `Enviar FUP${utils.nextCampaignFollowupIndex(c)} via WhatsApp`;
+
+        // Badge compacto de renovações (só certificados) — count/years vêm
+        // de certificate_outcomes, gerados internamente (não são texto de
+        // usuário, não passam por escapeHtml). Botão de desfazer some quando
+        // não há histórico; ele só apaga o registro de log, nunca reverte
+        // status/cert_expiry do cliente (ver undoLastCertificateOutcome).
+        let renewalBadgeHtml = '';
+        if (isCert) {
+          const history = store.getClientRenewalHistory(c.id);
+          if (history.count > 0) {
+            renewalBadgeHtml = `
+            <span class="renewal-badge" title="Renovado em: ${history.years.join(', ')}">${history.count}×</span>
+            <button type="button" class="btn-link renewal-undo" data-client-undo-outcome="${c.id}" title="Desfazer último registro de desfecho (não altera o status atual)">↩</button>`;
+          }
+        }
 
         // Colunas Nome/Celular/Status/Observações/WhatsApp são idênticas nos
         // dois tipos — só o meio da linha muda (régua de FUP+trial+MRR em
@@ -872,7 +909,7 @@
         }
         return `
         <tr data-client-id="${c.id}">
-          <td>${escapeHtml(c.name)}</td>
+          <td>${escapeHtml(c.name)}${renewalBadgeHtml}</td>
           <td>${escapeHtml(c.phone || '')}</td>
           <td><select data-client-status-select>${statusOptions}</select></td>
           ${middleCellsHtml}
@@ -916,6 +953,16 @@
       </header>
 
       <div class="campaign-detail-metrics">${metricsHtml}</div>
+      ${
+        isCert
+          ? `
+      <div class="campaign-outcome-header">
+        <h3>Resultado</h3>
+        <select data-campaign-outcome-year>${outcomeYearsHtml}</select>
+      </div>
+      <div class="campaign-detail-metrics">${outcomeTilesHtml}</div>`
+          : ''
+      }
       ${project ? `<p class="campaign-detail-project">Projeto de destino: ${escapeHtml(project.name)}</p>` : ''}
 
       ${messagesHtml ? `<div class="campaign-detail-messages">${messagesHtml}</div>` : ''}

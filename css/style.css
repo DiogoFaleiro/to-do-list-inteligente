@@ -2115,6 +2115,34 @@ a.btn-danger {
   color: var(--text-muted);
 }
 
+.campaign-outcome-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.campaign-outcome-header h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.renewal-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.renewal-undo {
+  margin-left: 4px;
+  font-size: 0.85rem;
+}
+
 .campaign-detail-project {
   margin: 0;
   color: var(--text-muted);

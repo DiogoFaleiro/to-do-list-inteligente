@@ -1427,6 +1427,16 @@
       return;
     }
 
+    const undoOutcomeBtn = e.target.closest('[data-client-undo-outcome]');
+    if (undoOutcomeBtn) {
+      const clientId = undoOutcomeBtn.dataset.clientUndoOutcome;
+      const ok = confirm(
+        'Desfazer o último registro de renovação/perda deste cliente? Isso só apaga o histórico — não altera o status atual do cliente.'
+      );
+      if (ok) store.undoLastCertificateOutcome(clientId);
+      return;
+    }
+
     const copyBtn = e.target.closest('[data-copy-message]');
     if (copyBtn) {
       const idx = copyBtn.dataset.copyMessage;
@@ -1510,6 +1520,10 @@
       store.updateCampaignAlertDays(campaignId, clamped);
       return;
     }
+    if (e.target.matches('[data-campaign-outcome-year]')) {
+      store.setCampaignOutcomeYear(e.target.value);
+      return;
+    }
 
     const row = e.target.closest('[data-client-id]');
     if (!row) return;
@@ -1523,20 +1537,36 @@
       // Ciclo de renovação (só certificados): ao marcar "Renovado", oferece
       // reiniciar o ciclo pro próximo ano num patch único (status +
       // cert_expiry + followup_task_id) — ver updateCampaignClientField
-      // (js/store.js) pro rollback atômico dos 3 campos.
+      // (js/store.js) pro rollback atômico dos 3 campos. certificateOutcome
+      // vai junto no mesmo patch em ambos os casos (com ou sem reinício):
+      // é o único jeito de registrar o evento em certificate_outcomes
+      // mesmo quando o status final vira 'pendente' direto (reinício
+      // imediato pula por cima de 'renovado' como valor de status).
       if (campaign && campaign.kind === 'certificados' && newStatus === 'renovado') {
         if (!client.certExpiry) {
           // Sem vencimento preenchido não há data-base pra somar +12 meses —
           // fica só o status final, sem oferecer o reinício automático.
           alert('Cliente marcado como renovado. Para reiniciar o ciclo automaticamente, preencha o vencimento do certificado antes.');
-          store.updateCampaignClientField(clientId, { status: 'renovado' });
+          store.updateCampaignClientField(clientId, { status: 'renovado', certificateOutcome: 'renovado' });
           return;
         }
         const renewNow = confirm('Renovado! Já reiniciar o ciclo para o próximo ano?');
         const patch = renewNow
-          ? { status: 'pendente', certExpiry: utils.addMonthsISO(client.certExpiry, 12), followupTaskId: null }
-          : { status: 'renovado' };
+          ? {
+              status: 'pendente',
+              certExpiry: utils.addMonthsISO(client.certExpiry, 12),
+              followupTaskId: null,
+              certificateOutcome: 'renovado'
+            }
+          : { status: 'renovado', certificateOutcome: 'renovado' };
         store.updateCampaignClientField(clientId, patch);
+        return;
+      }
+
+      // Mesma lógica pro desfecho "perdido" — sem ciclo de reinício aqui,
+      // então o patch é direto, só com o sinalizador de evento junto.
+      if (campaign && campaign.kind === 'certificados' && newStatus === 'perdido') {
+        store.updateCampaignClientField(clientId, { status: newStatus, certificateOutcome: 'perdido' });
         return;
       }
 

@@ -431,6 +431,41 @@
     return supabaseClient.from('campaign_clients').delete().eq('id', id);
   }
 
+  // Log de desfechos de certificado (0021_certificate_outcomes.sql) — evento
+  // imutável (sem update), paralelo direto de fetchTaskCompletions.
+  function fetchCertificateOutcomes() {
+    return supabaseClient
+      .from('certificate_outcomes')
+      .select('id,campaign_client_id,campaign_id,outcome,occurred_on,previous_expiry,new_expiry,created_at')
+      .order('occurred_on', { ascending: true });
+  }
+
+  // .select().single() (diferente de insertTaskCompletion) porque o
+  // chamador precisa do id real de volta pra virar alvo de undo depois
+  // (ver store.recordCertificateOutcome/undoLastCertificateOutcome).
+  function insertCertificateOutcome(userId, { campaignClientId, campaignId, outcome, occurredOn, previousExpiry, newExpiry }) {
+    return supabaseClient
+      .from('certificate_outcomes')
+      .insert({
+        campaign_client_id: campaignClientId,
+        campaign_id: campaignId,
+        user_id: userId,
+        outcome,
+        occurred_on: occurredOn,
+        previous_expiry: previousExpiry || null,
+        new_expiry: newExpiry || null
+      })
+      .select()
+      .single();
+  }
+
+  // Sem update — histórico imutável (0021 não tem policy de update).
+  // Corrigir um evento errado é apagar (e, se preciso, deixar o fluxo normal
+  // registrar de novo).
+  function deleteCertificateOutcomeRow(id) {
+    return supabaseClient.from('certificate_outcomes').delete().eq('id', id);
+  }
+
   function fetchVoucherBatches() {
     return supabaseClient.from('voucher_batches').select('*').order('created_at', { ascending: false });
   }
@@ -635,6 +670,9 @@
     updateCampaignRow,
     deleteCampaignRow,
     deleteCampaignClientRow,
+    fetchCertificateOutcomes,
+    insertCertificateOutcome,
+    deleteCertificateOutcomeRow,
     fetchVoucherBatches,
     fetchVouchers,
     insertVoucherBatch,
