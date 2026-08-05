@@ -102,6 +102,16 @@
       const aTime = a.dueTime || '99:99:99';
       const bTime = b.dueTime || '99:99:99';
       if (aTime !== bTime) return aTime > bTime ? 1 : -1;
+      // Ordem manual (drag-and-drop) — desempate depois de dueDate/dueTime,
+      // nunca os substitui. position == null (nunca arrastada) sempre fica
+      // depois de qualquer position numérica; se as duas forem null, cai no
+      // desempate de sempre por createdAt (coluna nunca tocada por
+      // drag-and-drop se comporta exatamente como antes desta mudança).
+      if (a.position != null || b.position != null) {
+        if (a.position == null) return 1;
+        if (b.position == null) return -1;
+        if (a.position !== b.position) return a.position - b.position;
+      }
       return a.createdAt - b.createdAt;
     });
   }
@@ -290,6 +300,7 @@
     return `
       <div class="task-row-wrap" data-task-wrap="${task.id}">
         <div class="task-row ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
+          <span class="task-drag-handle" data-drag-handle title="Arrastar para reordenar">⠿</span>
           ${subtaskToggleHtml(task, subtasks)}
           <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
           <div class="task-info">
@@ -384,11 +395,19 @@
       .map((g) => {
         const sessionGroups = splitBySession ? groupTasksBySession(g.tasks, g.id) : null;
         if (sessionGroups) {
+          // .list-session-group isola as linhas de CADA sessão num
+          // container próprio — é o que permite ao drag-and-drop de
+          // reordenar tarefas (js/app.js, scopeSelector) distinguir "solto
+          // dentro da mesma sessão" de "solto numa sessão vizinha", já que
+          // sem esse wrapper as linhas de sessões diferentes ficariam todas
+          // como irmãs soltas dentro do mesmo .list-section.
           const body = sessionGroups
             .map(
               (sg) => `
-          <h4 class="list-session-title">${escapeHtml(sg.name)}</h4>
-          ${sg.tasks.map((t) => taskRowHtml(t, { hideSessionTag: true })).join('')}`
+          <div class="list-session-group">
+            <h4 class="list-session-title">${escapeHtml(sg.name)}</h4>
+            ${sg.tasks.map((t) => taskRowHtml(t, { hideSessionTag: true })).join('')}
+          </div>`
             )
             .join('');
           return `
@@ -420,6 +439,7 @@
     return `
       <div class="board-card ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
         <div class="board-card-header">
+          <span class="task-drag-handle" data-drag-handle title="Arrastar para reordenar">⠿</span>
           ${subtaskToggleHtml(task, subtasks)}
           <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
           <div class="task-title">${escapeHtml(task.title)}</div>

@@ -298,6 +298,7 @@
       status: row.status,
       completedDate: row.completed_date,
       parentTaskId: row.parent_task_id,
+      position: row.position,
       createdAt: row.created_at ? new Date(row.created_at).getTime() : Date.now()
     };
   }
@@ -1551,6 +1552,70 @@
     );
   }
 
+  // Mesmo desenho de reorderSessions, mas o "escopo" (vizinhos válidos pro
+  // cálculo de position) não vem de uma FK fixa — vem da coluna/grupo que
+  // está na tela no momento do arraste (coluna de data, de projeto+sessão,
+  // ou grupo da Lista), passada pelo chamador (js/app.js) como a lista de
+  // ids já na ordem visível. tasks.position continua sendo uma única
+  // coluna global (sem partição no schema) — ver decisão de design no
+  // plano: como só é consultado como desempate depois de
+  // dueDate/dueTime já terem empatado (sortTasks, js/render.js), um
+  // ranking escalar único já basta pra não perder a ordem manual ao trocar
+  // de agrupamento.
+  function reorderTasks(scopeTaskIds, draggedId, targetId, placeAfter) {
+    const list = scopeTaskIds.map((id) => state.tasks.find((t) => t.id === id)).filter(Boolean);
+    const dragged = state.tasks.find((t) => t.id === draggedId);
+    if (!dragged) return;
+    const result = computeReorderPosition(list, draggedId, targetId, placeAfter, (t) => t.id, (t) => t.position);
+    if (!result) return;
+
+    const previousPosition = dragged.position;
+    dragged.position = result.newPosition;
+    emit();
+
+    api.updateTaskPosition(draggedId, result.newPosition).then(({ error }) => {
+      if (error) {
+        dragged.position = previousPosition;
+        emit();
+        handleMutationError('Falha ao reordenar tarefa', error);
+        return;
+      }
+      if (needsReindex(result.prevPosition, result.nextPosition)) {
+        reindexTaskPositions(scopeTaskIds);
+      }
+    });
+  }
+
+  function reindexTaskPositions(scopeTaskIds) {
+    // scopeTaskIds já vem na ordem visível (ver reorderTasksInScope,
+    // js/app.js) — position == null (tarefa nunca arrastada) não pode
+    // entrar direto numa subtração (vira 0 por coerção, embaralhando quem
+    // nunca foi arrastado pro início). Mesmo desempate de sortTasks:
+    // null sempre depois de qualquer position numérica.
+    const sorted = scopeTaskIds
+      .map((id) => state.tasks.find((t) => t.id === id))
+      .filter(Boolean)
+      .sort((a, b) => {
+        if (a.position == null && b.position == null) return 0;
+        if (a.position == null) return 1;
+        if (b.position == null) return -1;
+        return a.position - b.position;
+      });
+    const updates = [];
+    sorted.forEach((t, i) => {
+      const newPos = (i + 1) * 1000;
+      if (t.position !== newPos) {
+        updates.push({ id: t.id, position: newPos });
+        t.position = newPos;
+      }
+    });
+    if (!updates.length) return;
+    emit();
+    Promise.all(updates.map((u) => api.updateTaskPosition(u.id, u.position))).catch((error) =>
+      handleMutationError('Falha ao reindexar tarefas', error)
+    );
+  }
+
   function addTag({ name, color }) {
     const tempId = `tmp-${utils.uid()}`;
     const optimistic = { id: tempId, name: name.trim(), color: color || '#6c5ce7', isFavorite: false };
@@ -2207,6 +2272,7 @@
     updateSession,
     deleteSession,
     reorderSessions,
+    reorderTasks,
     addTag,
     updateTag,
     deleteTag,

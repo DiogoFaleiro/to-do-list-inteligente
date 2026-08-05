@@ -245,13 +245,19 @@ button {
 }
 
 /* Alça de arrastar-para-reordenar (projetos na sidebar, sessões no modal
-   de projeto). touch-action:none fica só aqui, numa alça pequena — nunca
-   no container/linha inteira, senão o toque de rolar a lista quebraria
-   (mesmo tipo de bug do drawer mobile já corrigido, evitado por escopo
-   cirúrgico). Em .project-item some/aparece no hover igual
-   fav-toggle/edit-project; em .session-editor-row (não é botão, não tem
-   esse jogo de hover) fica sempre visível. */
-.drag-handle {
+   de projeto, cards do Painel, linhas da Lista). touch-action:none fica só
+   aqui, numa alça pequena — nunca no container/linha inteira, senão o
+   toque de rolar a lista quebraria (mesmo tipo de bug do drawer mobile já
+   corrigido, evitado por escopo cirúrgico). Em .project-item some/aparece
+   no hover igual fav-toggle/edit-project; em .session-editor-row/.board-
+   card/.task-row (não é botão, não tem esse jogo de hover) fica sempre
+   visível. .task-drag-handle é uma classe própria (não .drag-handle) só
+   pra diferenciar o seletor de alça no enableReorderDrag de cards/linhas
+   do seletor de alça de coluna do Painel — como um card fica aninhado
+   dentro de uma .board-column, as duas alças precisam de seletores que
+   não se sobreponham (ver js/app.js, handleSelector). */
+.drag-handle,
+.task-drag-handle {
   cursor: grab;
   color: var(--text-muted);
   font-size: 0.9rem;
@@ -853,6 +859,18 @@ a.btn-danger {
 
 .list-section + .list-section {
   margin-top: 12px;
+}
+
+/* Isola as linhas de CADA sessão dentro de um projeto filtrado — sem este
+   wrapper, o gap de 8px de .list-section (acima) ficaria só ENTRE
+   título/linhas de sessões diferentes, sem nenhum espaço dedicado dentro
+   de uma mesma sessão. Também é o que dá ao drag-and-drop de reordenar
+   tarefas (js/app.js, scopeSelector) um container pra distinguir "solto
+   dentro da mesma sessão" de "solto numa sessão vizinha". */
+.list-session-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .list-section-title {

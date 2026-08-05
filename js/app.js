@@ -2499,9 +2499,19 @@
   let autoScrollSpeed = 0;
   let autoScrollContainer = null;
   let autoScrollAxis = 'y';
+  let autoScrollWindow = false;
 
-  function updateAutoScroll(container, e, axis) {
-    const rect = container.getBoundingClientRect();
+  // `scrollWindow: true` é pro caso de reordenar cards do Painel/linhas da
+  // Lista: .board-cards/.board-column e a área da Lista não têm
+  // overflow-y próprio (quem rola verticalmente ali é a página inteira),
+  // então nem o retângulo de borda nem o scroll em si podem vir do
+  // container passado — usam o viewport e window.scrollBy. Os 3 usos
+  // originais (sidebar, sessões, colunas do Painel) continuam intocados,
+  // scrollWindow default false.
+  function updateAutoScroll(container, e, axis, scrollWindow) {
+    const rect = scrollWindow
+      ? { top: 0, left: 0, bottom: window.innerHeight, right: window.innerWidth }
+      : container.getBoundingClientRect();
     const isY = axis === 'y';
     const pos = isY ? e.clientY : e.clientX;
     const near = pos - (isY ? rect.top : rect.left);
@@ -2517,6 +2527,7 @@
     autoScrollSpeed = speed;
     autoScrollContainer = container;
     autoScrollAxis = axis;
+    autoScrollWindow = scrollWindow;
 
     if (speed !== 0 && !autoScrollRAF) {
       const step = () => {
@@ -2524,8 +2535,14 @@
           autoScrollRAF = null;
           return;
         }
-        if (autoScrollAxis === 'y') autoScrollContainer.scrollTop += autoScrollSpeed;
-        else autoScrollContainer.scrollLeft += autoScrollSpeed;
+        if (autoScrollWindow) {
+          if (autoScrollAxis === 'y') window.scrollBy(0, autoScrollSpeed);
+          else window.scrollBy(autoScrollSpeed, 0);
+        } else if (autoScrollAxis === 'y') {
+          autoScrollContainer.scrollTop += autoScrollSpeed;
+        } else {
+          autoScrollContainer.scrollLeft += autoScrollSpeed;
+        }
         autoScrollRAF = requestAnimationFrame(step);
       };
       autoScrollRAF = requestAnimationFrame(step);
@@ -2546,7 +2563,21 @@
   // base das linhas; `axis: 'x'` (colunas do Painel) compara clientX
   // contra esquerda/direita — mesmo mecanismo, só troca qual eixo do
   // ponteiro/retângulo é lido.
-  function enableReorderDrag(container, rowSelector, onReorder, { axis = 'y' } = {}) {
+  // handleSelector: qual alça inicia o arraste (default '.drag-handle').
+  // Precisou virar parâmetro pro Painel, onde a alça de reordenar CARD
+  // (dentro de uma coluna) e a alça de reordenar COLUNA (h2 da própria
+  // coluna) convivem no mesmo container (boardView) e um card fica
+  // aninhado dentro de uma .board-column — com o mesmo seletor as duas
+  // instâncias capturariam o mesmo pointerdown.
+  // scopeSelector: além de bater com rowSelector, o alvo do drop só é
+  // aceito se `target.closest(scopeSelector)` for o MESMO elemento que
+  // `draggedEl.closest(scopeSelector)` — é o que impede soltar um card de
+  // uma coluna dentro de outra (fora de escopo) sem precisar de um
+  // enableReorderDrag por coluna (o Painel inteiro é re-renderizado a
+  // cada renderBoard(), então um listener por coluna se perderia a cada
+  // render; um único listener delegado em boardView sobrevive).
+  // scrollWindow: ver updateAutoScroll — repassado direto.
+  function enableReorderDrag(container, rowSelector, onReorder, { axis = 'y', handleSelector = '.drag-handle', scopeSelector, scrollWindow = false } = {}) {
     let draggedEl = null;
     let startPos = 0;
     let dragging = false;
@@ -2559,7 +2590,7 @@
     const dropAfterClass = isY ? 'drop-below' : 'drop-right';
 
     container.addEventListener('pointerdown', (e) => {
-      const handle = e.target.closest('.drag-handle');
+      const handle = e.target.closest(handleSelector);
       if (!handle) return;
       draggedEl = handle.closest(rowSelector);
       if (!draggedEl) return;
@@ -2575,10 +2606,13 @@
         dragging = true;
         draggedEl.classList.add('dragging');
       }
-      updateAutoScroll(container, e, axis);
+      updateAutoScroll(container, e, axis, scrollWindow);
 
       const under = document.elementFromPoint(e.clientX, e.clientY);
-      const target = under && under.closest(rowSelector);
+      let target = under && under.closest(rowSelector);
+      if (target && scopeSelector && target.closest(scopeSelector) !== draggedEl.closest(scopeSelector)) {
+        target = null;
+      }
       if (lastTarget) lastTarget.classList.remove(dropBeforeClass, dropAfterClass);
       if (!target || target === draggedEl) {
         lastTarget = null;
@@ -2610,7 +2644,7 @@
     container.addEventListener(
       'click',
       (e) => {
-        if (e.target.closest('.drag-handle')) {
+        if (e.target.closest(handleSelector)) {
           e.preventDefault();
           e.stopPropagation();
         }
@@ -2634,6 +2668,45 @@
       store.reorderProjectsBoard(draggedEl.dataset.boardProject, targetEl.dataset.boardProject, placeAfter);
     },
     { axis: 'x' }
+  );
+
+  // Reordenar tarefas dentro da MESMA coluna/agrupamento (data, projeto+
+  // sessão no Painel; projeto, sessão ou lista achatada na Lista) — nunca
+  // entre colunas diferentes (mudaria due_date/session_id/project_id,
+  // fora de escopo desta fase; scopeSelector já bloqueia isso na
+  // interação). A ordem final vem direto do DOM (já reflete a ordem
+  // visível, position incluída) em vez de reconstruir o agrupamento em
+  // JS — não existe uma função de "tasks desta coluna" no store, já que o
+  // agrupamento é montado em render.js a partir do estado da UI.
+  // Usa `rowSelector` (não `[data-task-id]` genérico) porque subtarefas
+  // expandidas (subtask-row, dentro do mesmo card/linha) também têm
+  // data-task-id — pegar qualquer elemento com esse atributo poluiria a
+  // lista de ids com subtarefas que não fazem parte deste reorder.
+  function reorderTasksInScope(scopeSelector, rowSelector) {
+    return (draggedEl, targetEl, placeAfter) => {
+      const scope = draggedEl.closest(scopeSelector);
+      const ids = Array.from(scope.querySelectorAll(rowSelector)).map((el) => el.dataset.taskId);
+      store.reorderTasks(ids, draggedEl.dataset.taskId, targetEl.dataset.taskId, placeAfter);
+    };
+  }
+
+  enableReorderDrag(boardView, '.board-card', reorderTasksInScope('.board-cards', '.board-card'), {
+    axis: 'y',
+    handleSelector: '.task-drag-handle',
+    scopeSelector: '.board-cards',
+    scrollWindow: true
+  });
+
+  enableReorderDrag(
+    listView,
+    '.task-row',
+    reorderTasksInScope('.list-session-group, .list-section, #listView', '.task-row'),
+    {
+      axis: 'y',
+      handleSelector: '.task-drag-handle',
+      scopeSelector: '.list-session-group, .list-section, #listView',
+      scrollWindow: true
+    }
   );
 
   // Mantém a bolinha ativa em dia durante qualquer scroll (arraste ou

@@ -252,6 +252,10 @@
     return supabaseClient.from('tasks').update({ due_date: dueDateISO }).eq('id', id).select().single();
   }
 
+  function updateTaskPosition(id, position) {
+    return supabaseClient.from('tasks').update({ position }).eq('id', id).select().single();
+  }
+
   // Reabre em lote (1 chamada só) — usado por normalizeRecurringTasksOnce
   // pra reabrir várias recorrentes de uma vez. Só muda status; completed_date
   // de cada linha fica intocado (continua guardando a última conclusão real).
@@ -647,6 +651,7 @@
     updateTaskRow,
     deleteTaskRow,
     updateTaskStatusRow,
+    updateTaskPosition,
     reopenTasksBatch,
     insertTaskCompletion,
     fetchAllDoneTasks,
