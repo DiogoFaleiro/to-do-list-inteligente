@@ -346,7 +346,9 @@
     fup3Date,
     fup1Message,
     fup2Message,
-    fup3Message
+    fup3Message,
+    systemName,
+    targetVersion
   }) {
     return supabaseClient
       .from('campaigns')
@@ -363,7 +365,9 @@
         fup3_date: fup3Date || null,
         fup1_message: fup1Message || null,
         fup2_message: fup2Message || null,
-        fup3_message: fup3Message || null
+        fup3_message: fup3Message || null,
+        system_name: systemName || null,
+        target_version: targetVersion || null
       })
       .select()
       .single();
@@ -411,6 +415,8 @@
     if (patch.mrr !== undefined) payload.mrr = patch.mrr;
     if (patch.notes !== undefined) payload.notes = patch.notes;
     if (patch.followupTaskId !== undefined) payload.followup_task_id = patch.followupTaskId;
+    if (patch.scheduledAt !== undefined) payload.scheduled_at = patch.scheduledAt;
+    if (patch.updatedOn !== undefined) payload.updated_on = patch.updatedOn;
     return supabaseClient.from('campaign_clients').update(payload).eq('id', id).select().single();
   }
 

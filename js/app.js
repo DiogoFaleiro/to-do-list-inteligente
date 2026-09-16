@@ -39,6 +39,9 @@
   const campaignKindSelect = document.getElementById('campaignKindSelect');
   const campaignVendasFields = document.getElementById('campaignVendasFields');
   const campaignCertFields = document.getElementById('campaignCertFields');
+  const campaignUpdateFields = document.getElementById('campaignUpdateFields');
+  const campaignSystemSelect = document.getElementById('campaignSystemSelect');
+  const campaignTargetVersionInput = document.getElementById('campaignTargetVersionInput');
   const campaignAlertDaysInput = document.getElementById('campaignAlertDaysInput');
   const campaignTrialDaysInput = document.getElementById('campaignTrialDaysInput');
   const campaignProjectSelect = document.getElementById('campaignProjectSelect');
@@ -1094,6 +1097,9 @@
     campaignKindSelect.value = 'vendas';
     campaignVendasFields.hidden = false;
     campaignCertFields.hidden = true;
+    campaignUpdateFields.hidden = true;
+    campaignSystemSelect.value = 'VELO';
+    campaignTargetVersionInput.value = '';
     campaignAlertDaysInput.value = 45;
     campaignTrialDaysInput.value = 7;
     campaignFup1Date.value = '';
@@ -1130,6 +1136,28 @@
     campaignAddClientModal.hidden = true;
   }
 
+  // Ao encerrar/excluir uma campanha 'atualizacao', a campanha/cliente some
+  // (ou vira 'encerrada'), mas a tarefa de agendamento continua existindo em
+  // tasks sem nenhum vínculo residual — oferece excluir essas tarefas ainda
+  // não concluídas antes de prosseguir, pra não deixar órfãs no projeto de
+  // destino. Escopado só a 'atualizacao' por enquanto (vendas/certificados
+  // nunca tiveram esse comportamento e mudar isso agora seria alterar
+  // features já em produção sem pedido).
+  function offerToDeletePendingUpdateTasks(campaignId) {
+    const pending = store
+      .getState()
+      .campaignClients.filter((c) => c.campaignId === campaignId && c.status !== 'atualizado' && c.followupTaskId);
+    if (pending.length === 0) return;
+    const ok = confirm(
+      `Existem ${pending.length} tarefa(s) de agendamento ainda não concluídas. Excluir essas tarefas agora?`
+    );
+    if (!ok) return;
+    pending.forEach((c) => {
+      store.deleteTask(c.followupTaskId);
+      store.updateCampaignClientField(c.id, { followupTaskId: null });
+    });
+  }
+
   newCampaignBtn.addEventListener('click', openCampaignCreateModal);
   campaignCreateCancelBtn.addEventListener('click', closeCampaignCreateModal);
   campaignCreateModal.addEventListener('click', (e) => {
@@ -1163,9 +1191,10 @@
   });
 
   campaignKindSelect.addEventListener('change', () => {
-    const isCert = campaignKindSelect.value === 'certificados';
-    campaignVendasFields.hidden = isCert;
-    campaignCertFields.hidden = !isCert;
+    const kind = campaignKindSelect.value;
+    campaignVendasFields.hidden = kind !== 'vendas';
+    campaignCertFields.hidden = kind !== 'certificados';
+    campaignUpdateFields.hidden = kind !== 'atualizacao';
   });
 
   campaignChooseFileBtn.addEventListener('click', () => {
@@ -1223,7 +1252,9 @@
       fup3Date: campaignFup3Date.value || null,
       fup1Message: utils.cleanWhatsAppText(campaignFup1Message.value.trim()) || null,
       fup2Message: utils.cleanWhatsAppText(campaignFup2Message.value.trim()) || null,
-      fup3Message: utils.cleanWhatsAppText(campaignFup3Message.value.trim()) || null
+      fup3Message: utils.cleanWhatsAppText(campaignFup3Message.value.trim()) || null,
+      systemName: kind === 'atualizacao' ? campaignSystemSelect.value : null,
+      targetVersion: kind === 'atualizacao' ? campaignTargetVersionInput.value.trim() || null : null
     };
 
     const result = await store.createCampaignWithClients(fields, clients);
@@ -1402,7 +1433,13 @@
     if (statusToggleBtn) {
       const id = statusToggleBtn.dataset.campaignStatusToggle;
       const campaign = store.getState().campaigns.find((c) => c.id === id);
-      if (campaign) store.setCampaignStatus(id, campaign.status === 'ativa' ? 'encerrada' : 'ativa');
+      if (campaign) {
+        const encerrando = campaign.status === 'ativa';
+        if (encerrando && campaign.kind === 'atualizacao') {
+          offerToDeletePendingUpdateTasks(campaign.id);
+        }
+        store.setCampaignStatus(id, encerrando ? 'encerrada' : 'ativa');
+      }
       return;
     }
 
@@ -1412,6 +1449,9 @@
       const campaign = store.getState().campaigns.find((c) => c.id === id);
       const ok = confirm(`Excluir a campanha "${campaign ? campaign.name : ''}"? Os clientes dela também serão excluídos.`);
       if (ok) {
+        if (campaign && campaign.kind === 'atualizacao') {
+          offerToDeletePendingUpdateTasks(campaign.id);
+        }
         store.deleteCampaign(id);
         store.setScreen('campaigns');
       }
@@ -1490,10 +1530,10 @@
       }
       const phone = digits.startsWith('55') ? digits : `55${digits}`;
 
-      // Certificados não tem régua de FUP — o botão só abre o contato, sem
-      // mensagem pré-preenchida.
+      // Certificados/atualizacao não têm régua de FUP — o botão só abre o
+      // contato, sem mensagem pré-preenchida.
       let message = '';
-      if (campaign.kind !== 'certificados') {
+      if (campaign.kind === 'vendas') {
         const idx = utils.nextCampaignFollowupIndex(client);
         const template = campaign[`fup${idx}Message`] || '';
         // Personalização do [nome] acontece antes da higienização: o nome do
@@ -1570,6 +1610,23 @@
         return;
       }
 
+      // 'agendado' sem scheduled_at não faz sentido (não há o que agendar) —
+      // avisa e mantém o status anterior, sem chamar o store (a automação
+      // de criação de tarefa vive em store.js, guardada por scheduledAt).
+      if (campaign && campaign.kind === 'atualizacao' && newStatus === 'agendado' && !client.scheduledAt) {
+        e.target.value = client.status;
+        alert('Preencha a data e hora do agendamento antes de marcar como agendado.');
+        return;
+      }
+
+      // Patch composto (status + updated_on), mesmo padrão atômico do ciclo
+      // de renovação de certificados — updated_on só entra se ainda vazio
+      // (editável depois pelo próprio input da coluna).
+      if (campaign && campaign.kind === 'atualizacao' && newStatus === 'atualizado' && !client.updatedOn) {
+        store.updateCampaignClientField(clientId, { status: newStatus, updatedOn: utils.todayISO() });
+        return;
+      }
+
       store.updateCampaignClientField(clientId, { status: newStatus });
       return;
     }
@@ -1579,6 +1636,14 @@
     }
     if (e.target.matches('[data-client-cert-expiry]')) {
       store.updateCampaignClientField(clientId, { certExpiry: e.target.value || null });
+      return;
+    }
+    if (e.target.matches('[data-client-scheduled-at]')) {
+      store.updateCampaignClientField(clientId, { scheduledAt: utils.fromDatetimeLocalValue(e.target.value) });
+      return;
+    }
+    if (e.target.matches('[data-client-updated-on]')) {
+      store.updateCampaignClientField(clientId, { updatedOn: e.target.value || null });
       return;
     }
     if (e.target.matches('[data-client-mrr]')) {

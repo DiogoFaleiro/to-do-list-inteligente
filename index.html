@@ -523,6 +523,7 @@
             <select id="campaignKindSelect">
               <option value="vendas">Vendas (FUP)</option>
               <option value="certificados">Acompanhamento de certificados</option>
+              <option value="atualizacao">Atualização de versão</option>
             </select>
           </label>
           <label>Projeto de destino
@@ -557,6 +558,18 @@
           <div id="campaignCertFields" hidden>
             <label>Dias de antecedência do aviso
               <input type="number" id="campaignAlertDaysInput" min="1" max="180" value="45">
+            </label>
+          </div>
+          <div id="campaignUpdateFields" hidden>
+            <label>Sistema
+              <select id="campaignSystemSelect">
+                <option value="VELO">VELO</option>
+                <option value="DF VENDAS">DF VENDAS</option>
+                <option value="LINK PRO">LINK PRO</option>
+              </select>
+            </label>
+            <label>Versão de destino
+              <input type="text" id="campaignTargetVersionInput" maxlength="60">
             </label>
           </div>
           <button type="button" id="campaignChooseFileBtn" class="btn-secondary">Escolher arquivo .xlsx</button>

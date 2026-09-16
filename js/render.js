@@ -453,6 +453,16 @@
 
   const WEEKDAY_NAMES = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
+  // "qui, 14/08 às 09:30" — usado só na coluna "Agendado para" da campanha
+  // 'atualizacao' (scheduled_at é timestamptz; new Date já interpreta em
+  // horário local do navegador, sem aritmética manual de fuso).
+  function formatScheduledAtBR(iso) {
+    const d = new Date(iso);
+    const weekday = WEEKDAY_NAMES[d.getDay()].slice(0, 3).toLowerCase();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${weekday}, ${pad(d.getDate())}/${pad(d.getMonth() + 1)} às ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   // Colunas do Painel de "Em breve": uma por dia (hoje + próximos 7), com
   // "Atrasada" na frente quando existe alguma tarefa vencida. Os dias
   // sempre aparecem mesmo vazios (dá pra adicionar tarefa direto neles);
@@ -718,6 +728,13 @@
       avisado: 'Avisado',
       renovado: 'Renovado',
       perdido: 'Perdido'
+    },
+    atualizacao: {
+      pendente: 'Pendente',
+      agendado: 'Agendado',
+      atualizado: 'Atualizado',
+      recusou: 'Recusou',
+      nao_localizado: 'Não localizado'
     }
   };
 
@@ -802,6 +819,7 @@
     const project = campaign.followupProjectId ? projectById(campaign.followupProjectId) : null;
     const statusToggleLabel = campaign.status === 'ativa' ? 'Encerrar' : 'Reativar';
     const isCert = campaign.kind === 'certificados';
+    const isUpdate = campaign.kind === 'atualizacao';
     const statusLabels = CAMPAIGN_CLIENT_STATUS_LABELS[campaign.kind] || CAMPAIGN_CLIENT_STATUS_LABELS.vendas;
     const today = utils.todayISO();
 
@@ -855,8 +873,9 @@
       .join('');
 
     // Bloco de mensagens de cadência só existe no fluxo de vendas (FUP por
-    // régua) — certificados não tem mensagem pré-definida por cliente.
-    const messagesHtml = isCert
+    // régua) — certificados/atualizacao não têm mensagem pré-definida por
+    // cliente.
+    const messagesHtml = campaign.kind !== 'vendas'
       ? ''
       : [1, 2, 3]
           .map((n) => {
@@ -892,14 +911,23 @@
           { value: metrics.pendentes, label: 'Pendentes' },
           { value: metrics.avisados, label: 'Avisados' }
         ]
-      : [
-          { value: metrics.total, label: 'Clientes' },
-          { value: metrics.responded, label: 'Responderam' },
-          { value: metrics.trial, label: 'Trials ativados' },
-          { value: metrics.convertido, label: 'Convertidos' },
-          { value: `R$ ${metrics.mrrAdicional.toFixed(2)}`, label: 'MRR adicional' },
-          { value: `${(metrics.conversionRate * 100).toFixed(1)}%`, label: 'Taxa de conversão' }
-        ];
+      : isUpdate
+        ? [
+            { value: metrics.total, label: 'Total' },
+            { value: metrics.pendentes, label: 'Pendentes' },
+            { value: metrics.agendados, label: 'Agendados' },
+            { value: metrics.atualizados, label: 'Atualizados' },
+            { value: metrics.recusadosOuNaoLocalizados, label: 'Recusaram/Não localizados' },
+            { value: `${(metrics.completionRate * 100).toFixed(1)}%`, label: '% concluído' }
+          ]
+        : [
+            { value: metrics.total, label: 'Clientes' },
+            { value: metrics.responded, label: 'Responderam' },
+            { value: metrics.trial, label: 'Trials ativados' },
+            { value: metrics.convertido, label: 'Convertidos' },
+            { value: `R$ ${metrics.mrrAdicional.toFixed(2)}`, label: 'MRR adicional' },
+            { value: `${(metrics.conversionRate * 100).toFixed(1)}%`, label: 'Taxa de conversão' }
+          ];
     const metricsHtml = renderMetricTiles(metricTiles);
 
     // outcomeYear já foi calculado acima (usado pelos filtros Renovado/Perdido).
@@ -925,7 +953,8 @@
         const statusOptions = Object.keys(statusLabels)
           .map((s) => `<option value="${s}" ${c.status === s ? 'selected' : ''}>${escapeHtml(statusLabels[s])}</option>`)
           .join('');
-        const waTitle = isCert ? 'Abrir WhatsApp' : `Enviar FUP${utils.nextCampaignFollowupIndex(c)} via WhatsApp`;
+        const waTitle =
+          campaign.kind === 'vendas' ? `Enviar FUP${utils.nextCampaignFollowupIndex(c)} via WhatsApp` : 'Abrir WhatsApp';
 
         // Badge compacto de renovações (só certificados) — count/years vêm
         // de certificate_outcomes, gerados internamente (não são texto de
@@ -952,6 +981,14 @@
           middleCellsHtml = `
           <td><input type="date" data-client-cert-expiry value="${c.certExpiry || ''}"></td>
           <td><span class="${alertDue ? 'tag-overdue' : ''}">${alertDate ? utils.formatDateBR(alertDate) : '—'}</span></td>`;
+        } else if (isUpdate) {
+          const scheduledOverdue = c.status === 'agendado' && !!c.scheduledAt && new Date(c.scheduledAt) < new Date();
+          middleCellsHtml = `
+          <td class="campaign-scheduled-cell">
+            <input type="datetime-local" data-client-scheduled-at value="${utils.toDatetimeLocalValue(c.scheduledAt)}">
+            <span class="${scheduledOverdue ? 'tag-overdue' : ''}">${c.scheduledAt ? formatScheduledAtBR(c.scheduledAt) : '—'}</span>
+          </td>
+          <td><input type="date" data-client-updated-on value="${c.updatedOn || ''}"></td>`;
         } else {
           const trialEnd = c.trialStart ? utils.formatDateBR(utils.addDaysISO(c.trialStart, campaign.trialDays)) : '—';
           middleCellsHtml = `
@@ -980,12 +1017,14 @@
     const fup3Header = campaign.fup3Date ? utils.formatDateBR(campaign.fup3Date) : '—';
     const theadHtml = isCert
       ? `<tr><th>Nome</th><th>Celular</th><th>Status</th><th>Vencimento do certificado</th><th>Aviso em</th><th>Observações</th><th>WhatsApp</th><th></th></tr>`
-      : `<tr>
+      : isUpdate
+        ? `<tr><th>Nome</th><th>Celular</th><th>Status</th><th>Agendado para</th><th>Atualizado em</th><th>Observações</th><th>WhatsApp</th><th></th></tr>`
+        : `<tr>
           <th>Nome</th><th>Celular</th><th>Status</th>
           <th>FUP1 (${fup1Header})</th><th>FUP2 (${fup2Header})</th><th>FUP3 (${fup3Header})</th>
           <th>Trial início</th><th>Trial fim</th><th>MRR</th><th>Observações</th><th>WhatsApp</th><th></th>
         </tr>`;
-    const colspan = isCert ? 8 : 12;
+    const colspan = isCert || isUpdate ? 8 : 12;
 
     // Só certificados tem alert_days — vendas usa a régua de FUP, sem
     // dias de antecedência configurável.
@@ -1019,6 +1058,11 @@
           : ''
       }
       ${project ? `<p class="campaign-detail-project">Projeto de destino: ${escapeHtml(project.name)}</p>` : ''}
+      ${
+        isUpdate
+          ? `<p class="campaign-detail-project">Sistema: ${escapeHtml(campaign.systemName || '—')}${campaign.targetVersion ? ` · Versão de destino: ${escapeHtml(campaign.targetVersion)}` : ''}</p>`
+          : ''
+      }
 
       ${messagesHtml ? `<div class="campaign-detail-messages">${messagesHtml}</div>` : ''}
 

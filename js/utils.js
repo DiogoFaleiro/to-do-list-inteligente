@@ -130,6 +130,36 @@
     }
   }
 
+  // scheduled_at (campaign_clients) é timestamptz — um instante real, vindo
+  // do Supabase em UTC. O <input type="datetime-local"> não entende
+  // timezone: espera "YYYY-MM-DDTHH:mm" em horário LOCAL do navegador. Por
+  // isso a conversão sempre passa pelo Date nativo (que já sabe interpretar/
+  // formatar em horário local sozinho) — nunca por aritmética manual de
+  // fuso, que é como se introduz o bug clássico de "salvei 09:30 e voltou
+  // 06:30".
+  function toDatetimeLocalValue(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function fromDatetimeLocalValue(value) {
+    if (!value) return null;
+    return new Date(value).toISOString();
+  }
+
+  // Extrai a data/hora LOCAL de um scheduled_at (timestamptz) pra alimentar
+  // tasks.due_date/due_time (campos de calendário sem timezone) — usado pela
+  // automação status-driven da campanha 'atualizacao' ao criar/reagendar a
+  // tarefa de follow-up.
+  function splitScheduledAt(iso) {
+    const d = new Date(iso);
+    return {
+      dueDate: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+      dueTime: `${pad(d.getHours())}:${pad(d.getMinutes())}`
+    };
+  }
+
   App.utils = {
     todayISO,
     dateToISO,
@@ -144,6 +174,9 @@
     nextCampaignFollowupIndex,
     cleanWhatsAppText,
     buildWhatsAppUrl,
-    decodeFileText
+    decodeFileText,
+    toDatetimeLocalValue,
+    fromDatetimeLocalValue,
+    splitScheduledAt
   };
 })(window.App = window.App || {});

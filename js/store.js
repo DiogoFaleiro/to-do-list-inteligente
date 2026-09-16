@@ -213,7 +213,9 @@
       fup2Message: row.fup2_message,
       fup3Message: row.fup3_message,
       status: row.status,
-      createdAt: row.created_at
+      createdAt: row.created_at,
+      systemName: row.system_name,
+      targetVersion: row.target_version
     };
   }
 
@@ -232,7 +234,9 @@
       certExpiry: row.cert_expiry,
       followupTaskId: row.followup_task_id,
       mrr: row.mrr,
-      notes: row.notes
+      notes: row.notes,
+      scheduledAt: row.scheduled_at,
+      updatedOn: row.updated_on
     };
   }
 
@@ -419,6 +423,17 @@
       const pendentes = clients.filter((c) => c.status === 'pendente').length;
       const avisados = clients.filter((c) => c.status === 'avisado').length;
       return { total, withExpiry, pendentes, avisados };
+    }
+
+    if (campaign && campaign.kind === 'atualizacao') {
+      const pendentes = clients.filter((c) => c.status === 'pendente').length;
+      const agendados = clients.filter((c) => c.status === 'agendado').length;
+      const atualizados = clients.filter((c) => c.status === 'atualizado').length;
+      const recusadosOuNaoLocalizados = clients.filter(
+        (c) => c.status === 'recusou' || c.status === 'nao_localizado'
+      ).length;
+      const completionRate = total > 0 ? atualizados / total : 0;
+      return { total, pendentes, agendados, atualizados, recusadosOuNaoLocalizados, completionRate };
     }
 
     const responded = clients.filter((c) => c.status !== 'sem_resposta').length;
@@ -683,8 +698,8 @@
       if (clients.length > 0) {
         // Default de status por kind: sem isso, o insert cairia no default
         // da coluna ('sem_resposta'), que não existe no vocabulário de
-        // certificados e ficaria sem label na tela de detalhe.
-        const defaultStatus = fields.kind === 'certificados' ? 'pendente' : 'sem_resposta';
+        // certificados/atualizacao e ficaria sem label na tela de detalhe.
+        const defaultStatus = fields.kind === 'vendas' ? 'sem_resposta' : 'pendente';
         const rows = clients.map((c) => ({
           campaign_id: campaignRow.id,
           user_id: currentUserId,
@@ -898,9 +913,11 @@
       });
     }
 
+    const campaign = state.campaigns.find((camp) => camp.id === c.campaignId);
+    await runUpdateCampaignAutomation(campaign, id, c, previous, effectivePatch);
+
     if (!isActivatingTrial || previous.followupTaskId) return;
 
-    const campaign = state.campaigns.find((camp) => camp.id === c.campaignId);
     if (!campaign || !campaign.followupProjectId) {
       console.error('Trial ativado sem projeto de destino configurado na campanha', c.campaignId);
       alert(
@@ -918,6 +935,88 @@
     if (task) {
       updateCampaignClientField(id, { followupTaskId: task.id });
     }
+  }
+
+  // Automação status-driven da campanha 'atualizacao' (diferente da automação
+  // date-driven de certificados, que roda no boot via processCertificateAlerts
+  // — aqui a tarefa nasce/muda reagindo à própria mutação do cliente, sem
+  // varredura). followup_task_id continua sendo o mecanismo de idempotência,
+  // igual aos outros dois kinds. Guards (projeto ausente, já tem tarefa,
+  // 'agendado' sem data) ficam documentados nos comentários de cada branch.
+  async function runUpdateCampaignAutomation(campaign, id, c, previous, effectivePatch) {
+    if (!campaign || campaign.kind !== 'atualizacao') return;
+
+    const isSchedulingNow = effectivePatch.status === 'agendado' && !previous.followupTaskId;
+    const isReschedule =
+      effectivePatch.scheduledAt !== undefined && c.status === 'agendado' && previous.followupTaskId;
+    const isCancelingSchedule =
+      previous.status === 'agendado' &&
+      (effectivePatch.status === 'recusou' || effectivePatch.status === 'nao_localizado') &&
+      previous.followupTaskId;
+    // Concluir a tarefa junto (não pedido explicitamente, mas evita a mesma
+    // tarefa órfã em "Hoje"/"Atrasada" que o cancelamento acima já evita) —
+    // fácil de remover se não for desejado.
+    const isCompleting = effectivePatch.status === 'atualizado' && previous.followupTaskId;
+
+    if (isSchedulingNow) {
+      // 'agendado' sem scheduled_at é bloqueado em js/app.js antes de chamar
+      // este fluxo (mantendo o status anterior) — guard aqui é só defesa
+      // extra, nunca deveria disparar na prática.
+      if (!c.scheduledAt) return;
+      if (!campaign.followupProjectId) {
+        console.error('Atualização agendada sem projeto de destino configurado na campanha', c.campaignId);
+        alert(
+          'Cliente marcado como agendado, mas a campanha não tem projeto de destino configurado — a tarefa não foi criada. Configure o projeto na campanha e crie a tarefa manualmente se precisar.'
+        );
+        return;
+      }
+      const { dueDate, dueTime } = utils.splitScheduledAt(c.scheduledAt);
+      const task = await addTask({
+        title: `Atualizar ${campaign.systemName || ''}: ${c.name} (${c.phone || ''})`,
+        projectId: campaign.followupProjectId,
+        sessionId: campaign.followupSessionId || null,
+        dueDate,
+        dueTime
+      });
+      if (task) {
+        updateCampaignClientField(id, { followupTaskId: task.id });
+      }
+      return;
+    }
+
+    if (isReschedule) {
+      rescheduleFollowupTask(previous.followupTaskId, c.scheduledAt);
+      return;
+    }
+
+    if (isCancelingSchedule) {
+      deleteTask(previous.followupTaskId);
+      updateCampaignClientField(id, { followupTaskId: null });
+      return;
+    }
+
+    if (isCompleting) {
+      setTaskStatus(previous.followupTaskId, 'done');
+    }
+  }
+
+  // Reagenda a MESMA tarefa (nunca cria uma nova, nunca deixa a antiga
+  // órfã) quando o usuário muda scheduled_at com o cliente já 'agendado'.
+  // updateTask exige o objeto completo (não é patch parcial), por isso
+  // reaproveita os campos atuais da tarefa e só troca dueDate/dueTime.
+  function rescheduleFollowupTask(taskId, scheduledAtIso) {
+    const task = state.tasks.find((t) => t.id === taskId);
+    if (!task) return; // tarefa apagada manualmente fora do fluxo — nada a reagendar
+    const { dueDate, dueTime } = utils.splitScheduledAt(scheduledAtIso);
+    updateTask(taskId, {
+      title: task.title,
+      projectId: task.projectId,
+      sessionId: task.sessionId,
+      dueDate,
+      dueTime,
+      recurrence: task.recurrence,
+      description: task.description
+    });
   }
 
   // Grava 1 evento de desfecho de certificado (0021_certificate_outcomes.sql)
