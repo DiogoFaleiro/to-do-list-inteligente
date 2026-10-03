@@ -2486,15 +2486,23 @@
   document.getElementById('selectionCancelBtn').addEventListener('click', () => store.exitSelectionMode());
 
   async function runCompleteSelection() {
-    const ids = [...store.getState().selection.ids];
-    if (ids.length > BATCH_CONFIRM_THRESHOLD && !confirm(`Concluir ${ids.length} tarefas de uma vez?`)) return;
-    const r = await store.completeTasksBatch(ids);
-    if (!r.ok) return;
-    const parts = [`${r.done} concluída(s)`];
-    if (r.advanced) parts.push(`${r.advanced} avançada(s) para a próxima ocorrência`);
-    if (r.skippedDone) parts.push(`${r.skippedDone} já estavam concluídas`);
-    if (r.skippedNoDate) parts.push(`${r.skippedNoDate} recorrente(s) sem data ignorada(s)`);
-    render.showToast(parts.join(' · '));
+    try {
+      const ids = [...store.getState().selection.ids];
+      if (ids.length === 0) {
+        alert('Nenhuma tarefa selecionada.');
+        return;
+      }
+      if (ids.length > BATCH_CONFIRM_THRESHOLD && !confirm(`Concluir ${ids.length} tarefas de uma vez?`)) return;
+      const r = await store.completeTasksBatch(ids);
+      if (!r.ok) return;
+      const parts = [`${r.done} concluída(s)`];
+      if (r.advanced) parts.push(`${r.advanced} avançada(s) para a próxima ocorrência`);
+      if (r.skippedDone) parts.push(`${r.skippedDone} já estavam concluídas`);
+      if (r.skippedNoDate) parts.push(`${r.skippedNoDate} recorrente(s) sem data ignorada(s)`);
+      render.showToast(parts.join(' · '));
+    } catch (err) {
+      store.handleMutationError('Falha ao concluir tarefas em lote', err);
+    }
   }
   selectionCompleteBtn.addEventListener('click', runCompleteSelection);
 
@@ -2523,25 +2531,39 @@
     batchScheduleModal.hidden = false;
   }
 
+  // Todo caminho de saída dá feedback: validação → alert; falha do lote → a
+  // store já alertou via handleMutationError (r.ok false, modal fica aberto
+  // pra retentar); exceção inesperada → handleMutationError aqui; sucesso →
+  // fecha o modal e mostra toast.
   async function runScheduleSelection() {
-    if (!batchScheduleDate.value) {
-      batchScheduleDate.focus();
-      return;
+    try {
+      const ids = [...store.getState().selection.ids];
+      if (ids.length === 0) {
+        alert('Nenhuma tarefa selecionada.');
+        return;
+      }
+      if (!batchScheduleDate.value) {
+        alert('Escolha a data do agendamento.');
+        batchScheduleDate.focus();
+        return;
+      }
+      if (ids.length > BATCH_CONFIRM_THRESHOLD && !confirm(`Agendar ${ids.length} tarefas selecionadas?`)) return;
+      batchScheduleConfirmBtn.disabled = true;
+      const r = await store.scheduleTasksBatch(ids, {
+        dueDate: batchScheduleDate.value,
+        dueTime: batchScheduleTime.value || null
+      });
+      if (!r.ok) return;
+      batchScheduleModal.hidden = true;
+      const parts = [`${r.scheduled} agendada(s)`];
+      if (r.skippedRecurring) parts.push(`${r.skippedRecurring} recorrente(s) ignorada(s)`);
+      if (r.skippedDone) parts.push(`${r.skippedDone} concluída(s) ignorada(s)`);
+      render.showToast(parts.join(' · '));
+    } catch (err) {
+      store.handleMutationError('Falha ao agendar tarefas em lote', err);
+    } finally {
+      batchScheduleConfirmBtn.disabled = false;
     }
-    const ids = [...store.getState().selection.ids];
-    if (ids.length > BATCH_CONFIRM_THRESHOLD && !confirm(`Agendar ${ids.length} tarefas selecionadas?`)) return;
-    batchScheduleConfirmBtn.disabled = true;
-    const r = await store.scheduleTasksBatch(ids, {
-      dueDate: batchScheduleDate.value,
-      dueTime: batchScheduleTime.value || null
-    });
-    batchScheduleConfirmBtn.disabled = false;
-    if (!r.ok) return; // modal fica aberto pra retentar; seleção foi restaurada
-    batchScheduleModal.hidden = true;
-    const parts = [`${r.scheduled} agendada(s)`];
-    if (r.skippedRecurring) parts.push(`${r.skippedRecurring} recorrente(s) ignorada(s)`);
-    if (r.skippedDone) parts.push(`${r.skippedDone} concluída(s) ignorada(s)`);
-    render.showToast(parts.join(' · '));
   }
 
   selectionScheduleBtn.addEventListener('click', openBatchScheduleModal);

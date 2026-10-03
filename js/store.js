@@ -2362,14 +2362,19 @@
   // Recarrega tarefas do servidor para reconciliar um lote que falhou no meio
   // (uma parte pode ter sido gravada antes do erro). Mesmo mapeamento do
   // loadInitialData; não recarrega o resto do estado.
+  // Nunca lança: é chamada sem await pelos lotes (não pode prender a UI).
   async function reloadTasksFromServer() {
-    const { data, error } = await api.fetchTasks();
-    if (error) {
-      handleMutationError('Falha ao recarregar tarefas', error);
-      return;
+    try {
+      const { data, error } = await api.fetchTasks();
+      if (error) {
+        handleMutationError('Falha ao recarregar tarefas', error);
+        return;
+      }
+      state.tasks = (data || []).map(mapTaskFromRow);
+      emit();
+    } catch (err) {
+      handleMutationError('Falha ao recarregar tarefas', err);
     }
-    state.tasks = (data || []).map(mapTaskFromRow);
-    emit();
   }
 
   // Concluir em lote. Normais: 1 update .in. Recorrentes: mesma regra de
@@ -2433,7 +2438,12 @@
       writes.push({ ids: null, res: api.insertTaskCompletionsBatch(completionRows) });
     }
 
-    const results = await Promise.all(writes.map((w) => w.res));
+    // Exceção lançada (não só { error }) vira erro tratado: rollback + feedback.
+    const results = await Promise.all(
+      writes.map((w) =>
+        Promise.resolve(w.res).catch((err) => ({ data: null, error: err }))
+      )
+    );
     const failed = results.find((r, i) => {
       if (r.error) return true;
       // Update com .select('id'): se RLS filtrou linhas, devolve menos ids.
@@ -2445,7 +2455,7 @@
       state.selection = previousSelection;
       emit();
       handleMutationError('Falha ao concluir tarefas em lote', failed.error || new Error('Atualização parcial'));
-      await reloadTasksFromServer();
+      reloadTasksFromServer(); // sem await: não pode prender o retorno/UI
       return { ok: false };
     }
 
@@ -2482,7 +2492,9 @@
     if (scheduledIds.length === 0) {
       return { ok: true, scheduled: 0, skippedRecurring, skippedDone: targets.length - open.length };
     }
-    const res = await api.updateTasksDueDateBatch(scheduledIds, dueDate, dueTime || undefined);
+    const res = await Promise.resolve()
+      .then(() => api.updateTasksDueDateBatch(scheduledIds, dueDate, dueTime || undefined))
+      .catch((err) => ({ data: null, error: err }));
     const shortRead = !res.error && (res.data || []).length !== scheduledIds.length;
 
     if (res.error || shortRead) {
@@ -2490,7 +2502,7 @@
       state.selection = previousSelection;
       emit();
       handleMutationError('Falha ao agendar tarefas em lote', res.error || new Error('Atualização parcial'));
-      await reloadTasksFromServer();
+      reloadTasksFromServer(); // sem await: não pode prender o retorno/UI
       return { ok: false };
     }
 
@@ -2589,6 +2601,7 @@
     addSubtask,
     updateTask,
     deleteTask,
+    handleMutationError,
     enterSelectionMode,
     exitSelectionMode,
     toggleTaskSelected,
