@@ -295,11 +295,35 @@
       </div>`;
   }
 
+  // Seleção múltipla (modo seleção). Checkbox de SELEÇÃO é decorativo: quem
+  // alterna é o clique no card (app.js). Só aparece no modo, via CSS.
+  function isTaskSelected(id) {
+    return store.getState().selection.ids.has(id);
+  }
+
+  function taskSelectCheckHtml(task) {
+    return `<input type="checkbox" class="task-select-check" tabindex="-1" aria-label="Selecionar tarefa" ${isTaskSelected(task.id) ? 'checked' : ''}>`;
+  }
+
+  // "Selecionar todas" de um grupo. Recebe o array já visível do render (nunca
+  // refaz filtro) e marca só as abertas. O estado 'some' vira indeterminate
+  // em renderAll (propriedade JS, não atributo).
+  function groupSelectHtml(tasks) {
+    const openIds = tasks.filter((t) => t.status !== 'done').map((t) => t.id);
+    if (openIds.length === 0) return '';
+    const sel = store.getState().selection.ids;
+    const picked = openIds.filter((id) => sel.has(id)).length;
+    const groupState = picked === 0 ? 'none' : picked === openIds.length ? 'all' : 'some';
+    return `<label class="group-select"><input type="checkbox" class="group-select-check" data-group-ids="${openIds.join(',')}" data-group-state="${groupState}" ${groupState === 'all' ? 'checked' : ''}><span>Selecionar todas</span></label>`;
+  }
+
   function taskRowHtml(task, options) {
     const subtasks = store.getSubtasks(task.id);
+    const selected = isTaskSelected(task.id);
     return `
       <div class="task-row-wrap" data-task-wrap="${task.id}">
-        <div class="task-row ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
+        <div class="task-row ${task.status === 'done' ? 'done' : ''} ${selected ? 'selected' : ''}" data-task-id="${task.id}">
+          ${taskSelectCheckHtml(task)}
           <span class="task-drag-handle" data-drag-handle title="Arrastar para reordenar">⠿</span>
           ${subtaskToggleHtml(task, subtasks)}
           <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
@@ -377,7 +401,7 @@
         els.listView.innerHTML = `<p class="empty-state">Nenhuma tarefa por aqui. Que tal adicionar uma? 🎉</p>`;
         return;
       }
-      els.listView.innerHTML = tasks.map((t) => taskRowHtml(t)).join('');
+      els.listView.innerHTML = `<div class="group-select-bar">${groupSelectHtml(tasks)}</div>` + tasks.map((t) => taskRowHtml(t)).join('');
       return;
     }
 
@@ -405,14 +429,14 @@
             .map(
               (sg) => `
           <div class="list-session-group">
-            <h4 class="list-session-title">${escapeHtml(sg.name)}</h4>
+            <h4 class="list-session-title">${escapeHtml(sg.name)}${groupSelectHtml(sg.tasks)}</h4>
             ${sg.tasks.map((t) => taskRowHtml(t, { hideSessionTag: true })).join('')}
           </div>`
             )
             .join('');
           return `
       <div class="list-section">
-        <h3 class="list-section-title" style="color:${g.color}">${escapeHtml(g.name)}</h3>
+        <h3 class="list-section-title" style="color:${g.color}">${escapeHtml(g.name)}${groupSelectHtml(g.tasks)}</h3>
         ${body}
       </div>`;
         }
@@ -421,7 +445,7 @@
         if (g.tasks.length === 0) return '';
         return `
       <div class="list-section">
-        <h3 class="list-section-title" style="color:${g.color}">${escapeHtml(g.name)}</h3>
+        <h3 class="list-section-title" style="color:${g.color}">${escapeHtml(g.name)}${groupSelectHtml(g.tasks)}</h3>
         ${g.tasks.map((t) => taskRowHtml(t)).join('')}
       </div>`;
       })
@@ -436,9 +460,11 @@
 
   function boardCardHtml(task, options) {
     const subtasks = store.getSubtasks(task.id);
+    const selected = isTaskSelected(task.id);
     return `
-      <div class="board-card ${task.status === 'done' ? 'done' : ''}" data-task-id="${task.id}">
+      <div class="board-card ${task.status === 'done' ? 'done' : ''} ${selected ? 'selected' : ''}" data-task-id="${task.id}">
         <div class="board-card-header">
+          ${taskSelectCheckHtml(task)}
           <span class="task-drag-handle" data-drag-handle title="Arrastar para reordenar">⠿</span>
           ${subtaskToggleHtml(task, subtasks)}
           <input type="checkbox" class="task-check" data-toggle="${task.id}" ${task.status === 'done' ? 'checked' : ''}>
@@ -589,7 +615,7 @@
           : '';
         return `
       <div class="board-column"${colAttrs}>
-        <h2>${dot}${escapeHtml(col.name)} <span class="count">${col.tasks.length}</span>${handle}</h2>
+        <h2>${dot}${escapeHtml(col.name)} <span class="count">${col.tasks.length}</span>${groupSelectHtml(col.tasks)}${handle}</h2>
         <div class="board-cards">${col.tasks.map((t) => boardCardHtml(t, cardOptions)).join('')}</div>
         <button type="button" class="board-add-task-btn" ${addTaskAttrs}>+ Adicionar tarefa</button>
       </div>`;
@@ -1516,12 +1542,47 @@
     App.stats.renderCharts(state);
   }
 
+  // Barra de ações da seleção (rodapé) e o botão de entrar/sair do modo.
+  function renderSelectionBar() {
+    const sel = store.getState().selection;
+    const bar = document.getElementById('selectionBar');
+    if (bar) bar.hidden = !sel.active;
+    const count = document.getElementById('selectionCount');
+    if (count) count.textContent = `${sel.ids.size} selecionada${sel.ids.size === 1 ? '' : 's'}`;
+    // Modo ligado sem nada marcado (acabou de entrar): ações ficam desabilitadas.
+    const empty = sel.ids.size === 0;
+    ['selectionCompleteBtn', 'selectionScheduleBtn'].forEach((id) => {
+      const btn = document.getElementById(id);
+      if (btn) btn.disabled = empty;
+    });
+    const toggleBtn = document.getElementById('selectModeToggleBtn');
+    if (toggleBtn) toggleBtn.classList.toggle('active', sel.active);
+  }
+
+  // Feedback de resultado de lote (não há toast no app: componente mínimo).
+  let toastTimer = null;
+  function showToast(message) {
+    const el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 4500);
+  }
+
   function renderAll() {
     renderSidebar();
     renderToolbarState();
     applyTheme();
     const state = store.getState();
     const screen = state.ui.screen;
+    document.body.classList.toggle('selection-mode', state.selection.active);
+    // Poda antes de desenhar: ids que saíram da visão (filtro, concluída com
+    // "mostrar concluídas" desligado, exclusão por outra via) não ficam marcados.
+    if (screen === 'tasks' && state.selection.ids.size > 0) {
+      store.pruneSelection(visibleTasks().map((t) => t.id));
+    }
+    renderSelectionBar();
     els.tasksScreen.hidden = screen !== 'tasks';
     els.campaignsView.hidden = screen !== 'campaigns';
     els.campaignDetailView.hidden = screen !== 'campaignDetail';
@@ -1543,10 +1604,15 @@
     } else {
       renderBoard();
     }
+    // Estado 'some' do "selecionar todas" é propriedade JS, não atributo HTML.
+    document.querySelectorAll('.group-select-check[data-group-state="some"]').forEach((el) => {
+      el.indeterminate = true;
+    });
   }
 
   App.render = {
     renderAll,
+    showToast,
     renderTaskProjectOptions,
     renderTaskSessionOptions,
     projectById,

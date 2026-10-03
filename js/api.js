@@ -252,6 +252,31 @@
     return supabaseClient.from('tasks').update({ due_date: dueDateISO }).eq('id', id).select().single();
   }
 
+  // Lote da seleção múltipla (store.completeTasksBatch / scheduleTasksBatch).
+  // .select('id') devolve as linhas realmente atualizadas: RLS filtra em
+  // silêncio, então o chamador compara a contagem para detectar escrita parcial.
+  function updateTasksStatusBatch(ids, status, completedDate) {
+    return supabaseClient
+      .from('tasks')
+      .update({ status, completed_date: completedDate })
+      .in('id', ids)
+      .select('id');
+  }
+
+  // due_time só entra no payload quando informado: hora vazia no agendamento
+  // em lote preserva a hora que cada tarefa já tinha.
+  function updateTasksDueDateBatch(ids, dueDateISO, dueTime) {
+    const payload = { due_date: dueDateISO };
+    if (dueTime) payload.due_time = dueTime;
+    return supabaseClient.from('tasks').update(payload).in('id', ids).select('id');
+  }
+
+  // Histórico de conclusões em lote: 1 insert com array (mesma tabela e
+  // colunas de insertTaskCompletion).
+  function insertTaskCompletionsBatch(rows) {
+    return supabaseClient.from('task_completions').insert(rows);
+  }
+
   function updateTaskPosition(id, position) {
     return supabaseClient.from('tasks').update({ position }).eq('id', id).select().single();
   }
@@ -664,6 +689,9 @@
     fetchTaskCompletions,
     fetchTaskProjectMap,
     updateTaskDueDate,
+    updateTasksStatusBatch,
+    updateTasksDueDateBatch,
+    insertTaskCompletionsBatch,
     fetchComments,
     insertComment,
     deleteCommentRow,

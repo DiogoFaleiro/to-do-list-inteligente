@@ -3022,3 +3022,162 @@ a.btn-danger {
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* ---------------------------------------------------------------------
+   Seleção múltipla de tarefas (modo seleção + lote Concluir/Agendar).
+   Tudo depende de body.selection-mode: fora do modo nada muda.
+   --------------------------------------------------------------------- */
+.task-select-check {
+  display: none;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--primary);
+  pointer-events: none; /* decorativo: quem alterna a seleção é o clique no card */
+}
+
+body.selection-mode .task-select-check {
+  display: inline-block;
+}
+
+/* Checkbox de CONCLUIR fica inerte no modo (nunca dois significados pro clique) */
+body.selection-mode .task-check {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Controles que não fazem sentido em seleção: somem */
+body.selection-mode .task-drag-handle,
+body.selection-mode .task-menu-wrap,
+body.selection-mode .subtask-toggle-btn,
+body.selection-mode .subtask-panel,
+body.selection-mode .board-add-task-btn {
+  display: none;
+}
+
+body.selection-mode .task-row,
+body.selection-mode .board-card {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.task-row.selected,
+.board-card.selected {
+  box-shadow: inset 0 0 0 2px var(--primary);
+  background: var(--primary-tint);
+}
+
+/* "Selecionar todas" de um grupo: escondido fora do modo */
+.group-select {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+body.selection-mode .group-select {
+  display: inline-flex;
+}
+
+.group-select-check {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+body.selection-mode .group-select-bar {
+  margin-bottom: 8px;
+}
+
+/* Barra de ações no rodapé */
+.selection-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 145; /* acima da nav mobile e do FAB (140), abaixo dos modais (200) */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100vw - 32px);
+  padding: 10px 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.selection-bar[hidden] {
+  display: none;
+}
+
+.selection-count {
+  font-weight: 600;
+}
+
+.selection-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.batch-schedule-preview {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Toast de resultado de lote (topo, para não brigar com a barra de ações) */
+.toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  z-index: 220;
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  background: var(--text);
+  color: var(--card-bg);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -12px);
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (max-width: 480px) {
+  #selectModeToggleBtn {
+    display: none;
+  }
+
+  /* No modo, o FAB "+ Nova tarefa" sai pra não competir com a barra */
+  body.selection-mode #newTaskBtn {
+    display: none;
+  }
+
+  /* Acima da bottom nav (≈ 60px + safe-area). Medir no aparelho se mudar a nav. */
+  .selection-bar {
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    width: calc(100vw - 24px);
+    justify-content: space-between;
+  }
+
+  /* Espaço extra pra última linha não ficar atrás da barra */
+  body.selection-mode .main {
+    padding-bottom: calc(180px + env(safe-area-inset-bottom, 0px));
+  }
+}

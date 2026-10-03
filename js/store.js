@@ -49,6 +49,9 @@
     // retry (statsError). statsLoaded é invalidado (volta a false) direto em
     // setTaskStatus/deleteTask/deleteProject, pontos únicos por onde toda
     // mutação que muda os totais agregados passa — ver comentários lá.
+    // Seleção múltipla (modo seleção + lote Concluir/Agendar). Efêmera: nunca
+    // persistida (nem em localPrefs), some ao trocar filtro/visão/tela.
+    selection: { active: false, ids: new Set() },
     statsLoaded: false,
     statsLoading: false,
     statsError: null,
@@ -1335,6 +1338,7 @@
     state.taskTags = {};
     state.commentsByTask = {};
     state.search = '';
+    clearSelection();
     state.importStatus = { loading: false, error: null };
     state.campaigns = [];
     state.campaignClients = [];
@@ -2217,12 +2221,14 @@
   // Preferências de UI (view/period/filtro/tema): locais por dispositivo,
   // nunca sincronizadas com o Supabase.
   function setView(view) {
+    clearSelection();
     state.ui.view = view;
     persistUi();
     emit();
   }
 
   function setPeriod(period) {
+    clearSelection();
     state.ui.screen = 'tasks';
     state.ui.period = period;
     state.ui.recurringOnly = false;
@@ -2231,6 +2237,7 @@
   }
 
   function setProjectFilter(projectId) {
+    clearSelection();
     state.ui.screen = 'tasks';
     state.ui.projectFilter = projectId;
     state.ui.tagFilter = null;
@@ -2244,6 +2251,7 @@
   // esteja, por isso zera o filtro de projeto (mesmo "um filtro por vez"
   // que já existia entre projeto e período).
   function setTagFilter(tagId) {
+    clearSelection();
     state.ui.screen = 'tasks';
     state.ui.tagFilter = tagId;
     state.ui.projectFilter = 'all';
@@ -2257,6 +2265,7 @@
   // (quem chama já reseta o filtro de projeto antes, ver app.js), mas
   // qualquer um dos outros filtros acima desliga ela de volta.
   function setRecurringOnly(value) {
+    clearSelection();
     state.ui.screen = 'tasks';
     state.ui.recurringOnly = !!value;
     persistUi();
@@ -2270,12 +2279,14 @@
   // "stats" (Minhas estatísticas) e "vouchers" seguem a mesma regra de
   // "campaigns".
   function setScreen(screen) {
+    clearSelection();
     state.ui.screen = ['campaigns', 'stats', 'vouchers'].includes(screen) ? screen : 'tasks';
     persistUi();
     emit();
   }
 
   function setSearchQuery(text) {
+    clearSelection();
     state.search = text || '';
     emit();
   }
@@ -2287,15 +2298,208 @@
   }
 
   function setGroupByProject(groupByProject) {
+    clearSelection();
     state.ui.groupByProject = !!groupByProject;
     persistUi();
     emit();
   }
 
   function setShowCompleted(showCompleted) {
+    clearSelection();
     state.ui.showCompleted = !!showCompleted;
     persistUi();
     emit();
+  }
+
+  // ---------------------------------------------------------------------
+  // Seleção múltipla (efêmera, só em state.selection — nunca em localPrefs).
+  // A saída automática por troca de filtro/visão/tela está nos setters acima
+  // (clearSelection), assim cobre qualquer caminho de navegação.
+  // ---------------------------------------------------------------------
+  function clearSelection() {
+    state.selection = { active: false, ids: new Set() };
+  }
+
+  function enterSelectionMode() {
+    state.selection = { active: true, ids: new Set(state.selection.ids) };
+    emit();
+  }
+
+  function exitSelectionMode() {
+    clearSelection();
+    emit();
+  }
+
+  // Marcar uma tarefa liga o modo; desmarcar a última o desliga (regra da fase).
+  function toggleTaskSelected(id) {
+    const ids = new Set(state.selection.ids);
+    if (ids.has(id)) ids.delete(id);
+    else ids.add(id);
+    state.selection = { active: ids.size > 0, ids };
+    emit();
+  }
+
+  // Usado pelo "selecionar todas" de um grupo: recebe só ids já visíveis
+  // (abertas do array do grupo, vindo do render — nunca lógica de filtro).
+  function setGroupSelected(ids, selected) {
+    const next = new Set(state.selection.ids);
+    ids.forEach((id) => (selected ? next.add(id) : next.delete(id)));
+    state.selection = { active: next.size > 0, ids: next };
+    emit();
+  }
+
+  // Poda ids que deixaram de estar visíveis (ex.: concluída com "mostrar
+  // concluídas" desligado, tarefa excluída por outra via). Silenciosa: quem
+  // chama (renderAll) já está dentro de um emit.
+  function pruneSelection(visibleIds) {
+    if (state.selection.ids.size === 0) return;
+    const visible = new Set(visibleIds);
+    const next = new Set([...state.selection.ids].filter((id) => visible.has(id)));
+    if (next.size === state.selection.ids.size) return;
+    state.selection = { active: next.size > 0, ids: next };
+  }
+
+  // Recarrega tarefas do servidor para reconciliar um lote que falhou no meio
+  // (uma parte pode ter sido gravada antes do erro). Mesmo mapeamento do
+  // loadInitialData; não recarrega o resto do estado.
+  async function reloadTasksFromServer() {
+    const { data, error } = await api.fetchTasks();
+    if (error) {
+      handleMutationError('Falha ao recarregar tarefas', error);
+      return;
+    }
+    state.tasks = (data || []).map(mapTaskFromRow);
+    emit();
+  }
+
+  // Concluir em lote. Normais: 1 update .in. Recorrentes: mesma regra de
+  // setTaskStatus (nextOccurrence; sem próxima = done), agrupadas pela nova
+  // data pra minimizar chamadas. task_completions: 1 insert com array.
+  // Recorrente sem dueDate é ignorada e contada (nunca nextOccurrence com null).
+  // Erro: rollback de todas as tarefas afetadas, mantém a seleção e recarrega
+  // do servidor pra reconciliar possível escrita parcial.
+  async function completeTasksBatch(ids) {
+    const today = utils.todayISO();
+    const targets = ids.map((id) => state.tasks.find((t) => t.id === id)).filter(Boolean);
+    const open = targets.filter((t) => t.status !== 'done');
+    const normal = open.filter((t) => !t.recurrence);
+    const recurring = open.filter((t) => !!t.recurrence);
+    const recurringNoDate = recurring.filter((t) => !t.dueDate);
+    const recurringOk = recurring.filter((t) => !!t.dueDate);
+
+    const advanced = [];
+    const finished = [];
+    recurringOk.forEach((t) => {
+      const next = App.recurrence.nextOccurrence(t.recurrence, t.dueDate, today);
+      if (next) advanced.push({ task: t, next });
+      else finished.push(t);
+    });
+
+    const snapshots = new Map(
+      open.map((t) => [t.id, { status: t.status, completedDate: t.completedDate, dueDate: t.dueDate }])
+    );
+    const previousSelection = state.selection;
+
+    // Otimista, uma vez.
+    [...normal, ...finished].forEach((t) => {
+      t.status = 'done';
+      t.completedDate = today;
+    });
+    advanced.forEach(({ task, next }) => {
+      task.dueDate = next;
+    });
+    state.statsLoaded = false; // lote contorna setTaskStatus: invalida aqui
+    clearSelection();
+    emit();
+
+    const doneIds = [...normal, ...finished].map((t) => t.id);
+    const byNewDate = new Map();
+    advanced.forEach(({ task, next }) => {
+      if (!byNewDate.has(next)) byNewDate.set(next, []);
+      byNewDate.get(next).push(task.id);
+    });
+    const completionRows = recurringOk.map((t) => ({
+      user_id: currentUserId,
+      task_id: t.id,
+      completed_on: today
+    }));
+
+    const writes = [];
+    if (doneIds.length) writes.push({ ids: doneIds, res: api.updateTasksStatusBatch(doneIds, 'done', today) });
+    byNewDate.forEach((groupIds, date) => {
+      writes.push({ ids: groupIds, res: api.updateTasksDueDateBatch(groupIds, date) });
+    });
+    if (completionRows.length) {
+      writes.push({ ids: null, res: api.insertTaskCompletionsBatch(completionRows) });
+    }
+
+    const results = await Promise.all(writes.map((w) => w.res));
+    const failed = results.find((r, i) => {
+      if (r.error) return true;
+      // Update com .select('id'): se RLS filtrou linhas, devolve menos ids.
+      return writes[i].ids && (r.data || []).length !== writes[i].ids.length;
+    });
+
+    if (failed) {
+      open.forEach((t) => Object.assign(t, snapshots.get(t.id)));
+      state.selection = previousSelection;
+      emit();
+      handleMutationError('Falha ao concluir tarefas em lote', failed.error || new Error('Atualização parcial'));
+      await reloadTasksFromServer();
+      return { ok: false };
+    }
+
+    return {
+      ok: true,
+      done: normal.length + finished.length,
+      advanced: advanced.length,
+      skippedDone: targets.length - open.length,
+      skippedNoDate: recurringNoDate.length
+    };
+  }
+
+  // Agendar em lote (data obrigatória, hora opcional). Recorrentes são puladas
+  // (a data é governada pela regra de repetição). Hora vazia preserva a hora
+  // de cada tarefa (due_time não é tocado). Não usa updateTask (substituição
+  // completa). Não invalida statsLoaded: agendar não muda estatística.
+  async function scheduleTasksBatch(ids, { dueDate, dueTime }) {
+    const targets = ids.map((id) => state.tasks.find((t) => t.id === id)).filter(Boolean);
+    const open = targets.filter((t) => t.status !== 'done');
+    const scheduleable = open.filter((t) => !t.recurrence);
+    const skippedRecurring = open.length - scheduleable.length;
+
+    const snapshots = new Map(scheduleable.map((t) => [t.id, { dueDate: t.dueDate, dueTime: t.dueTime }]));
+    const previousSelection = state.selection;
+
+    scheduleable.forEach((t) => {
+      t.dueDate = dueDate;
+      if (dueTime) t.dueTime = dueTime;
+    });
+    clearSelection();
+    emit();
+
+    const scheduledIds = scheduleable.map((t) => t.id);
+    if (scheduledIds.length === 0) {
+      return { ok: true, scheduled: 0, skippedRecurring, skippedDone: targets.length - open.length };
+    }
+    const res = await api.updateTasksDueDateBatch(scheduledIds, dueDate, dueTime || undefined);
+    const shortRead = !res.error && (res.data || []).length !== scheduledIds.length;
+
+    if (res.error || shortRead) {
+      scheduleable.forEach((t) => Object.assign(t, snapshots.get(t.id)));
+      state.selection = previousSelection;
+      emit();
+      handleMutationError('Falha ao agendar tarefas em lote', res.error || new Error('Atualização parcial'));
+      await reloadTasksFromServer();
+      return { ok: false };
+    }
+
+    return {
+      ok: true,
+      scheduled: scheduleable.length,
+      skippedRecurring,
+      skippedDone: targets.length - open.length
+    };
   }
 
   // "Encerrar" tira a campanha da lista padrão sem escondê-la de vez —
@@ -2385,6 +2589,13 @@
     addSubtask,
     updateTask,
     deleteTask,
+    enterSelectionMode,
+    exitSelectionMode,
+    toggleTaskSelected,
+    setGroupSelected,
+    pruneSelection,
+    completeTasksBatch,
+    scheduleTasksBatch,
     setTaskStatus,
     toggleComplete,
     importTodoistProject,

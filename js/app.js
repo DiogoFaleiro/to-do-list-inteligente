@@ -2396,8 +2396,166 @@
     render.closeTaskMenu();
   }
 
+  // ---------------------------------------------------------------------
+  // Seleção múltipla (modo seleção + lote Concluir/Agendar). O estado vive no
+  // store (state.selection, efêmero); aqui ficam só gestos e handlers da UI.
+  // ---------------------------------------------------------------------
+  const BATCH_CONFIRM_THRESHOLD = 50;
+  let suppressNextClick = false; // o click que o toque longo ainda gera: consumido aqui
+  let longPressGesture = false; // o gesto atual já virou toque longo (pan não arrasta)
+
+  // true = clique tratado pelo modo seleção (quem chama deve parar).
+  // Fora do modo, só trata "selecionar todas" (escondido por CSS nesse caso).
+  function handleSelectionClick(e) {
+    const groupCheck = e.target.closest('[data-group-ids]');
+    if (groupCheck) {
+      const ids = groupCheck.dataset.groupIds.split(',').filter(Boolean);
+      store.setGroupSelected(ids, groupCheck.dataset.groupState !== 'all');
+      return true;
+    }
+    if (suppressNextClick) {
+      suppressNextClick = false;
+      return true;
+    }
+    if (!store.getState().selection.active) return false;
+    // No modo, nenhum controle interno do card age: só o corpo alterna a seleção.
+    if (e.target.closest('.subtask-panel, .task-menu, [data-add-task-date], [data-add-task-project]')) return true;
+    const card = e.target.closest('.task-row, .board-card');
+    if (card) store.toggleTaskSelected(card.dataset.taskId);
+    return true;
+  }
+
+  // Toque longo (só touch) entra no modo e alterna a tarefa. Cancela se o dedo
+  // mover mais de 8px (o arrasto de reordenação usa 4px, então não disputam o
+  // gesto) ou se o navegador assumir a rolagem (pointercancel).
+  const LONG_PRESS_MS = 500;
+  const LONG_PRESS_MOVE_PX = 8;
+  function enableLongPressSelect(root) {
+    let timer = null;
+    let startX = 0;
+    let startY = 0;
+    const cancel = () => {
+      clearTimeout(timer);
+      timer = null;
+    };
+    root.addEventListener('pointerdown', (e) => {
+      suppressNextClick = false;
+      longPressGesture = false;
+      cancel();
+      if (e.pointerType !== 'touch') return;
+      if (e.target.closest('.task-drag-handle, .drag-handle, button, input, textarea, select, a, .subtask-panel, .task-menu, [data-group-ids]')) return;
+      const card = e.target.closest('.task-row, .board-card');
+      if (!card) return;
+      startX = e.clientX;
+      startY = e.clientY;
+      const taskId = card.dataset.taskId;
+      timer = setTimeout(() => {
+        timer = null;
+        longPressGesture = true;
+        suppressNextClick = true;
+        store.toggleTaskSelected(taskId);
+      }, LONG_PRESS_MS);
+    });
+    root.addEventListener('pointermove', (e) => {
+      if (timer && Math.hypot(e.clientX - startX, e.clientY - startY) > LONG_PRESS_MOVE_PX) cancel();
+    });
+    root.addEventListener('pointerup', cancel);
+    root.addEventListener('pointercancel', cancel);
+    // Segurar no Android/iOS abre menu de contexto; no gesto de seleção, não.
+    root.addEventListener('contextmenu', (e) => {
+      if (longPressGesture) e.preventDefault();
+    });
+  }
+  enableLongPressSelect(listView);
+  enableLongPressSelect(boardView);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !store.getState().selection.active) return;
+    if (document.querySelector('.modal-overlay:not([hidden])')) return;
+    store.exitSelectionMode();
+  });
+
+  const selectModeToggleBtn = document.getElementById('selectModeToggleBtn');
+  selectModeToggleBtn.addEventListener('click', () => {
+    if (store.getState().selection.active) store.exitSelectionMode();
+    else store.enterSelectionMode();
+  });
+
+  const selectionCompleteBtn = document.getElementById('selectionCompleteBtn');
+  const selectionScheduleBtn = document.getElementById('selectionScheduleBtn');
+  document.getElementById('selectionCancelBtn').addEventListener('click', () => store.exitSelectionMode());
+
+  async function runCompleteSelection() {
+    const ids = [...store.getState().selection.ids];
+    if (ids.length > BATCH_CONFIRM_THRESHOLD && !confirm(`Concluir ${ids.length} tarefas de uma vez?`)) return;
+    const r = await store.completeTasksBatch(ids);
+    if (!r.ok) return;
+    const parts = [`${r.done} concluída(s)`];
+    if (r.advanced) parts.push(`${r.advanced} avançada(s) para a próxima ocorrência`);
+    if (r.skippedDone) parts.push(`${r.skippedDone} já estavam concluídas`);
+    if (r.skippedNoDate) parts.push(`${r.skippedNoDate} recorrente(s) sem data ignorada(s)`);
+    render.showToast(parts.join(' · '));
+  }
+  selectionCompleteBtn.addEventListener('click', runCompleteSelection);
+
+  const batchScheduleModal = document.getElementById('batchScheduleModal');
+  const batchScheduleDate = document.getElementById('batchScheduleDate');
+  const batchScheduleTime = document.getElementById('batchScheduleTime');
+  const batchSchedulePreview = document.getElementById('batchSchedulePreview');
+  const batchScheduleConfirmBtn = document.getElementById('batchScheduleConfirmBtn');
+
+  // Prévia antes de aplicar: recorrentes e já concluídas são contadas aqui,
+  // para a decisão de pular ficar visível antes de confirmar.
+  function openBatchScheduleModal() {
+    const state = store.getState();
+    const tasks = [...state.selection.ids].map((id) => state.tasks.find((t) => t.id === id)).filter(Boolean);
+    const open = tasks.filter((t) => t.status !== 'done');
+    const recurring = open.filter((t) => t.recurrence).length;
+    const schedulable = open.length - recurring;
+    const doneCount = tasks.length - open.length;
+    const parts = [`${schedulable} serão agendada(s)`];
+    if (recurring) parts.push(`${recurring} recorrente(s) serão ignorada(s) (a data é definida pela repetição)`);
+    if (doneCount) parts.push(`${doneCount} já concluída(s) serão ignorada(s)`);
+    batchSchedulePreview.textContent = parts.join(' · ');
+    batchScheduleDate.value = utils.todayISO();
+    batchScheduleTime.value = '';
+    batchScheduleConfirmBtn.disabled = schedulable === 0;
+    batchScheduleModal.hidden = false;
+  }
+
+  async function runScheduleSelection() {
+    if (!batchScheduleDate.value) {
+      batchScheduleDate.focus();
+      return;
+    }
+    const ids = [...store.getState().selection.ids];
+    if (ids.length > BATCH_CONFIRM_THRESHOLD && !confirm(`Agendar ${ids.length} tarefas selecionadas?`)) return;
+    batchScheduleConfirmBtn.disabled = true;
+    const r = await store.scheduleTasksBatch(ids, {
+      dueDate: batchScheduleDate.value,
+      dueTime: batchScheduleTime.value || null
+    });
+    batchScheduleConfirmBtn.disabled = false;
+    if (!r.ok) return; // modal fica aberto pra retentar; seleção foi restaurada
+    batchScheduleModal.hidden = true;
+    const parts = [`${r.scheduled} agendada(s)`];
+    if (r.skippedRecurring) parts.push(`${r.skippedRecurring} recorrente(s) ignorada(s)`);
+    if (r.skippedDone) parts.push(`${r.skippedDone} concluída(s) ignorada(s)`);
+    render.showToast(parts.join(' · '));
+  }
+
+  selectionScheduleBtn.addEventListener('click', openBatchScheduleModal);
+  batchScheduleConfirmBtn.addEventListener('click', runScheduleSelection);
+  document.getElementById('batchScheduleCancelBtn').addEventListener('click', () => {
+    batchScheduleModal.hidden = true;
+  });
+  batchScheduleModal.addEventListener('click', (e) => {
+    if (e.target === batchScheduleModal) batchScheduleModal.hidden = true;
+  });
+
   // Lista: concluir, editar, excluir, expandir/adicionar subtarefas
   listView.addEventListener('click', (e) => {
+    if (handleSelectionClick(e)) return;
     if (handleTaskMenuClick(e)) return;
     const expandBtn = e.target.closest('[data-toggle-subtasks]');
     if (expandBtn) {
@@ -2431,6 +2589,7 @@
   // Painel: concluir, editar, excluir, expandir/adicionar subtarefas
   // (colunas por projeto, geradas dinamicamente)
   boardView.addEventListener('click', (e) => {
+    if (handleSelectionClick(e)) return;
     if (handleTaskMenuClick(e)) return;
     const expandBtn = e.target.closest('[data-toggle-subtasks]');
     if (expandBtn) {
@@ -2488,9 +2647,9 @@
     let startScrollLeft = 0;
 
     el.addEventListener('pointerdown', (e) => {
-      // Segurar a alça de reordenar uma coluna (enableReorderDrag, mesmo
-      // elemento) não deve TAMBÉM disparar o pan-scroll do painel inteiro.
-      if (e.target.closest('.drag-handle')) return;
+      // Segurar a alça de reordenar (coluna ou card: .drag-handle e
+      // .task-drag-handle) não deve TAMBÉM disparar o pan-scroll do painel.
+      if (e.target.closest('.drag-handle, .task-drag-handle')) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       isPointerDown = true;
       dragged = false;
@@ -2499,7 +2658,8 @@
     });
 
     el.addEventListener('pointermove', (e) => {
-      if (!isPointerDown) return;
+      // Depois de um toque longo (seleção) no mesmo gesto, o painel não arrasta.
+      if (!isPointerDown || longPressGesture) return;
       const delta = e.clientX - startX;
       if (dragged || Math.abs(delta) > 4) {
         dragged = true;
@@ -2660,6 +2820,8 @@
     const dropAfterClass = isY ? 'drop-below' : 'drop-right';
 
     container.addEventListener('pointerdown', (e) => {
+      // No modo seleção a reordenação fica desligada (alça oculta; evita conflito).
+      if (store.getState().selection.active) return;
       const handle = e.target.closest(handleSelector);
       if (!handle) return;
       draggedEl = handle.closest(rowSelector);

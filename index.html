@@ -173,6 +173,7 @@
             <button data-view="list" class="active">☰ Lista</button>
             <button data-view="board">▤ Painel</button>
           </div>
+          <button id="selectModeToggleBtn" class="btn-secondary toggle-btn" type="button">☑ Selecionar</button>
           <button id="newTaskBtn" class="btn-primary">+ Nova tarefa</button>
         </div>
       </header>
@@ -509,6 +510,37 @@
       </div>
     </div>
   </div>
+
+  <!-- Barra de ações da seleção múltipla (rodapé; visível só com seleção ativa) -->
+  <div id="selectionBar" class="selection-bar" hidden>
+    <span id="selectionCount" class="selection-count">0 selecionadas</span>
+    <div class="selection-actions">
+      <button type="button" id="selectionCompleteBtn" class="btn-primary">Concluir</button>
+      <button type="button" id="selectionScheduleBtn" class="btn-secondary">Agendar</button>
+      <button type="button" id="selectionCancelBtn" class="btn-secondary">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Modal de agendamento em lote (data obrigatória, hora opcional) -->
+  <div id="batchScheduleModal" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>Agendar tarefas selecionadas</h2>
+      <label>Data
+        <input type="date" id="batchScheduleDate" required>
+      </label>
+      <label>Horário (opcional — sem horário, cada tarefa mantém o seu)
+        <input type="time" id="batchScheduleTime">
+      </label>
+      <p id="batchSchedulePreview" class="batch-schedule-preview"></p>
+      <div class="modal-actions">
+        <button type="button" id="batchScheduleCancelBtn" class="btn-secondary">Cancelar</button>
+        <button type="button" id="batchScheduleConfirmBtn" class="btn-primary">Agendar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast de resultado de lote -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <!-- Modal de criação de campanha (com import de clientes via xlsx) -->
   <div id="campaignCreateModal" class="modal-overlay" hidden>
