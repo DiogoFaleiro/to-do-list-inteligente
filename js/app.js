@@ -2381,12 +2381,17 @@
     const id = dateInput.dataset.menuDate;
     const task = store.getState().tasks.find((t) => t.id === id);
     if (!task) return;
+    // updateTask é substituição completa (campos ausentes viram null):
+    // passa sessão, horário e recorrência atuais, senão trocar a data pelo
+    // menu ⋯ apagaria esses campos.
     store.updateTask(id, {
       title: task.title,
       projectId: task.projectId,
-      recurring: task.recurring,
-      description: task.description,
-      dueDate: dateInput.value || null
+      sessionId: task.sessionId,
+      dueDate: dateInput.value || null,
+      dueTime: task.dueTime,
+      recurrence: task.recurrence,
+      description: task.description
     });
     render.closeTaskMenu();
   }
